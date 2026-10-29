@@ -3,7 +3,9 @@ import { Pool } from "pg";
 
 const databaseUrl = process.env.DATABASE_URL;
 
-if (!databaseUrl) {
+// No "next build" (ex: no Coolify) a base de dados ainda não está disponível: as páginas são
+// dinâmicas e só ligam quando correm. Fora do build, a variável é obrigatória.
+if (!databaseUrl && process.env.NEXT_PHASE !== "phase-production-build") {
   throw new Error("DATABASE_URL is required");
 }
 

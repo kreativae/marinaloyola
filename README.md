@@ -21,6 +21,27 @@ npm run dev            # http://localhost:3000
 
 Contas de exemplo: admin `marina@marinaloyola.com` / `marina123`, aluna `sofia@email.com` / `aluno123`.
 
+## Publicar no servidor (Coolify)
+
+1. **Base de dados:** crie um recurso PostgreSQL no Coolify e copie o URL interno de ligação.
+2. **Aplicação:** novo recurso a partir do repositório GitHub (branch `main`). O Coolify detecta o Next.js
+   sozinho (`npm run build` / `npm run start`, porta `3000`).
+3. **Variáveis de ambiente** (ver a tabela abaixo). No mínimo: `DATABASE_URL`, `AUTH_SECRET`
+   (`openssl rand -hex 32`), `APP_URL` (ex: `https://marinaloyola.com`) e `TZ=Europe/Lisbon`.
+4. **Armazenamento persistente:** monte um volume em `/app/uploads`. É lá que ficam os anexos dos cursos e
+   os comprovativos; sem volume, perdem-se a cada novo deploy.
+5. **Comando pós-deploy:** `npm run db:push` — cria ou actualiza as tabelas sempre que o schema muda.
+6. **Primeira conta de administradora** (uma vez, no terminal do contentor):
+
+   ```bash
+   npm run db:admin -- marina@marinaloyola.com "Marina Loyola" "uma-palavra-passe-forte"
+   ```
+
+   Não corra `npm run db:seed` em produção: apaga todos os dados e cria contas de exemplo com
+   palavras-passe conhecidas.
+
+O build não precisa da base de dados; só a aplicação em execução se liga a ela.
+
 ## Variáveis de ambiente
 
 | Variável | Uso |
@@ -32,6 +53,8 @@ Contas de exemplo: admin `marina@marinaloyola.com` / `marina123`, aluna `sofia@e
 | `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE` | Opcional: credenciais da Evolution API (também configuráveis em Admin → WhatsApp) |
 | `APP_URL` | URL pública da plataforma, usada no webhook da Evolution |
 | `HOTMART_HOTTOK` | Hottok do webhook Hotmart; quando definido, pedidos sem ele são rejeitados |
+| `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET` | Opcional: Zoom Server-to-Server OAuth (também em Configurações → Zoom) |
+| `TZ` | `Europe/Lisbon` — fuso do servidor (os scripts npm já o definem) |
 
 ## Notas
 

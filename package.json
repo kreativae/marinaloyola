@@ -9,10 +9,12 @@
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "db:seed": "TZ=Europe/Lisbon tsx src/db/seed.ts",
-    "db:setup": "npm run db:push && npm run db:seed"
+    "db:setup": "npm run db:push && npm run db:seed",
+    "db:admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
     "dotenv": "17.3.1",
+    "drizzle-kit": "0.31.10",
     "drizzle-orm": "0.45.2",
     "lucide-react": "^1.64.0",
     "next": "16.2.6",
@@ -27,7 +29,6 @@
     "@types/pg": "8.18.0",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
-    "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
     "postcss": "8.5.8",
