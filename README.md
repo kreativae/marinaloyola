@@ -30,7 +30,9 @@ Contas de exemplo: admin `marina@marinaloyola.com` / `marina123`, aluna `sofia@e
    (`openssl rand -hex 32`), `APP_URL` (ex: `https://marinaloyola.com`) e `TZ=Europe/Lisbon`.
 4. **Armazenamento persistente:** monte um volume em `/app/uploads`. É lá que ficam os anexos dos cursos e
    os comprovativos; sem volume, perdem-se a cada novo deploy.
-5. **Comando pós-deploy:** `npm run db:push` — cria ou actualiza as tabelas sempre que o schema muda.
+5. **Comando pós-deploy:** `npm run db:deploy` — cria ou actualiza as tabelas e, se ainda estiver vazia,
+   a estrutura base (fases do pipeline, tipos de sessão, horário semanal, canais e links da bio).
+   Não apaga nem duplica nada, por isso corre em todos os deploys.
 6. **Primeira conta de administradora** (uma vez, no terminal do contentor):
 
    ```bash
