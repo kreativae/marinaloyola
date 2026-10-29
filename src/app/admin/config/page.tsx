@@ -1,0 +1,444 @@
+import Link from "next/link";
+import {
+  CalendarDays,
+  CalendarSync,
+  ChevronRight,
+  CreditCard,
+  ExternalLink,
+  Mail,
+  MessageCircle,
+  Settings2,
+  Tag,
+  Users,
+  Video,
+  type LucideIcon,
+} from "lucide-react";
+import { asc, count, desc, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { channels, contacts, payments, tags, users } from "@/db/schema";
+import { PageHeader, Panel } from "@/components/admin-ui";
+import { CopyButton } from "@/components/admin-client";
+import { RegenerateFeedButton, ServiceForm } from "@/components/config-client";
+import { ChannelManager } from "@/components/contacts-client";
+import { getEvolutionConfig, webhookUrl } from "@/lib/evolution";
+import { SERVICES, getService, type ServiceId } from "@/lib/services-def";
+import { serviceFormState, serviceStatuses, type ServiceStatus } from "@/lib/services";
+import { appUrl, getToken, readRaw } from "@/lib/settings";
+import { cn, fmtDate, fmtDateTime } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
+
+const ICONS: Record<ServiceId, LucideIcon> = {
+  geral: Settings2,
+  email: Mail,
+  whatsapp: MessageCircle,
+  zoom: Video,
+  calendar: CalendarSync,
+  hotmart: CreditCard,
+  agendamento: CalendarDays,
+};
+
+const TONE: Record<ServiceStatus["tone"], string> = {
+  ok: "bg-emerald-500",
+  partial: "bg-amber-500",
+  off: "bg-zinc-300",
+};
+
+const ROLES: Record<string, { label: string; className: string }> = {
+  admin: { label: "Super Admin", className: "bg-plum/20 text-plum border-plum/40" },
+  staff: { label: "Equipa", className: "bg-sky-500/10 text-sky-700 border-sky-500/30" },
+  student: { label: "Aluna", className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30" },
+};
+
+export default async function ConfigPage({ searchParams }: { searchParams: Promise<{ s?: string }> }) {
+  const { s } = await searchParams;
+  const tab = s === "equipa" ? "equipa" : (getService(s ?? "")?.id ?? "geral");
+  const statuses = await serviceStatuses();
+
+  return (
+    <>
+      <PageHeader
+        title="Configurações"
+        subtitle="Cada serviço da plataforma: credenciais, comportamento e teste de ligação."
+      />
+
+      <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <nav className="card h-fit p-2 lg:sticky lg:top-6" aria-label="Serviços">
+          {SERVICES.map((svc) => {
+            const Icon = ICONS[svc.id];
+            const st = statuses[svc.id];
+            const active = tab === svc.id;
+            return (
+              <Link
+                key={svc.id}
+                href={`/admin/config?s=${svc.id}`}
+                scroll={false}
+                className={cn(
+                  "group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors",
+                  active ? "bg-plum/[0.08]" : "hover:bg-zinc-50"
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+                    active ? "bg-plum text-white" : "bg-zinc-100 text-zinc-500 group-hover:text-plum"
+                  )}
+                >
+                  <Icon size={16} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className={cn("block truncate text-sm font-semibold", active ? "text-plum" : "text-zinc-900")}>
+                    {svc.name}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+                    <span className={cn("h-1.5 w-1.5 rounded-full", TONE[st.tone])} />
+                    {st.label}
+                  </span>
+                </span>
+                <ChevronRight size={14} className={cn("shrink-0 transition-transform", active ? "text-plum" : "text-zinc-300 group-hover:translate-x-0.5")} />
+              </Link>
+            );
+          })}
+          <div className="mx-3 my-2 border-t border-zinc-200" />
+          <Link
+            href="/admin/config?s=equipa"
+            scroll={false}
+            className={cn(
+              "group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors",
+              tab === "equipa" ? "bg-plum/[0.08]" : "hover:bg-zinc-50"
+            )}
+          >
+            <span
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                tab === "equipa" ? "bg-plum text-white" : "bg-zinc-100 text-zinc-500 group-hover:text-plum"
+              )}
+            >
+              <Users size={16} />
+            </span>
+            <span className={cn("flex-1 text-sm font-semibold", tab === "equipa" ? "text-plum" : "text-zinc-900")}>
+              Equipa, tags & canais
+            </span>
+          </Link>
+        </nav>
+
+        {/* key: cada separador entra com a animação de página */}
+        <div key={tab} className="min-w-0 animate-page-in">
+          {tab === "equipa" ? <TeamTab /> : <ServiceTab id={tab} status={statuses[tab]} />}
+        </div>
+      </div>
+    </>
+  );
+}
+
+async function ServiceTab({ id, status }: { id: ServiceId; status: ServiceStatus }) {
+  const service = getService(id)!;
+  const Icon = ICONS[id];
+  const { values, secrets } = await serviceFormState(id);
+
+  return (
+    <div className="space-y-6">
+      <div className="card p-6">
+        <div className="mb-6 flex flex-wrap items-start gap-4">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-plum/10 text-plum">
+            <Icon size={20} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="font-display text-2xl text-zinc-950">{service.name}</h2>
+              <span
+                className={cn(
+                  "chip",
+                  status.tone === "ok"
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
+                    : status.tone === "partial"
+                      ? "border-amber-500/30 bg-amber-500/10 text-amber-700"
+                      : "border-zinc-200 bg-zinc-100 text-zinc-500"
+                )}
+              >
+                {status.label}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-zinc-500">{service.summary}</p>
+          </div>
+        </div>
+        <ServiceForm service={service} values={values} secrets={secrets} />
+      </div>
+      <ServiceExtras id={id} />
+    </div>
+  );
+}
+
+function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+      <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function UrlBox({ url, extra }: { url: string; extra?: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <code className="min-w-0 flex-1 truncate rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-700">
+        {url}
+      </code>
+      <CopyButton text={url} label="Copiar" />
+      {extra}
+    </div>
+  );
+}
+
+function Steps({ items }: { items: React.ReactNode[] }) {
+  return (
+    <ol className="list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-zinc-600 marker:font-semibold marker:text-plum">
+      {items.map((it, i) => (
+        <li key={i}>{it}</li>
+      ))}
+    </ol>
+  );
+}
+
+async function ServiceExtras({ id }: { id: ServiceId }) {
+  const base = await appUrl();
+  const localNote = /localhost|127\.0\.0\.1/.test(base) && (
+    <p className="mt-3 text-xs text-amber-700">
+      O URL público ainda é {base}: serviços externos não o conseguem alcançar. Defina-o em Geral & marca.
+    </p>
+  );
+
+  if (id === "whatsapp") {
+    const evo = await getEvolutionConfig();
+    return (
+      <Panel title="Ligação">
+        <div className="space-y-4">
+          <InfoRow label="Webhook (configurado automaticamente ao ligar)">
+            <UrlBox url={webhookUrl(evo)} />
+            {localNote}
+          </InfoRow>
+          <Steps
+            items={[
+              "Preencha o URL e a API key do servidor Evolution e guarde.",
+              "Use “Testar ligação” para confirmar que o servidor responde.",
+              <>
+                Abra a página{" "}
+                <Link href="/admin/whatsapp" className="font-semibold text-plum hover:underline">
+                  WhatsApp
+                </Link>{" "}
+                e leia o QR code com o telemóvel (Aparelhos ligados).
+              </>,
+            ]}
+          />
+        </div>
+      </Panel>
+    );
+  }
+
+  if (id === "hotmart") {
+    const [raw, [{ n }]] = await Promise.all([
+      readRaw(["hotmart_last_event"]),
+      db.select({ n: count() }).from(payments).where(eq(payments.method, "hotmart")),
+    ]);
+    let last: { at: string; event: string; product: string; email: string } | null = null;
+    try {
+      last = raw.hotmart_last_event ? JSON.parse(raw.hotmart_last_event) : null;
+    } catch {
+      last = null;
+    }
+    return (
+      <Panel title="Webhook">
+        <div className="space-y-4">
+          <InfoRow label="URL do webhook">
+            <UrlBox url={`${base}/api/webhooks/hotmart`} />
+            {localNote}
+          </InfoRow>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <InfoRow label="Último evento recebido">
+              {last ? (
+                <p className="text-sm text-zinc-700">
+                  <span className="font-semibold">{last.event}</span> · {last.product}
+                  <span className="block text-xs text-zinc-500">
+                    {last.email} · {fmtDateTime(new Date(last.at))}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-sm text-zinc-500">Nenhum evento recebido ainda.</p>
+              )}
+            </InfoRow>
+            <InfoRow label="Pagamentos Hotmart registados">
+              <p className="text-2xl font-bold tabular-nums text-zinc-950">{n}</p>
+            </InfoRow>
+          </div>
+          <Steps
+            items={[
+              "Hotmart → Ferramentas → Webhooks → Cadastrar webhook.",
+              "Cole o URL acima e escolha a versão 2.0.0.",
+              "Marque os eventos de compra (aprovada, completa, cancelada, reembolsada, atrasada, chargeback).",
+              "Copie o Hottok mostrado pela Hotmart para o campo acima e guarde.",
+            ]}
+          />
+        </div>
+      </Panel>
+    );
+  }
+
+  if (id === "calendar") {
+    const token = await getToken("calendar_feed_token");
+    const feed = `${base}/api/calendar/${token}.ics`;
+    return (
+      <Panel title="Os seus agendamentos no Google Calendar">
+        <div className="space-y-4">
+          <InfoRow label="Endereço do calendário (privado)">
+            <UrlBox url={feed} extra={<RegenerateFeedButton />} />
+            {localNote}
+          </InfoRow>
+          <Steps
+            items={[
+              "Google Calendar → Outros calendários → + → A partir do URL.",
+              "Cole o endereço acima. Os agendamentos aparecem e são actualizados automaticamente (o Google actualiza a cada poucas horas).",
+              "Para o sentido inverso, cole acima o endereço secreto iCal do seu calendário: os eventos ocupados bloqueiam os horários na página de marcação.",
+            ]}
+          />
+          <p className="text-xs text-zinc-500">
+            Não partilhe este endereço: quem o tiver vê os nomes e contactos das marcações.
+          </p>
+        </div>
+      </Panel>
+    );
+  }
+
+  if (id === "zoom") {
+    return (
+      <Panel title="Criar a app no Zoom">
+        <Steps
+          items={[
+            <>
+              Entre em{" "}
+              <a href="https://marketplace.zoom.us/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-plum hover:underline">
+                marketplace.zoom.us <ExternalLink size={11} />
+              </a>{" "}
+              → Develop → Build App → Server-to-Server OAuth.
+            </>,
+            "Em Scopes, adicione meeting:write:meeting:admin e user:read:user:admin.",
+            "Active a app e copie Account ID, Client ID e Client secret para os campos acima.",
+            "Escolha o modo “Criar uma reunião Zoom por agendamento” e use “Testar credenciais”.",
+          ]}
+        />
+      </Panel>
+    );
+  }
+
+  if (id === "email") {
+    return (
+      <Panel title="Ligar o Resend">
+        <Steps
+          items={[
+            "Crie uma conta em resend.com e adicione o domínio marinaloyola.com (registos DNS SPF e DKIM).",
+            "Crie uma API key com permissão de envio e cole-a acima.",
+            "O remetente tem de usar o domínio verificado, ex: Marina Loyola <ola@marinaloyola.com>.",
+            "Use “Enviar email de teste”: chega ao email que recebe os avisos.",
+          ]}
+        />
+      </Panel>
+    );
+  }
+
+  if (id === "agendamento") {
+    return (
+      <Panel title="Horários e tipos de sessão">
+        <p className="text-sm leading-relaxed text-zinc-600">
+          A disponibilidade semanal e os tipos de sessão (nome, duração) gerem-se na{" "}
+          <Link href="/admin/agenda" className="font-semibold text-plum hover:underline">
+            Agenda
+          </Link>
+          . As regras acima aplicam-se a todos os tipos de sessão.
+        </p>
+      </Panel>
+    );
+  }
+
+  return null;
+}
+
+async function TeamTab() {
+  const [allTags, allUsers, channelRows] = await Promise.all([
+    db.select().from(tags).orderBy(asc(tags.name)),
+    db.select().from(users).orderBy(desc(users.createdAt)).limit(30),
+    db
+      .select({ id: channels.id, name: channels.name, color: channels.color, count: count(contacts.id) })
+      .from(channels)
+      .leftJoin(contacts, eq(contacts.channelId, channels.id))
+      .groupBy(channels.id)
+      .orderBy(asc(channels.name)),
+  ]);
+  return (
+    <div className="space-y-6">
+      <div id="canais" className="scroll-mt-6">
+        <Panel title={`Canais de origem (${channelRows.length})`}>
+          <p className="mb-4 text-xs leading-relaxed text-zinc-500">
+            Redes e grupos de onde vêm os contactos — BNI, CNN, BNEX, eventos, parceiros… Escolhem-se no formulário
+            do contacto e aparecem nos filtros e no resumo dos Contactos.
+          </p>
+          <ChannelManager channels={channelRows} />
+        </Panel>
+      </div>
+
+      <Panel title={`Utilizadores da plataforma (${allUsers.length})`}>
+        <div className="table-shell">
+          <table className="w-full">
+            <thead className="border-b border-zinc-200 bg-zinc-50">
+              <tr>
+                <th className="admin-th">Nome</th>
+                <th className="admin-th">Email</th>
+                <th className="admin-th">Perfil</th>
+                <th className="admin-th hidden md:table-cell">Desde</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {allUsers.map((u) => {
+                const r = ROLES[u.role];
+                return (
+                  <tr key={u.id} className="transition-colors hover:bg-zinc-50">
+                    <td className="admin-td font-semibold text-zinc-950">{u.name}</td>
+                    <td className="admin-td text-zinc-500">{u.email}</td>
+                    <td className="admin-td">
+                      <span className={`chip ${r?.className ?? ""}`}>
+                        <Users size={11} /> {r?.label ?? u.role}
+                      </span>
+                    </td>
+                    <td className="admin-td hidden text-xs text-zinc-500 md:table-cell">{fmtDate(u.createdAt)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-4 text-[11px] leading-relaxed text-zinc-500">
+          Contas de alunas são criadas automaticamente ao dar acesso a um curso (ou por compra via Hotmart).
+        </p>
+      </Panel>
+
+      <Panel title={`Tags de segmentação (${allTags.length})`}>
+        <div className="flex flex-wrap gap-2">
+          {allTags.map((t) => (
+            <Link
+              key={t.id}
+              href={`/admin/contactos?tag=${t.id}`}
+              className="chip transition-opacity hover:opacity-75"
+              style={{ borderColor: `${t.color}66`, backgroundColor: `${t.color}14` }}
+            >
+              <Tag size={11} style={{ color: t.color }} />
+              <span className="text-zinc-800">{t.name}</span>
+            </Link>
+          ))}
+          {allTags.length === 0 && <p className="text-sm text-zinc-500">Sem tags criadas.</p>}
+        </div>
+        <p className="mt-4 text-[11px] leading-relaxed text-zinc-500">
+          As tags são criadas pelas integrações (Hotmart, WhatsApp, agendamentos) e nas acções em massa dos
+          Contactos. Clique numa tag para ver os contactos.
+        </p>
+      </Panel>
+    </div>
+  );
+}

@@ -1,0 +1,9 @@
+node_modules
+.next
+.env
+.emails
+next-env.d.ts
+*.tsbuildinfo
+.DS_Store
+uploads
+.claude

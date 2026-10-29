@@ -1,0 +1,219 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: var(--font-fraunces), "Georgia", serif;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+
+  --color-plum: #800080;
+  --color-plum-bright: #a855f7;
+  --color-plum-soft: #c084fc;
+  --color-plum-ink: #5c005c;
+  --color-plum-deep: #3b0764;
+  --color-ink: #18181b;
+
+  --animate-marquee: marquee 42s linear infinite;
+  --animate-pulse-ring: pulse-ring 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  --animate-fade-in: fade-in 0.5s ease both;
+  /* "backwards": terminada a animação não fica transform, que quebraria position:fixed */
+  --animate-page-in: page-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  --animate-dialog-in: dialog-in 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+
+  @keyframes marquee {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  @keyframes pulse-ring {
+    0% {
+      box-shadow: 0 0 0 0 rgba(128, 0, 128, 0.45);
+    }
+    100% {
+      box-shadow: 0 0 0 18px rgba(128, 0, 128, 0);
+    }
+  }
+  @keyframes page-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 150% 0;
+    }
+    to {
+      background-position: -50% 0;
+    }
+  }
+  @keyframes backdrop-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes drawer-in {
+    from {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.98);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+::selection {
+  background: #800080;
+  color: #fff;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: light;
+}
+
+/* Modais (dialog nativo) */
+dialog[open] {
+  animation: var(--animate-dialog-in);
+}
+dialog.drawer[open] {
+  animation: drawer-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+dialog[open]::backdrop {
+  animation: backdrop-in 0.24s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #fafafa;
+}
+::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #800080;
+}
+
+/* ---------------------------- COMPONENTES ------------------------------- */
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-plum px-7 py-3.5 text-sm font-semibold tracking-wide text-white transition-all duration-300 hover:bg-plum-ink hover:shadow-[0_10px_30px_-10px_rgba(128,0,128,0.55)];
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-zinc-300 bg-white px-7 py-3.5 text-sm font-semibold tracking-wide text-zinc-900 transition-all duration-300 hover:border-plum hover:text-plum;
+  }
+  .btn-dark {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-zinc-900 px-7 py-3.5 text-sm font-semibold tracking-wide text-white transition-all duration-300 hover:bg-plum;
+  }
+  .btn-light {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-zinc-300 px-7 py-3.5 text-sm font-semibold tracking-wide text-zinc-950 transition-all duration-300 hover:border-zinc-950;
+  }
+  .kicker {
+    @apply text-[11px] font-bold uppercase tracking-[0.32em] text-plum;
+  }
+  .kicker-dark {
+    @apply text-[11px] font-bold uppercase tracking-[0.32em] text-plum;
+  }
+  .field {
+    @apply w-full rounded-lg border border-zinc-200 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none transition-colors focus:border-plum focus:ring-2 focus:ring-plum/15;
+  }
+  .field-light {
+    @apply w-full rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none transition-colors focus:border-plum focus:ring-2 focus:ring-plum/15;
+  }
+  .card {
+    @apply rounded-2xl border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(24,24,27,0.04)];
+  }
+  .skeleton {
+    @apply rounded-lg bg-zinc-200/70;
+    background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider;
+  }
+  .admin-th {
+    @apply px-4 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-zinc-500 bg-zinc-50;
+  }
+  .admin-td {
+    @apply px-4 py-3.5 text-sm text-zinc-700;
+  }
+  .nav-link {
+    @apply relative text-[13px] font-semibold uppercase tracking-[0.18em] text-zinc-500 transition-colors hover:text-zinc-950;
+  }
+  .nav-link-active {
+    @apply text-zinc-950 after:absolute after:-bottom-2 after:left-0 after:h-px after:w-full after:bg-plum;
+  }
+  .table-shell {
+    @apply w-full overflow-x-auto rounded-2xl border border-zinc-200 bg-white;
+  }
+}
+
+/* ----------------------------- ANIMAÇÕES -------------------------------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.text-outline {
+  -webkit-text-stroke: 1px rgba(24, 24, 27, 0.18);
+  color: transparent;
+}
+
+.glow-plum {
+  background: radial-gradient(ellipse at center, rgba(128, 0, 128, 0.12) 0%, transparent 65%);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+  }
+}
