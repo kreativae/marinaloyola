@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, max } from "drizzle-orm";
+import { eq, max, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   appointments,
@@ -50,19 +50,6 @@ export async function moveDeal(dealId: number, stageId: number) {
   refresh("/admin/pipeline", "/admin", "/admin/crm");
 }
 
-export async function createDeal(formData: FormData) {
-  await requireAdmin();
-  const contactId = Number(formData.get("contactId"));
-  const stageId = Number(formData.get("stageId"));
-  const title = String(formData.get("title") ?? "").trim();
-  const product = String(formData.get("product") ?? "Mentoria");
-  const value = String(Number(formData.get("value") ?? 0).toFixed(2));
-  if (!contactId || !stageId || !title) return;
-  await db.insert(deals).values({ contactId, stageId, title, product, value });
-  await addInteraction(contactId, "system", `Negócio criado no pipeline: "${title}" (${product}).`);
-  redirect("/admin/pipeline");
-}
-
 /* --------------------------------- CRM ---------------------------------- */
 
 export async function setContactStatus(contactId: number, status: string) {
@@ -104,37 +91,16 @@ export async function createContact(formData: FormData) {
 
 /* ------------------------------ PAGAMENTOS ------------------------------ */
 
-export async function addPayment(formData: FormData) {
-  await requireAdmin();
-  const contactId = Number(formData.get("contactId"));
-  const product = String(formData.get("product") ?? "").trim();
-  const amount = String(Number(formData.get("amount") ?? 0).toFixed(2));
-  const methodRaw = String(formData.get("method") ?? "transfer");
-  const method = (["hotmart", "mbway", "transfer", "other"].includes(methodRaw)
-    ? methodRaw
-    : "transfer") as "hotmart" | "mbway" | "transfer" | "other";
-  const statusRaw = String(formData.get("status") ?? "pending");
-  const status = (PAYMENT_STATUSES as readonly string[]).includes(statusRaw)
-    ? (statusRaw as (typeof PAYMENT_STATUSES)[number])
-    : "pending";
-  const reference = String(formData.get("reference") ?? "").trim() || null;
-  if (!contactId || !product) return;
-  await db.insert(payments).values({ contactId, product, amount, method, status, reference });
-  await addInteraction(
-    contactId,
-    "purchase",
-    `Pagamento registado: ${product} — ${eur(amount)} via ${method} (${status}).`
-  );
-  await tagContact(contactId, `Comprador ${product}`, "#a855f7");
-  refresh("/admin/financeiro", "/admin", `/admin/crm/${contactId}`);
-}
-
 export async function setPaymentStatus(id: number, status: string) {
   await requireAdmin();
   if (!(PAYMENT_STATUSES as readonly string[]).includes(status)) return;
   const [p] = await db
     .update(payments)
-    .set({ status: status as (typeof PAYMENT_STATUSES)[number] })
+    .set({
+      status: status as (typeof PAYMENT_STATUSES)[number],
+      // Recebido agora (se ainda não tinha data); deixa de contar se voltar a pendente/cancelado
+      paidAt: status === "confirmed" || status === "completed" ? sql`coalesce(${payments.paidAt}, now())` : null,
+    })
     .where(eq(payments.id, id))
     .returning();
   if (p) {
@@ -165,15 +131,44 @@ export async function createEventType(formData: FormData) {
   refresh("/admin/agenda");
 }
 
-export async function updateAvailability(formData: FormData) {
+export async function toggleEventType(id: number) {
   await requireAdmin();
-  const id = Number(formData.get("id"));
-  const startTime = String(formData.get("startTime") ?? "09:00");
-  const endTime = String(formData.get("endTime") ?? "18:00");
-  const active = formData.get("active") === "on";
-  if (!id) return;
-  await db.update(availability).set({ startTime, endTime, active }).where(eq(availability.id, id));
-  refresh("/admin/agenda");
+  const [t] = await db.select().from(eventTypes).where(eq(eventTypes.id, id)).limit(1);
+  if (!t) return;
+  await db.update(eventTypes).set({ active: !t.active }).where(eq(eventTypes.id, id));
+  refresh("/admin/agenda", "/agendar");
+}
+
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+
+/** Horário de um dia da semana, gravado automaticamente a cada alteração. */
+export async function saveAvailability(
+  id: number,
+  data: { startTime: string; endTime: string; active: boolean; breakStart: string | null; breakEnd: string | null }
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  if (!HHMM.test(data.startTime) || !HHMM.test(data.endTime)) return { ok: false, error: "Hora inválida." };
+  if (minutes(data.endTime) <= minutes(data.startTime)) return { ok: false, error: "O fim tem de ser depois do início." };
+  let breakStart: string | null = null;
+  let breakEnd: string | null = null;
+  if (data.breakStart || data.breakEnd) {
+    if (!data.breakStart || !data.breakEnd || !HHMM.test(data.breakStart) || !HHMM.test(data.breakEnd)) {
+      return { ok: false, error: "Indique o início e o fim do intervalo." };
+    }
+    if (minutes(data.breakEnd) <= minutes(data.breakStart)) return { ok: false, error: "O intervalo tem de acabar depois de começar." };
+    if (minutes(data.breakStart) <= minutes(data.startTime) || minutes(data.breakEnd) >= minutes(data.endTime)) {
+      return { ok: false, error: "O intervalo tem de ficar dentro do horário do dia." };
+    }
+    breakStart = data.breakStart;
+    breakEnd = data.breakEnd;
+  }
+  await db
+    .update(availability)
+    .set({ startTime: data.startTime, endTime: data.endTime, active: data.active, breakStart, breakEnd })
+    .where(eq(availability.id, id));
+  refresh("/admin/agenda", "/agendar");
+  return { ok: true };
 }
 
 /* --------------------------------- LMS ---------------------------------- */
@@ -251,24 +246,6 @@ export async function completeLesson(lessonId: number) {
 }
 
 /* ------------------------------ MARKETING ------------------------------- */
-
-export async function createPost(formData: FormData) {
-  await requireAdmin();
-  const title = String(formData.get("title") ?? "").trim();
-  const publishRaw = String(formData.get("publishAt") ?? "");
-  const network = String(formData.get("network") ?? "Instagram");
-  const format = String(formData.get("format") ?? "Carrossel");
-  if (!title) return;
-  const publishAt = publishRaw ? new Date(publishRaw) : null;
-  await db.insert(posts).values({
-    title,
-    publishAt: publishAt && !Number.isNaN(publishAt.getTime()) ? publishAt : null,
-    network,
-    format,
-    status: "idea",
-  });
-  refresh("/admin/marketing");
-}
 
 export async function movePost(id: number, status: string) {
   await requireAdmin();

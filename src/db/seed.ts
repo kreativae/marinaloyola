@@ -1,11 +1,12 @@
 import "dotenv/config";
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { inferFromPhone } from "../lib/timezones";
 import { db, pool } from "./index";
 import {
   appointments,
   availability,
+  bioLinks,
   channels,
   contacts,
   contactTags,
@@ -13,6 +14,7 @@ import {
   deals,
   enrollments,
   eventTypes,
+  expenses,
   interactions,
   lessonProgress,
   lessons,
@@ -59,6 +61,8 @@ async function main() {
   await db.delete(eventTypes);
   await db.delete(availability);
   await db.delete(payments);
+  await db.delete(expenses);
+  await db.delete(bioLinks);
   await db.delete(deals);
   await db.delete(pipelineStages);
   await db.delete(interactions);
@@ -256,10 +260,66 @@ async function main() {
     { contactId: byEmail.get("rita.batalha@email.com")!.id, product: "Mentoria Design Business", amount: "900", method: "mbway", status: "completed", reference: "MBW-90122", createdAt: monthsAgo(1, 6) },
     { contactId: byEmail.get("beatriz.lemos@email.com")!.id, product: "Workshop — Marca Premium", amount: "89", method: "hotmart", status: "confirmed", createdAt: monthsAgo(1, 18) },
     { contactId: byEmail.get("mariana.coutinho@email.com")!.id, product: "Sessão Avulsa", amount: "120", method: "mbway", status: "completed", reference: "MBW-91447", createdAt: daysAgo(12) },
-    { contactId: byEmail.get("marta.saldanha@email.com")!.id, product: "Mentoria Design Business", amount: "620", method: "transfer", status: "pending", createdAt: daysAgo(3) },
-    { contactId: byEmail.get("luisa.figueiredo@email.com")!.id, product: "Workshop — Marca Premium", amount: "89", method: "mbway", status: "pending", createdAt: daysAgo(6) },
-    { contactId: byEmail.get("diana.resende@email.com")!.id, product: "Curso Identidade com Assinatura", amount: "197", method: "hotmart", status: "pending", reference: "HOT-TKN-5521", createdAt: daysAgo(1) },
-    { contactId: byEmail.get("rita.batalha@email.com")!.id, product: "Sessão Avulsa", amount: "120", method: "mbway", status: "completed", reference: "MBW-93001", createdAt: daysAgo(4) },
+    { contactId: byEmail.get("luisa.figueiredo@email.com")!.id, product: "Workshop — Marca Premium", amount: "89", method: "mbway", status: "pending", dueDate: daysAgo(4), createdAt: daysAgo(6) },
+    { contactId: byEmail.get("diana.resende@email.com")!.id, product: "Curso Identidade com Assinatura", amount: "197", method: "hotmart", status: "pending", reference: "HOT-TKN-5521", dueDate: daysFromNow(2, 12, 0), createdAt: daysAgo(1) },
+    { contactId: byEmail.get("rita.batalha@email.com")!.id, product: "Mentoria Design Business", amount: "120", method: "mbway", status: "completed", reference: "MBW-93001", createdAt: daysAgo(4) },
+  ]);
+
+  // Recebidos contam na data em que entraram
+  await db.update(payments).set({ paidAt: sql`${payments.createdAt}` }).where(sql`${payments.status} in ('confirmed','completed')`);
+
+  // Plano em 3 parcelas (mentoria da Marta): 1.ª paga, as outras com vencimento mensal
+  const plan = crypto.randomUUID();
+  const marta = byEmail.get("marta.saldanha@email.com")!.id;
+  await db.insert(payments).values(
+    [0, 1, 2].map((i) => {
+      const due = new Date(new Date().getFullYear(), new Date().getMonth() + i, 5, 12);
+      return {
+        contactId: marta,
+        product: "Mentoria Design Business",
+        amount: "620",
+        method: "transfer" as const,
+        status: i === 0 ? ("confirmed" as const) : ("pending" as const),
+        reference: i === 0 ? "TRF-2026-0288" : null,
+        paidAt: i === 0 ? due : null,
+        dueDate: i === 0 ? null : due,
+        installment: i + 1,
+        installments: 3,
+        planRef: plan,
+        createdAt: daysAgo(24),
+      };
+    })
+  );
+
+  console.log("A criar despesas...");
+  const expenseRows: [string, string, string, number, boolean, string | null][] = [
+    ["Adobe Creative Cloud", "Software & ferramentas", "59.99", 0, true, "Adobe"],
+    ["Figma Professional", "Software & ferramentas", "15", 0, true, "Figma"],
+    ["Zoom Pro", "Software & ferramentas", "13.99", 0, true, "Zoom"],
+    ["Contabilista certificado", "Contabilidade & serviços", "120", 0, true, "Gabinete Silva & Reis"],
+    ["Anúncios Instagram — lançamento workshop", "Marketing & publicidade", "180", 0, false, "Meta"],
+    ["Taxas Hotmart", "Taxas (Hotmart, banco)", "42.6", 0, false, "Hotmart"],
+  ];
+  const expenseValues = [];
+  for (let m = 0; m < 6; m++) {
+    for (const [description, category, amount, , recurring, supplier] of expenseRows) {
+      if (!recurring && m % 2 === 1) continue; // as pontuais só em alguns meses
+      expenseValues.push({ description, category, amount, recurring, supplier, date: monthsAgo(m, 3 + (description.length % 20)) });
+    }
+  }
+  expenseValues.push(
+    { description: "Segurança Social (trimestral)", category: "Impostos", amount: "345", recurring: false, supplier: null, date: monthsAgo(1, 20) },
+    { description: "Monitor calibrado BenQ", category: "Equipamento", amount: "489", recurring: false, supplier: "Worten", date: monthsAgo(3, 11) },
+    { description: "Curso de copywriting", category: "Formação", amount: "149", recurring: false, supplier: null, date: monthsAgo(2, 7) }
+  );
+  await db.insert(expenses).values(expenseValues);
+
+  console.log("A criar links da bio...");
+  await db.insert(bioLinks).values([
+    { title: "Mentoria Design Business", subtitle: "12 semanas para reposicionar a tua marca — candidaturas abertas", url: "/mentoria", image: "/img/curso-mentoria.jpg", highlight: true, order: 1 },
+    { title: "Workshop Marca Premium", subtitle: "3 dias intensivos, ao vivo e com gravações", url: "/cursos", image: "/img/curso-workshop.jpg", order: 2 },
+    { title: "Sobre a Marina", subtitle: "A minha história, método e clientes", url: "/sobre", order: 3 },
+    { title: "Fala comigo", subtitle: "Dúvidas sobre mentoria, parcerias ou imprensa", url: "/contato", order: 4 },
   ]);
 
   console.log("A criar agenda...");

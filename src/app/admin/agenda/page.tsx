@@ -1,19 +1,31 @@
 import Link from "next/link";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, List, Plus, Video } from "lucide-react";
-import { and, asc, desc, eq, gte, lt } from "drizzle-orm";
+import {
+  CalendarDays,
+  CalendarRange,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  History,
+  List,
+  Plus,
+  Settings2,
+  SlidersHorizontal,
+  UserRound,
+  Video,
+} from "lucide-react";
+import { and, asc, desc, eq, gte, lt, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { appointments, availability, eventTypes } from "@/db/schema";
-import {
-  createEventType,
-  setAppointmentStatus,
-  updateAvailability,
-} from "@/lib/actions-admin";
+import { createEventType, setAppointmentStatus, toggleEventType } from "@/lib/actions-admin";
+import { CopyToWeekdays, DayHoursRow, type DayHours } from "@/components/availability-editor";
 import { EmptyState, PageHeader, Panel } from "@/components/admin-ui";
 import { CopyButton, SelectAction } from "@/components/admin-client";
 import { MonthCalendar, WeekCalendar, type CalEvent } from "@/components/agenda-calendar";
 import { getBusy } from "@/lib/calendar";
-import { cityOf, countryOfTz, flag, fmtTime, HOME_TZ } from "@/lib/timezones";
-import { APPT_STATUS, cn, fmtDateTime, weekdayLabel } from "@/lib/utils";
+import { appUrl } from "@/lib/settings";
+import { cityOf, countryOfTz, dayIn, flag, fmtTime, HOME_TZ } from "@/lib/timezones";
+import { APPT_STATUS, cn, fmtDate, weekdayLabel } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -22,247 +34,370 @@ const APPT_OPTIONS = Object.entries(APPT_STATUS).map(([value, s]) => ({
   label: s.label,
 }));
 
+type Tab = "calendario" | "lista" | "disponibilidade";
+
 export default async function AgendaPage({
   searchParams,
 }: {
   searchParams: Promise<{ view?: string; modo?: string; m?: string; d?: string }>;
 }) {
   const sp = await searchParams;
+  const tab: Tab = sp.view === "lista" || sp.view === "disponibilidade" ? sp.view : "calendario";
   const now = new Date();
   const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const ago = new Date(now.getTime() - 30 * 86400000);
+  const weekEnd = new Date(startToday.getTime() + 7 * 86_400_000);
 
-  const [upcoming, past, types, avail] = await Promise.all([
+  const [upcoming, avail, base] = await Promise.all([
     db
       .select({ appt: appointments, eventName: eventTypes.name, color: eventTypes.color })
       .from(appointments)
       .leftJoin(eventTypes, eq(eventTypes.id, appointments.eventTypeId))
-      .where(and(gte(appointments.startAt, startToday), eq(appointments.status, "confirmed")))
+      .where(and(gte(appointments.startAt, startToday), ne(appointments.status, "cancelled")))
       .orderBy(asc(appointments.startAt))
-      .limit(40),
-    db
-      .select({ appt: appointments, eventName: eventTypes.name })
-      .from(appointments)
-      .leftJoin(eventTypes, eq(eventTypes.id, appointments.eventTypeId))
-      .where(lt(appointments.startAt, startToday))
-      .orderBy(desc(appointments.startAt))
-      .limit(8),
-    db.select().from(eventTypes).orderBy(eventTypes.id),
+      .limit(60),
     db.select().from(availability).orderBy(asc(availability.dayOfWeek)),
+    appUrl(),
   ]);
+
+  const todayKey = dayIn(now, HOME_TZ);
+  const todayList = upcoming.filter((r) => dayIn(r.appt.startAt, HOME_TZ) === todayKey);
+  const weekCount = upcoming.filter((r) => r.appt.startAt < weekEnd).length;
+  const next = upcoming.find((r) => r.appt.startAt > now && r.appt.status === "confirmed");
 
   return (
     <>
       <PageHeader
-        title="Gestor de agenda"
-        subtitle="Disponibilidade semanal, tipos de sessão e todos os agendamentos — com sala Zoom gerada automaticamente e sincronização com o Google Calendar."
+        title="Agenda"
+        subtitle="Sessões, disponibilidade e tipos de sessão num só lugar."
         actions={
-          <Link href="/agendar" target="_blank" className="btn-ghost !px-5 !py-2.5 !text-xs">
-            Ver página pública
-          </Link>
+          <>
+            <CopyButton text={`${base}/agendar`} label="Copiar link de marcação" />
+            <Link href="/agendar" target="_blank" className="btn-ghost !px-4 !py-2 !text-xs">
+              Página pública <ExternalLink size={13} />
+            </Link>
+          </>
         }
       />
 
-      <ViewTabs view={sp.view === "calendario" ? "calendario" : "lista"} />
-
-      {sp.view === "calendario" && <CalendarSection sp={sp} avail={avail} />}
-
-      <div className={cn("grid gap-6 xl:grid-cols-[1.6fr_1fr]", sp.view === "calendario" && "mt-6")}>
-        <div className="min-w-0 space-y-6">
-          <Panel title={`Próximas sessões (${upcoming.length})`}>
-            {upcoming.length === 0 ? (
-              <EmptyState text="Sem sessões futuras. Partilhe o link de agendamento." />
+      {/* Resumo */}
+      <div className="card stagger mb-6 grid divide-y divide-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <Summary label="Hoje" value={todayList.length ? sessions(todayList.length) : "Livre"} hint={todayList.length ? todayList.map((r) => fmtTime(r.appt.startAt, HOME_TZ)).join(" · ") : "Sem sessões marcadas"} />
+        <Summary label="Próximos 7 dias" value={sessions(weekCount)} hint={`${upcoming.length} no total agendadas`} />
+        <div className="flex items-center gap-4 p-5">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-zinc-400">Próxima sessão</p>
+            {next ? (
+              <>
+                <p className="mt-1.5 truncate text-[15px] font-semibold text-zinc-950">{next.appt.name}</p>
+                <p className="mt-0.5 truncate text-xs text-zinc-500">
+                  {dayLabel(next.appt.startAt, now)} · {fmtTime(next.appt.startAt, HOME_TZ)} · {untilLabel(next.appt.startAt, now)}
+                </p>
+              </>
             ) : (
-              <div className="table-shell">
-                <table className="w-full">
-                  <thead className="border-b border-zinc-200 bg-zinc-50">
-                    <tr>
-                      <th className="admin-th">Quando</th>
-                      <th className="admin-th">Convidado</th>
-                      <th className="admin-th hidden lg:table-cell">Sessão</th>
-                      <th className="admin-th hidden md:table-cell">Zoom</th>
-                      <th className="admin-th">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-100">
-                    {upcoming.map(({ appt, eventName, color }) => (
-                      <tr key={appt.id} className="transition-colors hover:bg-zinc-50">
-                        <td className="admin-td whitespace-nowrap">
-                          <span className="font-semibold text-zinc-950">{fmtDateTime(appt.startAt)}</span>
-                          <span className="block text-[11px] text-zinc-500">
-                            {new Date(appt.startAt).toLocaleTimeString("pt-PT", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                            {" — "}
-                            {new Date(appt.endAt).toLocaleTimeString("pt-PT", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                          {clientTime(appt.startAt, appt.endAt, appt.timezone) && (
-                            <span className="mt-0.5 block text-[11px] font-semibold text-sky-700">
-                              {clientTime(appt.startAt, appt.endAt, appt.timezone)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="admin-td">
-                          <p className="font-semibold text-zinc-950">{appt.name}</p>
-                          <p className="text-xs text-zinc-500">{appt.email}</p>
-                        </td>
-                        <td className="admin-td hidden lg:table-cell">
-                          <span
-                            className="chip border-zinc-200"
-                            style={{ backgroundColor: `${color ?? "#800080"}22`, color: "#3f3f46" }}
-                          >
-                            {eventName}
-                          </span>
-                        </td>
-                        <td className="admin-td hidden md:table-cell">
-                          {appt.meetingUrl && <CopyButton text={appt.meetingUrl} label="Link" />}
-                        </td>
-                        <td className="admin-td">
-                          <SelectAction
-                            value={appt.status}
-                            options={APPT_OPTIONS}
-                            onSelect={setAppointmentStatus.bind(null, appt.id)}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <p className="mt-1.5 text-sm text-zinc-500">Nenhuma sessão futura</p>
             )}
-          </Panel>
-
-          <Panel title="Histórico recente (30 dias)">
-            {past.length === 0 ? (
-              <EmptyState text="Sem sessões passadas recentes." />
-            ) : (
-              <ul className="space-y-2.5">
-                {past.map(({ appt, eventName }) => {
-                  const st = APPT_STATUS[appt.status];
-                  return (
-                    <li
-                      key={appt.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 px-4 py-2.5"
-                    >
-                      <span className="min-w-0 truncate text-sm text-zinc-500">
-                        {appt.name} · {eventName}
-                      </span>
-                      <span className="flex shrink-0 items-center gap-3">
-                        <span className="text-xs text-zinc-500">{fmtDateTime(appt.startAt)}</span>
-                        <span className={`chip ${st?.className ?? ""}`}>{st?.label}</span>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Panel>
-        </div>
-
-        <div className="min-w-0 space-y-6">
-          <Panel title="Tipos de sessão">
-            <ul className="space-y-2.5">
-              {types.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span
-                      className="h-8 w-1.5 shrink-0 rounded-full"
-                      style={{ background: t.color }}
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-zinc-950">{t.name}</p>
-                      <p className="flex items-center gap-1 text-xs text-zinc-500">
-                        <Clock size={11} /> {t.durationMin} min · <Video size={11} /> Zoom
-                      </p>
-                    </div>
-                  </div>
-                  <span
-                    className={`h-2 w-2 rounded-full ${t.active ? "bg-emerald-400" : "bg-zinc-300"}`}
-                    title={t.active ? "Ativo" : "Inativo"}
-                  />
-                </li>
-              ))}
-            </ul>
-            <form action={createEventType} className="mt-5 space-y-2.5 border-t border-zinc-200 pt-5">
-              <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-                <Plus size={12} /> Novo tipo de sessão
-              </p>
-              <input name="name" required placeholder="Nome (ex: Reunião exploratória)" className="field" />
-              <div className="flex gap-2.5">
-                <input
-                  name="durationMin"
-                  type="number"
-                  min="5"
-                  step="5"
-                  defaultValue={30}
-                  className="field w-28"
-                />
-                <input name="description" placeholder="Descrição breve" className="field flex-1" />
-              </div>
-              <button type="submit" className="btn-primary w-full !py-2.5 !text-xs">
-                Adicionar tipo
-              </button>
-            </form>
-          </Panel>
-
-          <Panel title="Disponibilidade semanal">
-            <div className="space-y-3">
-              {avail.map((a) => (
-                <form
-                  key={a.id}
-                  action={updateAvailability}
-                  className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5"
-                >
-                  <input type="hidden" name="id" value={a.id} />
-                  <span className="w-10 shrink-0 text-xs font-bold uppercase tracking-wider text-zinc-500">
-                    {weekdayLabel(a.dayOfWeek).slice(0, 3)}
-                  </span>
-                  <input
-                    type="time"
-                    name="startTime"
-                    defaultValue={a.startTime}
-                    className="field !w-[92px] !px-2 !py-1.5 !text-xs"
-                  />
-                  <span className="text-zinc-500">–</span>
-                  <input
-                    type="time"
-                    name="endTime"
-                    defaultValue={a.endTime}
-                    className="field !w-[92px] !px-2 !py-1.5 !text-xs"
-                  />
-                  <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[11px] text-zinc-500">
-                    <input
-                      type="checkbox"
-                      name="active"
-                      defaultChecked={a.active}
-                      className="h-4 w-4 rounded accent-[#800080]"
-                    />
-                    Ativo
-                  </label>
-                  <button
-                    type="submit"
-                    className="rounded-lg bg-plum/20 px-3 py-1.5 text-[11px] font-bold text-plum transition-colors hover:bg-plum/40"
-                  >
-                    Guardar
-                  </button>
-                </form>
-              ))}
-            </div>
-            <p className="mt-4 flex items-center gap-2 text-xs text-zinc-500">
-              <CalendarDays size={13} className="text-plum" />
-              Intervalo de 15 min entre sessões · fuso Europe/Lisbon
-            </p>
-          </Panel>
+          </div>
+          {next?.appt.meetingUrl && (
+            <a
+              href={next.appt.meetingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-plum text-white shadow-[0_8px_20px_-8px_rgb(128_0_128/0.7)] transition-transform hover:scale-105"
+              title="Entrar na sessão"
+            >
+              <Video size={17} />
+            </a>
+          )}
         </div>
       </div>
+
+      <Tabs tab={tab} />
+
+      <div key={tab} className="animate-[rise_0.45s_var(--ease-out-soft)_backwards]">
+        {tab === "calendario" && <CalendarSection sp={sp} avail={avail} />}
+        {tab === "lista" && <ListView rows={upcoming} now={now} />}
+        {tab === "disponibilidade" && <AvailabilityView avail={avail} />}
+      </div>
     </>
+  );
+}
+
+const sessions = (n: number) => `${n} ${n === 1 ? "sessão" : "sessões"}`;
+
+function Summary({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <div className="p-5">
+      <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-zinc-400">{label}</p>
+      <p className="mt-1.5 font-display text-2xl font-medium tracking-[-0.01em] text-zinc-950">{value}</p>
+      <p className="mt-0.5 truncate text-xs text-zinc-500">{hint}</p>
+    </div>
+  );
+}
+
+function Tabs({ tab }: { tab: Tab }) {
+  const items: { id: Tab; label: string; icon: typeof List; href: string }[] = [
+    { id: "calendario", label: "Calendário", icon: CalendarRange, href: "/admin/agenda" },
+    { id: "lista", label: "Lista", icon: List, href: "/admin/agenda?view=lista" },
+    { id: "disponibilidade", label: "Disponibilidade", icon: SlidersHorizontal, href: "/admin/agenda?view=disponibilidade" },
+  ];
+  return (
+    <div className="mb-5 inline-flex rounded-2xl border border-line bg-white p-1 shadow-[0_1px_2px_rgb(24_24_27/0.04)]">
+      {items.map((t) => (
+        <Link
+          key={t.id}
+          href={t.href}
+          scroll={false}
+          className={cn(
+            "flex items-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold transition-all duration-300",
+            tab === t.id ? "bg-plum text-white shadow-[0_6px_16px_-8px_rgb(128_0_128/0.8)]" : "text-zinc-500 hover:text-zinc-900"
+          )}
+        >
+          <t.icon size={15} />
+          <span className="hidden sm:inline">{t.label}</span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+/* --------------------------------- LISTA -------------------------------- */
+
+function dayLabel(d: Date, now: Date) {
+  const key = dayIn(d, HOME_TZ);
+  if (key === dayIn(now, HOME_TZ)) return "Hoje";
+  if (key === dayIn(new Date(now.getTime() + 86_400_000), HOME_TZ)) return "Amanhã";
+  // Montado à mão: o pt-PT junta dia e mês em "31/10" quando se pede o mês abreviado
+  const weekday = d.toLocaleDateString("pt-PT", { weekday: "long" });
+  const month = d.toLocaleDateString("pt-PT", { month: "long" });
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)}, ${d.getDate()} de ${month}`;
+}
+
+function untilLabel(d: Date, now: Date) {
+  const min = Math.round((d.getTime() - now.getTime()) / 60_000);
+  if (min < 60) return `daqui a ${Math.max(min, 1)} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `daqui a ${h} h`;
+  return `daqui a ${Math.round(h / 24)} dias`;
+}
+
+type Row = { appt: typeof appointments.$inferSelect; eventName: string | null; color: string | null };
+
+async function ListView({ rows, now }: { rows: Row[]; now: Date }) {
+  const past = await db
+    .select({ appt: appointments, eventName: eventTypes.name, color: eventTypes.color })
+    .from(appointments)
+    .leftJoin(eventTypes, eq(eventTypes.id, appointments.eventTypeId))
+    .where(and(lt(appointments.startAt, new Date(now.getFullYear(), now.getMonth(), now.getDate())), gte(appointments.startAt, new Date(now.getTime() - 30 * 86_400_000))))
+    .orderBy(desc(appointments.startAt))
+    .limit(20);
+
+  const groups = new Map<string, Row[]>();
+  for (const r of rows) {
+    const k = dayIn(r.appt.startAt, HOME_TZ);
+    groups.set(k, [...(groups.get(k) ?? []), r]);
+  }
+
+  return (
+    <div className="space-y-6">
+      {rows.length === 0 ? (
+        <Panel>
+          <EmptyState text="Sem sessões futuras. Partilhe o link de marcação." icon={<CalendarDays size={18} />} />
+        </Panel>
+      ) : (
+        <div className="space-y-6">
+          {[...groups.entries()].map(([k, list]) => (
+            <section key={k}>
+              <h3 className="mb-2.5 flex items-baseline gap-2 px-1">
+                <span className="text-sm font-semibold text-zinc-900">{dayLabel(list[0].appt.startAt, now)}</span>
+                <span className="text-xs text-zinc-400">
+                  {sessions(list.length)}
+                </span>
+              </h3>
+              <ul className="card stagger divide-y divide-line overflow-hidden">
+                {list.map((r) => (
+                  <SessionRow key={r.appt.id} r={r} now={now} />
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
+
+      <details className="group card">
+        <summary className="flex cursor-pointer list-none items-center gap-2.5 px-6 py-4 text-sm font-semibold text-zinc-700 hover:text-zinc-950">
+          <History size={16} className="text-zinc-400" /> Histórico dos últimos 30 dias
+          <span className="text-xs font-normal text-zinc-400">{past.length}</span>
+          <ChevronRight size={15} className="ml-auto text-zinc-400 transition-transform group-open:rotate-90" />
+        </summary>
+        {past.length === 0 ? (
+          <p className="px-6 pb-5 text-sm text-zinc-500">Sem sessões nos últimos 30 dias.</p>
+        ) : (
+          <ul className="divide-y divide-line border-t border-line">
+            {past.map((r) => (
+              <SessionRow key={r.appt.id} r={r} now={now} past />
+            ))}
+          </ul>
+        )}
+      </details>
+    </div>
+  );
+}
+
+function SessionRow({ r, now, past = false }: { r: Row; now: Date; past?: boolean }) {
+  const { appt } = r;
+  const other = clientTime(appt.startAt, appt.endAt, appt.timezone);
+  const st = APPT_STATUS[appt.status];
+  const live = !past && appt.startAt <= now && appt.endAt > now;
+  return (
+    <li className={cn("group flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-4 transition-colors hover:bg-zinc-50/70", past && "py-3")}>
+      <div className="w-[88px] shrink-0">
+        <p className={cn("font-display text-lg leading-none tabular-nums", past ? "text-zinc-500" : "text-zinc-950")}>
+          {fmtTime(appt.startAt, HOME_TZ)}
+        </p>
+        <p className="mt-1 text-[11px] text-zinc-400">
+          {past ? fmtDate(appt.startAt) : `até ${fmtTime(appt.endAt, HOME_TZ)}`}
+        </p>
+      </div>
+      <span className="h-10 w-1 shrink-0 rounded-full" style={{ background: r.color ?? "#800080", opacity: past ? 0.4 : 1 }} />
+      <div className="min-w-0 flex-1">
+        <p className="flex items-center gap-2 truncate text-sm font-semibold text-zinc-950">
+          {appt.name}
+          {live && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-600">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" /> A decorrer
+            </span>
+          )}
+        </p>
+        <p className="mt-0.5 truncate text-xs text-zinc-500">
+          {r.eventName}
+          {other && <span className="ml-2 font-semibold text-sky-700">{other}</span>}
+        </p>
+      </div>
+      {past ? (
+        <span className={cn("chip", st?.className)}>{st?.label}</span>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          {appt.meetingUrl && (
+            <a
+              href={appt.meetingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-plum/[0.07] hover:text-plum"
+              title="Abrir videochamada"
+            >
+              <Video size={16} />
+            </a>
+          )}
+          {appt.contactId && (
+            <Link
+              href={`/admin/crm/${appt.contactId}`}
+              className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-plum/[0.07] hover:text-plum"
+              title="Ficha do contacto"
+            >
+              <UserRound size={16} />
+            </Link>
+          )}
+          <SelectAction value={appt.status} options={APPT_OPTIONS} onSelect={setAppointmentStatus.bind(null, appt.id)} />
+        </div>
+      )}
+    </li>
+  );
+}
+
+/* ---------------------------- DISPONIBILIDADE ---------------------------- */
+
+async function AvailabilityView({ avail }: { avail: (typeof availability.$inferSelect)[] }) {
+  const types = await db.select().from(eventTypes).orderBy(eventTypes.id);
+  // Segunda a domingo
+  const days: DayHours[] = [...avail]
+    .sort((a, b) => ((a.dayOfWeek + 6) % 7) - ((b.dayOfWeek + 6) % 7))
+    .map((a) => ({
+      id: a.id,
+      label: weekdayLabel(a.dayOfWeek),
+      startTime: a.startTime,
+      endTime: a.endTime,
+      breakStart: a.breakStart,
+      breakEnd: a.breakEnd,
+      active: a.active,
+    }));
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <Panel
+        title="Horário semanal"
+        description="Horas em que a página pública aceita marcações, com intervalo opcional (hora de Lisboa)"
+        action={
+          <Link href="/admin/config?s=agendamento" className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 hover:text-plum">
+            <Settings2 size={13} /> Regras
+          </Link>
+        }
+      >
+        <ul className="space-y-2">
+          {days.map((d) => (
+            <DayHoursRow key={d.id} day={d} />
+          ))}
+        </ul>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+          <p className="text-xs text-zinc-500">As alterações ficam guardadas automaticamente.</p>
+          <CopyToWeekdays days={days} />
+        </div>
+      </Panel>
+
+      <Panel title="Tipos de sessão" description="O que as clientes podem marcar">
+        <ul className="stagger space-y-2.5">
+          {types.map((t) => (
+            <li
+              key={t.id}
+              className={cn(
+                "flex items-center gap-3 rounded-2xl border border-line px-4 py-3 transition-colors",
+                !t.active && "bg-zinc-50/60"
+              )}
+            >
+              <span className="h-9 w-1 shrink-0 rounded-full" style={{ background: t.color, opacity: t.active ? 1 : 0.35 }} />
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-2">
+                  <span className={cn("truncate text-sm font-semibold", t.active ? "text-zinc-950" : "text-zinc-400")}>{t.name}</span>
+                  <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-zinc-100 px-2 py-0.5 text-[10.5px] font-semibold text-zinc-500">
+                    <Clock size={10} /> {t.durationMin} min
+                  </span>
+                </p>
+                {t.description && <p className="mt-0.5 truncate text-xs text-zinc-400">{t.description}</p>}
+              </div>
+              <form action={toggleEventType.bind(null, t.id)}>
+                <button
+                  type="submit"
+                  className={cn(
+                    "rounded-full px-3 py-1 text-[11px] font-semibold transition-colors",
+                    t.active ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                  )}
+                  title={t.active ? "Desactivar na página pública" : "Activar na página pública"}
+                >
+                  {t.active ? "Activo" : "Inactivo"}
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+        <details className="group mt-4">
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-2xl border border-dashed border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-500 transition-colors hover:border-plum/30 hover:text-plum">
+            <Plus size={15} /> Novo tipo de sessão
+          </summary>
+          <form action={createEventType} className="mt-3 space-y-2.5">
+            <input name="name" required placeholder="Nome (ex: Reunião exploratória)" className="field" />
+            <div className="flex gap-2.5">
+              <div className="relative w-32 shrink-0">
+                <input name="durationMin" type="number" min="5" step="5" defaultValue={30} className="field !pr-11" />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400">min</span>
+              </div>
+              <input name="description" placeholder="Descrição breve" className="field flex-1" />
+            </div>
+            <button type="submit" className="btn-primary w-full !py-2.5 !text-xs">
+              Adicionar
+            </button>
+          </form>
+        </details>
+      </Panel>
+    </div>
   );
 }
 
@@ -277,24 +412,6 @@ function clientTime(start: Date, end: Date, tz: string) {
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-function ViewTabs({ view }: { view: "lista" | "calendario" }) {
-  const tab = (active: boolean) =>
-    cn(
-      "flex items-center gap-2 rounded-full border px-5 py-2 text-xs font-bold uppercase tracking-[0.14em] transition-all",
-      active ? "border-plum/40 bg-plum/10 text-plum" : "border-zinc-200 text-zinc-500 hover:text-zinc-700"
-    );
-  return (
-    <div className="mb-6 flex gap-2">
-      <Link href="/admin/agenda" scroll={false} className={tab(view === "lista")}>
-        <List size={13} /> Lista
-      </Link>
-      <Link href="/admin/agenda?view=calendario" scroll={false} className={tab(view === "calendario")}>
-        <CalendarDays size={13} /> Calendário
-      </Link>
-    </div>
-  );
-}
-
 async function CalendarSection({
   sp,
   avail,
@@ -303,7 +420,8 @@ async function CalendarSection({
   avail: (typeof availability.$inferSelect)[];
 }) {
   const now = new Date();
-  const week = sp.modo === "semana";
+  // A semana é a vista por omissão; o mês abre com ?m=AAAA-MM
+  const week = sp.modo === "semana" || !sp.m;
   let from: Date;
   let to: Date;
   let title: string;
@@ -401,13 +519,13 @@ async function CalendarSection({
   ];
   const counted = rows.filter((r) => r.appt.status !== "cancelled");
   const todayHref = week ? `/admin/agenda?view=calendario&modo=semana&d=${iso(now)}` : "/admin/agenda?view=calendario";
-  const navBtn = "rounded-lg border border-zinc-200 bg-white p-2 text-zinc-500 transition-colors hover:border-plum/50 hover:text-zinc-950";
+  const navBtn = "rounded-xl border border-line bg-white p-2 text-zinc-500 transition-colors hover:border-plum/30 hover:text-plum";
   const modeBtn = (active: boolean) =>
-    cn("rounded-md px-3 py-1.5 text-xs font-semibold transition-colors", active ? "bg-white text-plum shadow-sm" : "text-zinc-500 hover:text-zinc-800");
+    cn("rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all", active ? "bg-white text-plum shadow-sm" : "text-zinc-500 hover:text-zinc-800");
 
   return (
     <Panel>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1">
           <Link href={prevHref} scroll={false} className={navBtn} aria-label="Anterior">
             <ChevronLeft size={15} />
@@ -415,15 +533,15 @@ async function CalendarSection({
           <Link href={nextHref} scroll={false} className={navBtn} aria-label="Seguinte">
             <ChevronRight size={15} />
           </Link>
-          <Link href={todayHref} scroll={false} className="ml-1 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-600 hover:border-plum/50 hover:text-plum">
+          <Link href={todayHref} scroll={false} className="ml-1 rounded-xl border border-line bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-600 transition-colors hover:border-plum/30 hover:text-plum">
             Hoje
           </Link>
         </div>
-        <h2 className="flex-1 font-display text-2xl text-zinc-950 first-letter:uppercase">{title}</h2>
+        <h2 className="flex-1 font-display text-[1.6rem] tracking-[-0.01em] text-zinc-950 first-letter:uppercase">{title}</h2>
         <span className="text-xs text-zinc-500">
-          {counted.length} sessão(ões){busy.length ? " · ocupado do Google a cinzento" : ""}
+          {sessions(counted.length)}{busy.length ? " · ocupado do Google a cinzento" : ""}
         </span>
-        <div className="flex rounded-lg bg-zinc-100 p-1">
+        <div className="flex rounded-xl bg-zinc-100 p-1">
           <Link href={`/admin/agenda?view=calendario&m=${(week ? weekStart : iso(now)).slice(0, 7)}`} scroll={false} className={modeBtn(!week)}>
             Mês
           </Link>

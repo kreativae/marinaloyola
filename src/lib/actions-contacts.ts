@@ -20,6 +20,7 @@ import {
 } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { ensureChannel } from "@/lib/channels";
+import { contactWhere } from "@/lib/contacts-query";
 import { addInteraction, attachTag, ensureTag, localeFor } from "@/lib/crm";
 import { COUNTRIES, countryName, countryOfTz, defaultTzOf, isValidTz } from "@/lib/timezones";
 import { CONTACT_STATUS, SOURCES } from "@/lib/utils";
@@ -503,4 +504,19 @@ export async function getContactSummary(id: number): Promise<ContactSummary | nu
     },
     courses: courseRows,
   };
+}
+
+/* --------------------------- PESQUISA RÁPIDA ---------------------------- */
+
+/** Pesquisa para a paleta de comandos (⌘K): nome, email, telefone ou cidade. */
+export async function quickSearchContacts(q: string) {
+  await requireAdmin();
+  if (q.trim().length < 2) return [];
+  const rows = await db
+    .select({ id: contacts.id, name: contacts.name, email: contacts.email, phone: contacts.phone, country: contacts.country })
+    .from(contacts)
+    .where(contactWhere({ q }))
+    .orderBy(contacts.name)
+    .limit(6);
+  return rows;
 }

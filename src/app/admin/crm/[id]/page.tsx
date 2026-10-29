@@ -213,7 +213,7 @@ export default async function ContactDetailPage({
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="stagger grid gap-4 sm:grid-cols-3">
         <StatCard label="Total investido" value={eur(totalSpent)} icon={<Banknote size={18} />} accent />
         <StatCard label="Pendente" value={eur(pendingTotal)} icon={<Banknote size={18} />} />
         <StatCard

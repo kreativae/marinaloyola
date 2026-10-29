@@ -1,272 +1,179 @@
 import Link from "next/link";
-import { CalendarDays, ChevronLeft, ChevronRight, Layers, Plus, Trash2 } from "lucide-react";
-import { desc } from "drizzle-orm";
+import { CalendarDays, CalendarRange, ChevronLeft, ChevronRight, Columns3, Lightbulb, List, PenLine, Send } from "lucide-react";
+import { asc, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { posts } from "@/db/schema";
-import { createPost, deletePost, movePost } from "@/lib/actions-admin";
-import { EmptyState, PageHeader, Panel } from "@/components/admin-ui";
-import { KanbanBoard } from "@/components/admin-client";
-import { cn, monthLabel, POST_STATUS } from "@/lib/utils";
+import { EmptyState, PageHeader, Panel, StatCard } from "@/components/admin-ui";
+import { ContentBoard, ContentCalendar, ContentList, NewPostButton, type PostData } from "@/components/marketing-client";
+import { NETWORK_COLORS } from "@/lib/marketing-def";
+import { cn, num } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_COLORS: Record<string, string> = {
-  idea: "#71717a",
-  production: "#0ea5e9",
-  review: "#f59e0b",
-  approved: "#a855f7",
-  published: "#10b981",
-};
+type Tab = "quadro" | "calendario" | "lista";
 
-const NETWORK_COLORS: Record<string, string> = {
-  Instagram: "#c13584",
-  Facebook: "#1877f2",
-  LinkedIn: "#0a66c2",
-  TikTok: "#18181b",
-  YouTube: "#ff0000",
-  Blog: "#34d399",
-  Email: "#f59e0b",
-};
-
-const NETWORKS = Object.keys(NETWORK_COLORS);
-const FORMATS = ["Carrossel", "Reels", "Stories", "Post estático", "Vídeo", "Artigo", "Newsletter"];
+const pad = (n: number) => String(n).padStart(2, "0");
+const isoDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 export default async function MarketingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; m?: string }>;
+  searchParams: Promise<{ view?: string; m?: string; novo?: string; rede?: string }>;
 }) {
-  const { view, m } = await searchParams;
-  const mode = view === "calendar" ? "calendar" : "board";
+  const sp = await searchParams;
+  const tab: Tab = sp.view === "calendar" || sp.view === "calendario" ? "calendario" : sp.view === "lista" ? "lista" : "quadro";
+  const network = sp.rede && sp.rede in NETWORK_COLORS ? sp.rede : undefined;
 
   const now = new Date();
-  const [y, mo] = (m ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`)
-    .split("-")
-    .map(Number);
-  const monthDate = new Date(y, (mo || 1) - 1, 1);
-  const ym = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
-  const prev = new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1);
-  const next = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1);
-  const ymOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const [y, mo] = /^\d{4}-\d{2}$/.test(sp.m ?? "") ? sp.m!.split("-").map(Number) : [now.getFullYear(), now.getMonth() + 1];
+  const month = `${y}-${pad(mo)}`;
 
-  const allPosts = await db.select().from(posts).orderBy(desc(posts.publishAt));
+  const all = await db.select().from(posts).orderBy(asc(posts.publishAt), desc(posts.createdAt));
+  const filtered = network ? all.filter((p) => p.network === network) : all;
 
-  async function onMove(cardId: number, columnId: string) {
-    "use server";
-    await movePost(cardId, columnId);
-  }
+  // Datas formatadas no servidor (hora de Lisboa) para o browser não as mudar de fuso
+  const data: (PostData & { day: string | null; time: string | null })[] = filtered.map((p) => ({
+    id: p.id,
+    title: p.title,
+    network: p.network,
+    format: p.format,
+    status: p.status,
+    publishLocal: p.publishAt ? `${isoDay(p.publishAt)}T${pad(p.publishAt.getHours())}:${pad(p.publishAt.getMinutes())}` : null,
+    publishLabel: p.publishAt
+      ? `${p.publishAt.getDate()} ${p.publishAt.toLocaleDateString("pt-PT", { month: "short" }).replace(".", "")}, ${pad(p.publishAt.getHours())}:${pad(p.publishAt.getMinutes())}`
+      : null,
+    copy: p.copy,
+    hashtags: p.hashtags,
+    link: p.link,
+    notes: p.notes,
+    day: p.publishAt ? isoDay(p.publishAt) : null,
+    time: p.publishAt ? `${pad(p.publishAt.getHours())}:${pad(p.publishAt.getMinutes())}` : null,
+  }));
 
-  // Calendar grid
-  const firstOffset = (monthDate.getDay() + 6) % 7; // segunda = 0
-  const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
-  const cells: (Date | null)[] = [
-    ...Array.from({ length: firstOffset }, () => null),
-    ...Array.from(
-      { length: daysInMonth },
-      (_, i) => new Date(monthDate.getFullYear(), monthDate.getMonth(), i + 1)
-    ),
-  ];
-  const postsByDay = new Map<string, typeof allPosts>();
-  for (const p of allPosts) {
-    if (!p.publishAt) continue;
-    const key = new Date(p.publishAt).toDateString();
-    const arr = postsByDay.get(key) ?? [];
-    arr.push(p);
-    postsByDay.set(key, arr);
-  }
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const ideas = filtered.filter((p) => p.status === "idea").length;
+  const inProgress = filtered.filter((p) => p.status === "production" || p.status === "review").length;
+  const scheduled = filtered.filter((p) => p.status === "approved" && p.publishAt && p.publishAt > now).length;
+  const publishedMonth = filtered.filter((p) => p.status === "published" && p.publishAt && p.publishAt >= monthStart).length;
+  const nextWeek = filtered.filter((p) => p.publishAt && p.publishAt > now && p.publishAt < new Date(now.getTime() + 7 * 86_400_000) && p.status !== "published");
+  const notReady = nextWeek.filter((p) => p.status !== "approved").length;
+
+  const q = (over: Record<string, string | undefined>) => {
+    const params = new URLSearchParams();
+    const base = { view: tab === "quadro" ? undefined : tab, rede: network, m: tab === "calendario" ? month : undefined };
+    for (const [k, v] of Object.entries({ ...base, ...over })) if (v) params.set(k, v);
+    const s = params.toString();
+    return `/admin/marketing${s ? `?${s}` : ""}`;
+  };
+  const ym = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 
   return (
     <>
       <PageHeader
         title="Marketing & Conteúdo"
-        subtitle="Esteira de produção e calendário editorial de todas as publicações, campanhas e newsletters."
-        actions={
-          <details className="group relative">
-            <summary className="btn-primary flex cursor-pointer list-none !px-5 !py-2.5 !text-xs">
-              <Plus size={14} /> Novo conteúdo
-            </summary>
-            <div className="absolute right-0 z-20 mt-2 w-96 rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl">
-              <form action={createPost} className="space-y-3">
-                <input name="title" required placeholder="Tema / título *" className="field" />
-                <div className="grid grid-cols-2 gap-2.5">
-                  <select name="network" className="field">
-                    {NETWORKS.map((n) => (
-                      <option key={n} value={n} className="bg-white">
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                  <select name="format" className="field">
-                    {FORMATS.map((f) => (
-                      <option key={f} value={f} className="bg-white">
-                        {f}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-                    Data de publicação
-                  </label>
-                  <input name="publishAt" type="datetime-local" className="field" />
-                </div>
-                <button type="submit" className="btn-primary w-full !py-2.5 !text-xs">
-                  Adicionar à esteira
-                </button>
-              </form>
-            </div>
-          </details>
-        }
+        subtitle="Da ideia à publicação: produção, calendário editorial e textos de cada rede."
+        actions={<NewPostButton defaultOpen={sp.novo === "1"} />}
       />
 
-      <div className="mb-6 flex gap-2">
-        <Link
-          href="/admin/marketing"
-          className={cn(
-            "flex items-center gap-2 rounded-full border px-5 py-2 text-xs font-bold uppercase tracking-[0.14em] transition-all",
-            mode === "board"
-              ? "border-plum-bright bg-plum/20 text-plum"
-              : "border-zinc-200 text-zinc-500 hover:text-zinc-600"
-          )}
-        >
-          <Layers size={13} /> Esteira
-        </Link>
-        <Link
-          href={`/admin/marketing?view=calendar&m=${ym}`}
-          className={cn(
-            "flex items-center gap-2 rounded-full border px-5 py-2 text-xs font-bold uppercase tracking-[0.14em] transition-all",
-            mode === "calendar"
-              ? "border-plum-bright bg-plum/20 text-plum"
-              : "border-zinc-200 text-zinc-500 hover:text-zinc-600"
-          )}
-        >
-          <CalendarDays size={13} /> Calendário
-        </Link>
+      <div className="stagger mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Ideias" value={num(ideas)} hint="à espera de produção" icon={<Lightbulb size={17} />} />
+        <StatCard label="Em produção" value={num(inProgress)} hint="a criar ou em revisão" icon={<PenLine size={17} />} />
+        <StatCard
+          label="Próximos 7 dias"
+          value={num(nextWeek.length)}
+          hint={notReady ? `${notReady} ainda não aprovado(s)` : `${num(scheduled)} agendado(s) e aprovado(s)`}
+          icon={<CalendarDays size={17} />}
+          accent
+        />
+        <StatCard label="Publicados este mês" value={num(publishedMonth)} icon={<Send size={17} />} />
       </div>
 
-      {mode === "board" ? (
-        <Panel>
-          {allPosts.length === 0 ? (
-            <EmptyState text="Sem conteúdos na esteira. Crie o primeiro." />
-          ) : (
-            <KanbanBoard
-              columns={Object.entries(POST_STATUS).map(([id, name]) => ({
-                id,
-                name,
-                color: STATUS_COLORS[id] ?? "#800080",
-              }))}
-              cards={allPosts.map((p) => ({
-                id: p.id,
-                columnId: p.status,
-                title: p.title,
-                subtitle: p.copy
-                  ? p.copy.slice(0, 70) + (p.copy.length > 70 ? "…" : "")
-                  : undefined,
-                meta: p.publishAt
-                  ? new Date(p.publishAt).toLocaleDateString("pt-PT", {
-                      day: "2-digit",
-                      month: "short",
-                    })
-                  : undefined,
-                chips: [p.network, p.format],
-              }))}
-              onMove={onMove}
-            />
-          )}
-        </Panel>
-      ) : (
-        <Panel
-          title={monthLabel(ym)}
-          action={
-            <div className="flex items-center gap-1">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-2xl border border-line bg-white p-1 shadow-[0_1px_2px_rgb(24_24_27/0.04)]">
+          {(
+            [
+              ["quadro", "Quadro", Columns3],
+              ["calendario", "Calendário", CalendarRange],
+              ["lista", "Lista", List],
+            ] as const
+          ).map(([id, label, Icon]) => (
+            <Link
+              key={id}
+              href={q({ view: id === "quadro" ? undefined : id, m: id === "calendario" ? month : undefined })}
+              scroll={false}
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold transition-all duration-300",
+                tab === id ? "bg-plum text-white shadow-[0_6px_16px_-8px_rgb(128_0_128/0.8)]" : "text-zinc-500 hover:text-zinc-900"
+              )}
+            >
+              <Icon size={15} />
+              <span className="hidden sm:inline">{label}</span>
+            </Link>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Link
+            href={q({ rede: undefined })}
+            scroll={false}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+              !network ? "border-zinc-900 bg-zinc-900 text-white" : "border-line bg-white text-zinc-500 hover:text-zinc-900"
+            )}
+          >
+            Todas
+          </Link>
+          {Object.entries(NETWORK_COLORS).map(([n, color]) => {
+            const count = all.filter((p) => p.network === n).length;
+            if (!count) return null;
+            return (
               <Link
-                href={`/admin/marketing?view=calendar&m=${ymOf(prev)}`}
-                className="rounded-lg border border-zinc-200 p-2 text-zinc-500 transition-colors hover:border-plum/50 hover:text-zinc-950"
-                aria-label="Mês anterior"
+                key={n}
+                href={q({ rede: n })}
+                scroll={false}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+                  network === n ? "text-white" : "border-line bg-white text-zinc-600 hover:text-zinc-900"
+                )}
+                style={network === n ? { background: color, borderColor: color } : undefined}
               >
+                {network !== n && <span className="h-2 w-2 rounded-full" style={{ background: color }} />}
+                {n}
+                <span className={network === n ? "text-white/70" : "text-zinc-400"}>{count}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      <div key={`${tab}-${network}-${month}`} className="animate-[rise_0.45s_var(--ease-out-soft)_backwards]">
+        {data.length === 0 && tab !== "calendario" ? (
+          <Panel>
+            <EmptyState text="Ainda não há conteúdos. Crie o primeiro em “Novo conteúdo”." />
+          </Panel>
+        ) : tab === "quadro" ? (
+          <ContentBoard posts={data} />
+        ) : tab === "lista" ? (
+          <ContentList posts={data} />
+        ) : (
+          <Panel>
+            <div className="mb-4 flex items-center gap-2">
+              <Link href={q({ m: ym(new Date(y, mo - 2, 1)) })} scroll={false} className="rounded-xl border border-line bg-white p-2 text-zinc-500 hover:border-plum/30 hover:text-plum" aria-label="Mês anterior">
                 <ChevronLeft size={15} />
               </Link>
-              <Link
-                href={`/admin/marketing?view=calendar&m=${ymOf(next)}`}
-                className="rounded-lg border border-zinc-200 p-2 text-zinc-500 transition-colors hover:border-plum/50 hover:text-zinc-950"
-                aria-label="Próximo mês"
-              >
+              <Link href={q({ m: ym(new Date(y, mo, 1)) })} scroll={false} className="rounded-xl border border-line bg-white p-2 text-zinc-500 hover:border-plum/30 hover:text-plum" aria-label="Mês seguinte">
                 <ChevronRight size={15} />
               </Link>
+              <Link href={q({ m: ym(now) })} scroll={false} className="rounded-xl border border-line bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-600 hover:border-plum/30 hover:text-plum">
+                Hoje
+              </Link>
+              <h2 className="ml-2 font-display text-[1.6rem] tracking-[-0.01em] text-zinc-950 first-letter:uppercase">
+                {new Date(y, mo - 1, 1).toLocaleDateString("pt-PT", { month: "long", year: "numeric" })}
+              </h2>
             </div>
-          }
-        >
-          <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100">
-            {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => (
-              <div
-                key={d}
-                className="bg-zinc-50 px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500"
-              >
-                {d}
-              </div>
-            ))}
-            {cells.map((d, i) => {
-              const dayPosts = d ? postsByDay.get(d.toDateString()) ?? [] : [];
-              const isToday = d && d.toDateString() === new Date().toDateString();
-              return (
-                <div
-                  key={i}
-                  className={cn(
-                    "min-h-[104px] bg-white p-2",
-                    !d && "bg-zinc-50"
-                  )}
-                >
-                  {d && (
-                    <>
-                      <p
-                        className={cn(
-                          "flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold",
-                          isToday ? "bg-plum text-white" : "text-zinc-500"
-                        )}
-                      >
-                        {d.getDate()}
-                      </p>
-                      <div className="mt-1 space-y-1">
-                        {dayPosts.slice(0, 3).map((p) => (
-                          <div
-                            key={p.id}
-                            className="group flex items-center justify-between gap-1 truncate rounded-md border border-zinc-200 bg-zinc-100 px-1.5 py-1 text-[10px] font-medium text-zinc-600"
-                            title={`${p.title} · ${p.network} · ${POST_STATUS[p.status]}`}
-                          >
-                            <span className="flex min-w-0 items-center gap-1.5">
-                              <span
-                                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                                style={{ background: NETWORK_COLORS[p.network] ?? "#800080" }}
-                              />
-                              <span className="truncate">{p.title}</span>
-                            </span>
-                            <form action={deletePost.bind(null, p.id)} className="hidden group-hover:block">
-                              <button type="submit" aria-label="Eliminar" className="text-zinc-500 hover:text-rose-600">
-                                <Trash2 size={11} />
-                              </button>
-                            </form>
-                          </div>
-                        ))}
-                        {dayPosts.length > 3 && (
-                          <p className="px-1 text-[9px] text-zinc-500">+{dayPosts.length - 3} mais</p>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-4 flex flex-wrap gap-4 text-[11px] text-zinc-500">
-            {Object.entries(STATUS_COLORS).map(([s, c]) => (
-              <span key={s} className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full" style={{ background: c }} />
-                {POST_STATUS[s]}
-              </span>
-            ))}
-          </div>
-        </Panel>
-      )}
+            <ContentCalendar month={month} today={isoDay(now)} posts={data} />
+          </Panel>
+        )}
+      </div>
     </>
   );
 }

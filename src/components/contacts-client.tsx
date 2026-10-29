@@ -441,12 +441,14 @@ export function ContactFormButton({
   contact,
   trigger,
   channels,
+  defaultOpen = false,
 }: {
   contact?: ContactData;
   trigger: React.ReactNode;
   channels: ChannelOption[];
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} className="contents">
@@ -573,10 +575,11 @@ function ContactForm({
   );
 }
 
-export function NewContactButton({ channels }: { channels: ChannelOption[] }) {
+export function NewContactButton({ channels, defaultOpen }: { channels: ChannelOption[]; defaultOpen?: boolean }) {
   return (
     <ContactFormButton
       channels={channels}
+      defaultOpen={defaultOpen}
       trigger={
         <span className="btn-primary !px-5 !py-2.5 !text-xs">
           <Plus size={14} /> Novo contacto

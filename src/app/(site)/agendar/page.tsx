@@ -14,7 +14,8 @@ export const metadata: Metadata = {
     "Agende uma sessão exploratória, mentoria ou workshop com Marina Loyola. Disponibilidade em tempo real, confirmação imediata e link Zoom automático.",
 };
 
-export default async function AgendarPage() {
+export default async function AgendarPage({ searchParams }: { searchParams: Promise<{ tipo?: string; data?: string }> }) {
+  const sp = await searchParams;
   const types = await db
     .select({
       id: eventTypes.id,
@@ -46,7 +47,12 @@ export default async function AgendarPage() {
         <div className="mt-12">
           <Reveal delay={140}>
             {types.length > 0 ? (
-              <BookingFlow types={types} windowDays={rules.windowDays} />
+              <BookingFlow
+                types={types}
+                windowDays={rules.windowDays}
+                initialTypeId={Number(sp.tipo) || undefined}
+                initialDate={/^\d{4}-\d{2}-\d{2}$/.test(sp.data ?? "") ? sp.data : undefined}
+              />
             ) : (
               <p className="rounded-2xl border border-zinc-200 p-8 text-center text-zinc-500">
                 A agenda está temporariamente indisponível. Fale comigo pelo WhatsApp.

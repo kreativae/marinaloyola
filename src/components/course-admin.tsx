@@ -12,6 +12,7 @@ import {
   Loader2,
   Paperclip,
   Pencil,
+  Plus,
   Save,
   Trash2,
   Upload,
@@ -26,6 +27,7 @@ import {
   moveModule,
   renameCourseFile,
   renameModule,
+  createCourse,
   updateCourse,
   updateLesson,
   uploadCourseFiles,
@@ -128,6 +130,52 @@ export function CourseEditButton({ course }: { course: CourseData }) {
             <label className={labelCls}>Link de compra Hotmart</label>
             <input name="hotmartUrl" defaultValue={course.hotmartUrl ?? ""} placeholder="https://pay.hotmart.com/…" className="field" />
           </div>
+          <SaveRow pending={pending} error={state?.error} onCancel={() => setOpen(false)} />
+        </form>
+      </Modal>
+    </>
+  );
+}
+
+export function NewCourseButton() {
+  const [open, setOpen] = useState(false);
+  const { state, pending, onSubmit } = useSaveForm(createCourse, () => setOpen(false));
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="btn-primary !px-5 !py-2.5 !text-xs">
+        <Plus size={14} /> Novo curso
+      </button>
+      <Modal open={open} onClose={() => setOpen(false)} title="Novo curso">
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div>
+            <label className={labelCls}>Título *</label>
+            <input name="title" required autoFocus placeholder="Ex: Branding para Criativos" className="field" />
+          </div>
+          <div>
+            <label className={labelCls}>Subtítulo</label>
+            <input name="subtitle" placeholder="Curso online, workshop, programa…" className="field" />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className={labelCls}>Nível</label>
+              <select name="level" defaultValue="Todos os níveis" className="field">
+                {["Todos os níveis", "Iniciante", "Intermédio", "Avançado"].map((l) => (
+                  <option key={l}>{l}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Preço (€)</label>
+              <input name="price" inputMode="decimal" placeholder="0,00" className="field" />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Imagem de capa (URL)</label>
+            <input name="cover" placeholder="/img/… ou https://…" className="field" />
+          </div>
+          <p className="rounded-xl bg-plum/[0.06] px-4 py-3 text-xs text-zinc-700">
+            O curso fica em rascunho, com um primeiro módulo pronto para adicionar aulas. Publique quando estiver completo.
+          </p>
           <SaveRow pending={pending} error={state?.error} onCancel={() => setOpen(false)} />
         </form>
       </Modal>

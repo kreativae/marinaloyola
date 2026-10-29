@@ -87,7 +87,7 @@ export default async function QuizEditorPage({
 
       <PageHeader title={lesson.title} subtitle={`Quiz · ${found.moduleTitle} · banco de questões e resultados das alunas`} />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Questões no banco" value={num(active)} hint={questions.length > active ? `${questions.length - active} desactivada(s)` : undefined} icon={<ListChecks size={17} />} />
         <StatCard label="Sorteadas por aluna" value={active ? `${draw} de ${active}` : "—"} icon={<Shuffle size={17} />} accent />
         <StatCard label="Tentativas" value={num(attempts.length)} hint={`${students} aluna(s)`} icon={<Users size={17} />} />

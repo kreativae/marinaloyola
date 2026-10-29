@@ -2,6 +2,7 @@
 
 import fs from "node:fs/promises";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { and, asc, eq, gt, lt, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { courseFiles, courses, lessons, modules } from "@/db/schema";
@@ -38,6 +39,44 @@ async function courseOfLesson(lessonId: number) {
 }
 
 /* -------------------------------- CURSO --------------------------------- */
+
+const slugify = (v: string) =>
+  v
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+/** Novo curso (em rascunho) com um primeiro módulo; abre directamente a página do curso. */
+export async function createCourse(_prev: CourseFormResult | null, fd: FormData): Promise<CourseFormResult> {
+  await requireAdmin();
+  const title = str(fd, "title");
+  if (!title) return { ok: false, error: "Indique o título." };
+  const price = Number(str(fd, "price").replace(/\./g, "").replace(",", ".") || "0");
+  if (!Number.isFinite(price) || price < 0) return { ok: false, error: "Preço inválido." };
+  // Endereço único: acrescenta -2, -3… se já existir
+  const base = slugify(title) || "curso";
+  let slug = base;
+  for (let i = 2; (await db.select({ id: courses.id }).from(courses).where(eq(courses.slug, slug)).limit(1)).length; i++) {
+    slug = `${base}-${i}`;
+  }
+  const [course] = await db
+    .insert(courses)
+    .values({
+      title,
+      slug,
+      subtitle: orNull(str(fd, "subtitle")),
+      level: str(fd, "level") || "Todos os níveis",
+      price: price.toFixed(2),
+      cover: orNull(str(fd, "cover")),
+      published: false,
+    })
+    .returning({ id: courses.id });
+  await db.insert(modules).values({ courseId: course.id, title: "Módulo 1", order: 1 });
+  revalidatePath("/admin/cursos");
+  redirect(`/admin/cursos/${course.id}`);
+}
 
 export async function updateCourse(id: number, _prev: CourseFormResult | null, fd: FormData): Promise<CourseFormResult> {
   await requireAdmin();

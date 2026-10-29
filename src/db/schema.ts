@@ -161,6 +161,12 @@ export const deals = pgTable("deals", {
   product: text("product").notNull().default("Mentoria"),
   value: numeric("value", { precision: 10, scale: 2 }).notNull().default("0"),
   owner: text("owner").notNull().default("Marina"),
+  // Fecho do negócio: aberto, ganho ou perdido (os fechados saem do quadro)
+  outcome: text("outcome").notNull().default("open"), // open | won | lost
+  expectedClose: timestamp("expected_close"),
+  closedAt: timestamp("closed_at"),
+  lostReason: text("lost_reason"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -176,7 +182,31 @@ export const payments = pgTable("payments", {
   amount: numeric("amount", { precision: 10, scale: 2 }).notNull().default("0"),
   method: paymentMethodEnum("method").notNull().default("transfer"),
   status: paymentStatusEnum("status").notNull().default("pending"),
-  reference: text("reference"), // comprovativo / id de transação
+  reference: text("reference"), // id de transação / referência
+  dueDate: timestamp("due_date"), // vencimento (pagamentos pendentes e parcelas)
+  paidAt: timestamp("paid_at"), // data em que foi recebido; conta para a receita do período
+  notes: text("notes"),
+  // Parcelas: "2 de 3" do mesmo plano
+  installment: integer("installment"),
+  installments: integer("installments"),
+  planRef: text("plan_ref"),
+  receiptName: text("receipt_name"),
+  receiptFile: text("receipt_file"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+/** Despesas do negócio, para calcular o lucro. */
+export const expenses = pgTable("expenses", {
+  id: serial("id").primaryKey(),
+  description: text("description").notNull(),
+  category: text("category").notNull().default("Outros"),
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull().default("0"),
+  date: timestamp("date").notNull().defaultNow(),
+  supplier: text("supplier"),
+  recurring: boolean("recurring").notNull().default(false), // repete todos os meses
+  notes: text("notes"),
+  receiptName: text("receipt_name"),
+  receiptFile: text("receipt_file"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -196,6 +226,9 @@ export const availability = pgTable("availability", {
   dayOfWeek: integer("day_of_week").notNull(), // 0 = domingo
   startTime: text("start_time").notNull().default("09:00"),
   endTime: text("end_time").notNull().default("18:00"),
+  // Intervalo opcional (ex: almoço): sem marcações entre estas horas
+  breakStart: text("break_start"),
+  breakEnd: text("break_end"),
   active: boolean("active").notNull().default(true),
 });
 
@@ -358,6 +391,30 @@ export const posts = pgTable("posts", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+/* ---------------------------- LINK NA BIO -------------------------------- */
+
+/** Links personalizados da página /links (estilo linktree). */
+export const bioLinks = pgTable("bio_links", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  subtitle: text("subtitle"),
+  url: text("url").notNull(),
+  image: text("image"), // cartão com imagem (banner); sem imagem fica um botão simples
+  highlight: boolean("highlight").notNull().default(false), // destaque com a cor da marca
+  order: integer("order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+/** Visitas e cliques da página de links, para as estatísticas. */
+export const bioEvents = pgTable("bio_events", {
+  id: serial("id").primaryKey(),
+  kind: text("kind").notNull(), // view | click
+  target: text("target"), // ex: l12 (link), c3 (curso), agendar, whatsapp
+  referrer: text("referrer"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 /* ------------------------------ SETTINGS -------------------------------- */
 
 export const settings = pgTable("settings", {
@@ -387,3 +444,5 @@ export type Enrollment = typeof enrollments.$inferSelect;
 export type QuizQuestion = typeof quizQuestions.$inferSelect;
 export type QuizAttempt = typeof quizAttempts.$inferSelect;
 export type Post = typeof posts.$inferSelect;
+export type Expense = typeof expenses.$inferSelect;
+export type BioLink = typeof bioLinks.$inferSelect;

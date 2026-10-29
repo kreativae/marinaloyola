@@ -67,10 +67,16 @@ export function NavProgress() {
 
     const onSubmit = (e: SubmitEvent) => {
       const form = e.target as HTMLFormElement;
-      if (form.method.toLowerCase() !== "get") return;
-      // Server actions usam POST; aqui só entram filtros e pesquisas
-      if (form.getAttribute("action")?.startsWith("javascript:")) return;
-      start();
+      // getAttribute: form.method pode ser um <input name="method"> do próprio formulário
+      if ((form.getAttribute("method") ?? "get").toLowerCase() !== "get") return;
+      const action = form.getAttribute("action");
+      if (action?.startsWith("javascript:")) return;
+      // Depois dos handlers: formulários tratados em JavaScript (modais que gravam) não navegam;
+      // o <Form> do Next também cancela o envio, mas tem um action com caminho e navega
+      window.setTimeout(() => {
+        if (e.defaultPrevented && !action?.startsWith("/")) return;
+        start();
+      }, 0);
     };
 
     // Fase de captura: corre antes do Link do Next chamar preventDefault()

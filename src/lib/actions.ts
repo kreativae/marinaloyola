@@ -121,10 +121,19 @@ async function slotsForLisbonDay(et: typeof eventTypes.$inferSelect, dateStr: st
   const earliest = now.getTime() + rules.noticeHours * 3_600_000;
 
   const slots: Date[] = [];
-  for (const a of avails) {
-    const [sh, sm] = a.startTime.split(":").map(Number);
-    const [eh, em] = a.endTime.split(":").map(Number);
-    for (let t = sh * 60 + sm; t + dur <= eh * 60 + em; t += step) {
+  const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  // Cada dia divide-se em blocos à volta do intervalo (almoço): depois da pausa,
+  // os horários recomeçam exactamente no fim do intervalo
+  const blocks = avails.flatMap((a) =>
+    a.breakStart && a.breakEnd
+      ? [
+          [toMin(a.startTime), toMin(a.breakStart)],
+          [toMin(a.breakEnd), toMin(a.endTime)],
+        ]
+      : [[toMin(a.startTime), toMin(a.endTime)]]
+  );
+  for (const [blockStart, blockEnd] of blocks) {
+    for (let t = blockStart; t + dur <= blockEnd; t += step) {
       const start = new Date(y, m - 1, d, 0, t);
       const end = new Date(start.getTime() + dur * 60_000);
       if (start.getTime() < earliest) continue;

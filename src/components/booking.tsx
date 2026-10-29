@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -39,16 +39,29 @@ function zoneList() {
 
 const zoneOption = (tz: string) => `${cityOf(tz)} — ${offsetLabel(tz)}`;
 
-export function BookingFlow({ types, windowDays = 21 }: { types: TypeOpt[]; windowDays?: number }) {
+export function BookingFlow({
+  types,
+  windowDays = 21,
+  initialTypeId,
+  initialDate,
+}: {
+  types: TypeOpt[];
+  windowDays?: number;
+  /** Pré-selecção vinda de um link (ex: atalho "segunda, 2 nov" na página de links) */
+  initialTypeId?: number;
+  initialDate?: string;
+}) {
   const detectedTz = useSyncExternalStore(noop, browserTz, () => HOME_TZ);
   // A lista completa de fusos difere entre Node e browser: só depois de hidratar
   const mounted = useSyncExternalStore(noop, () => true, () => false);
   const [chosenTz, setChosenTz] = useState<string | null>(null);
   const tz = chosenTz ?? detectedTz;
-  const [typeId, setTypeId] = useState(types[0]?.id ?? 0);
-  const [date, setDate] = useState<string | null>(null);
+  const [typeId, setTypeId] = useState(
+    initialTypeId && types.some((t) => t.id === initialTypeId) ? initialTypeId : (types[0]?.id ?? 0)
+  );
+  const [date, setDate] = useState<string | null>(initialDate ?? null);
   const [slots, setSlots] = useState<Slot[]>([]);
-  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(Boolean(initialDate));
   const [time, setTime] = useState<Slot | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +104,22 @@ export function BookingFlow({ types, windowDays = 21 }: { types: TypeOpt[]; wind
     setChosenTz(zone);
     if (date) void pickDate(date, zone);
   }
+
+  // Dia pré-seleccionado: carrega os horários assim que o fuso do browser é conhecido
+  useEffect(() => {
+    if (!initialDate || !mounted) return;
+    let alive = true;
+    void getAvailableSlots(typeId, initialDate, tz).then((s) => {
+      if (!alive) return;
+      setSlots(s);
+      setLoadingSlots(false);
+    });
+    return () => {
+      alive = false;
+    };
+    // Só na primeira vez; depois as escolhas da cliente mandam
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted]);
 
   const diff = hoursFromHome(tz);
   const diffLabel =

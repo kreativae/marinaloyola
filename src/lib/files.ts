@@ -4,21 +4,25 @@ import path from "node:path";
 import { num } from "@/lib/utils";
 
 /**
- * Ficheiros dos cursos: guardados em ./uploads (fora de /public), com nome aleatório.
- * Só são servidos por /api/ficheiros/[id], que verifica a inscrição da aluna.
+ * Ficheiros guardados em ./uploads/<pasta> (fora de /public), com nome aleatório:
+ *  - cursos: servidos por /api/ficheiros/[id], que verifica a inscrição da aluna;
+ *  - comprovativos: recibos de pagamentos e despesas, só para a equipa.
  */
 
 export const MAX_FILE_BYTES = 50_000_000;
 
-const DIR = path.join(process.cwd(), "uploads", "cursos");
+export type UploadFolder = "cursos" | "comprovativos";
 
-export const filePath = (storedName: string) => path.join(DIR, path.basename(storedName));
+const dirOf = (folder: UploadFolder) => path.join(process.cwd(), "uploads", folder);
 
-export async function storeUpload(file: File) {
-  await fs.mkdir(DIR, { recursive: true });
+export const filePath = (storedName: string, folder: UploadFolder = "cursos") =>
+  path.join(dirOf(folder), path.basename(storedName));
+
+export async function storeUpload(file: File, folder: UploadFolder = "cursos") {
+  await fs.mkdir(dirOf(folder), { recursive: true });
   const ext = path.extname(file.name).toLowerCase().replace(/[^.a-z0-9]/g, "").slice(0, 10);
   const stored = `${crypto.randomUUID()}${ext}`;
-  await fs.writeFile(filePath(stored), Buffer.from(await file.arrayBuffer()));
+  await fs.writeFile(filePath(stored, folder), Buffer.from(await file.arrayBuffer()));
   return stored;
 }
 

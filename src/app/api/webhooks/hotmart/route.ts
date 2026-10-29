@@ -94,7 +94,11 @@ export async function POST(req: Request) {
     ? await db.select().from(payments).where(eq(payments.reference, reference)).limit(1)
     : [];
   if (existing) {
-    await db.update(payments).set({ status }).where(eq(payments.id, existing.id));
+    const paid = status === "confirmed" || status === "completed";
+    await db
+      .update(payments)
+      .set({ status, paidAt: paid ? (existing.paidAt ?? new Date()) : null })
+      .where(eq(payments.id, existing.id));
   } else {
     await db.insert(payments).values({
       contactId: contact.id,
@@ -103,6 +107,7 @@ export async function POST(req: Request) {
       method: "hotmart",
       status,
       reference,
+      paidAt: status === "confirmed" || status === "completed" ? new Date() : null,
     });
   }
 

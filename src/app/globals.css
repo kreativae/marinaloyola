@@ -10,6 +10,10 @@
   --color-plum-ink: #5c005c;
   --color-plum-deep: #3b0764;
   --color-ink: #18181b;
+  /* Backoffice: fundo quente e linhas finas */
+  --color-canvas: #f6f5f2;
+  --color-line: rgb(24 24 27 / 0.07);
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 
   --animate-marquee: marquee 42s linear infinite;
   --animate-pulse-ring: pulse-ring 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
@@ -123,16 +127,16 @@ dialog[open]::backdrop {
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-full bg-plum px-7 py-3.5 text-sm font-semibold tracking-wide text-white transition-all duration-300 hover:bg-plum-ink hover:shadow-[0_10px_30px_-10px_rgba(128,0,128,0.55)];
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-plum px-7 py-3.5 text-sm font-semibold tracking-wide text-white transition-all duration-300 hover:bg-plum-ink hover:shadow-[0_10px_30px_-10px_rgba(128,0,128,0.55)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-plum/20;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-full border border-zinc-300 bg-white px-7 py-3.5 text-sm font-semibold tracking-wide text-zinc-900 transition-all duration-300 hover:border-plum hover:text-plum;
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-zinc-300 bg-white px-7 py-3.5 text-sm font-semibold tracking-wide text-zinc-900 transition-all duration-300 hover:border-plum hover:text-plum active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-plum/20;
   }
   .btn-dark {
-    @apply inline-flex items-center justify-center gap-2 rounded-full bg-zinc-900 px-7 py-3.5 text-sm font-semibold tracking-wide text-white transition-all duration-300 hover:bg-plum;
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-zinc-900 px-7 py-3.5 text-sm font-semibold tracking-wide text-white transition-all duration-300 hover:bg-plum active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-plum/20;
   }
   .btn-light {
-    @apply inline-flex items-center justify-center gap-2 rounded-full border border-zinc-300 px-7 py-3.5 text-sm font-semibold tracking-wide text-zinc-950 transition-all duration-300 hover:border-zinc-950;
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-zinc-300 px-7 py-3.5 text-sm font-semibold tracking-wide text-zinc-950 transition-all duration-300 hover:border-zinc-950 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-plum/20;
   }
   .kicker {
     @apply text-[11px] font-bold uppercase tracking-[0.32em] text-plum;
@@ -141,13 +145,28 @@ dialog[open]::backdrop {
     @apply text-[11px] font-bold uppercase tracking-[0.32em] text-plum;
   }
   .field {
-    @apply w-full rounded-lg border border-zinc-200 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none transition-colors focus:border-plum focus:ring-2 focus:ring-plum/15;
+    @apply w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm text-zinc-900 shadow-[0_1px_1px_rgb(24_24_27/0.03)] placeholder:text-zinc-400 outline-none transition-all duration-200 hover:border-zinc-300 focus:border-plum/60 focus:ring-4 focus:ring-plum/10;
   }
   .field-light {
     @apply w-full rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none transition-colors focus:border-plum focus:ring-2 focus:ring-plum/15;
   }
   .card {
-    @apply rounded-2xl border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(24,24,27,0.04)];
+    @apply rounded-[20px] border border-line bg-white;
+    box-shadow:
+      0 1px 2px rgb(24 24 27 / 0.03),
+      0 10px 30px -18px rgb(24 24 27 / 0.12);
+    transition:
+      box-shadow 0.4s var(--ease-out-soft),
+      transform 0.4s var(--ease-out-soft),
+      border-color 0.3s ease;
+  }
+  /* Cartões clicáveis: elevam-se ligeiramente */
+  .card-hover:hover {
+    transform: translateY(-2px);
+    border-color: rgb(128 0 128 / 0.18);
+    box-shadow:
+      0 1px 2px rgb(24 24 27 / 0.04),
+      0 22px 40px -22px rgb(91 0 92 / 0.28);
   }
   .skeleton {
     @apply rounded-lg bg-zinc-200/70;
@@ -160,7 +179,7 @@ dialog[open]::backdrop {
     @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider;
   }
   .admin-th {
-    @apply px-4 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-zinc-500 bg-zinc-50;
+    @apply bg-zinc-50/70 px-4 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.16em] text-zinc-400;
   }
   .admin-td {
     @apply px-4 py-3.5 text-sm text-zinc-700;
@@ -172,7 +191,24 @@ dialog[open]::backdrop {
     @apply text-zinc-950 after:absolute after:-bottom-2 after:left-0 after:h-px after:w-full after:bg-plum;
   }
   .table-shell {
-    @apply w-full overflow-x-auto rounded-2xl border border-zinc-200 bg-white;
+    @apply w-full overflow-x-auto rounded-[20px] border border-line bg-white;
+    box-shadow:
+      0 1px 2px rgb(24 24 27 / 0.03),
+      0 10px 30px -18px rgb(24 24 27 / 0.12);
+  }
+  /* Linhas de tabela: barra de cor à esquerda no hover */
+  .table-shell tbody tr {
+    @apply transition-colors duration-200;
+    box-shadow: inset 0 0 0 0 var(--color-plum);
+    transition:
+      background-color 0.2s ease,
+      box-shadow 0.25s var(--ease-out-soft);
+  }
+  .table-shell tbody tr:hover {
+    box-shadow: inset 3px 0 0 0 var(--color-plum);
+  }
+  .kbd {
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-zinc-200 bg-white px-1.5 font-sans text-[10px] font-semibold text-zinc-500 shadow-[0_1px_0_rgb(24_24_27/0.06)];
   }
 }
 
@@ -215,5 +251,80 @@ dialog[open]::backdrop {
   }
   body {
     background: #fff !important;
+  }
+}
+
+/* --------------------------- MOVIMENTO (ADMIN) --------------------------- */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+}
+@keyframes ping-soft {
+  75%,
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Entrada escalonada dos filhos directos: grelhas de cartões, listas */
+.stagger > * {
+  animation: rise 0.6s var(--ease-out-soft) backwards;
+}
+.stagger > *:nth-child(2) { animation-delay: 60ms; }
+.stagger > *:nth-child(3) { animation-delay: 120ms; }
+.stagger > *:nth-child(4) { animation-delay: 180ms; }
+.stagger > *:nth-child(5) { animation-delay: 240ms; }
+.stagger > *:nth-child(6) { animation-delay: 300ms; }
+.stagger > *:nth-child(7) { animation-delay: 360ms; }
+.stagger > *:nth-child(n + 8) { animation-delay: 420ms; }
+
+.grow-y {
+  transform-origin: bottom;
+  animation: grow-y 0.9s var(--ease-out-soft) backwards;
+}
+.grow-x {
+  transform-origin: left;
+  animation: grow-x 0.9s var(--ease-out-soft) backwards;
+}
+.pop {
+  animation: pop 0.22s var(--ease-out-soft);
+}
+.ping-soft {
+  animation: ping-soft 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Barra de scroll fina no backoffice */
+.admin-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.admin-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+.admin-scroll:hover::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+}
+@keyframes drawer-left {
+  from {
+    transform: translateX(-100%);
   }
 }

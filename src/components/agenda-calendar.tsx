@@ -350,7 +350,14 @@ export function WeekCalendar({
   today: string;
   nowMin: number;
   events: CalEvent[];
-  availability: { dayOfWeek: number; startTime: string; endTime: string; active: boolean }[];
+  availability: {
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    breakStart?: string | null;
+    breakEnd?: string | null;
+    active: boolean;
+  }[];
 }) {
   const [open, setOpen] = useState<CalEvent | null>(null);
   const { shown, move, toast, setToast, pending } = useReschedule(events);
@@ -444,6 +451,14 @@ export function WeekCalendar({
                       className="absolute inset-x-0 bg-white"
                       style={{ top: top(toMin(av.startTime)), height: top(toMin(av.endTime)) - top(toMin(av.startTime)) }}
                     />
+                  )}
+                  {av?.breakStart && av.breakEnd && (
+                    <div
+                      className="absolute inset-x-0 flex items-start justify-center bg-[repeating-linear-gradient(135deg,#fafafa_0,#fafafa_6px,#f4f4f5_6px,#f4f4f5_12px)] pt-1 text-[9px] font-bold uppercase tracking-[0.14em] text-zinc-400"
+                      style={{ top: top(toMin(av.breakStart)), height: top(toMin(av.breakEnd)) - top(toMin(av.breakStart)) }}
+                    >
+                      Intervalo
+                    </div>
                   )}
                   {hours.map((h) => (
                     <div key={h} className="absolute inset-x-0 border-t border-zinc-100" style={{ top: (h - startHour) * HOUR_PX }} />

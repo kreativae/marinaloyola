@@ -6,7 +6,7 @@ export default function AdminLoading() {
         <div className="skeleton h-9 w-56" />
         <div className="skeleton h-4 w-full max-w-md" />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
           <div key={i} className="card space-y-3 p-5">
             <div className="skeleton h-3 w-24" />

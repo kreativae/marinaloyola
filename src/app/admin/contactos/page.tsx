@@ -1,11 +1,11 @@
 import Form from "next/form";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Download, Search, UserCheck, UserPlus, Users, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Moon, Search, SlidersHorizontal, Sparkles, UserCheck, UserPlus, Users, X } from "lucide-react";
 import { asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { channels, contacts, contactTags, interactions, tags } from "@/db/schema";
 import { contactOrder, contactWhere, SORTS, type ContactFilters } from "@/lib/contacts-query";
-import { EmptyState, PageHeader, StatCard } from "@/components/admin-ui";
+import { EmptyState, PageHeader } from "@/components/admin-ui";
 import { ContactsTable, ImportButton, NewContactButton, type ContactRow } from "@/components/contacts-client";
 import { countryName, flag } from "@/lib/timezones";
 import { cn, CONTACT_STATUS, num, SOURCES } from "@/lib/utils";
@@ -21,7 +21,7 @@ const toIso = (v: string | Date) =>
 export default async function ContactosPage({
   searchParams,
 }: {
-  searchParams: Promise<ContactFilters & { page?: string; apagados?: string }>;
+  searchParams: Promise<ContactFilters & { page?: string; apagados?: string; novo?: string }>;
 }) {
   const params = await searchParams;
   const filters: ContactFilters = {
@@ -31,6 +31,7 @@ export default async function ContactosPage({
     tag: params.tag,
     canal: params.canal,
     pais: params.pais,
+    vista: params.vista,
     sort: params.sort,
   };
   const where = contactWhere(filters);
@@ -44,6 +45,7 @@ export default async function ContactosPage({
         leads: sql<number>`count(*) filter (where ${contacts.status} in ('lead','qualified','negotiating'))`.mapWith(Number),
         clients: sql<number>`count(*) filter (where ${contacts.status} = 'client')`.mapWith(Number),
         recent: sql<number>`count(*) filter (where ${contacts.createdAt} > now() - interval '30 days')`.mapWith(Number),
+        idle: sql<number>`count(*) filter (where ${contacts.createdAt} <= now() - interval '30 days' and not exists (select 1 from interactions i where i.contact_id = ${contacts.id} and i.created_at > now() - interval '30 days'))`.mapWith(Number),
       })
       .from(contacts)
       .then((r) => r[0]),
@@ -120,6 +122,34 @@ export default async function ContactosPage({
   };
   const exportHref = `/admin/crm/export${qs({ sort: undefined })}`;
 
+  // Etiquetas dos filtros activos, cada uma com um × para o remover
+  const VIEW_LABELS: Record<string, string> = { leads: "Leads em aberto", clientes: "Clientes", novos: "Novos · 30 dias", parados: "Sem actividade" };
+  const chips = active
+    .filter(([k]) => k !== "sort" || filters.sort !== "recent")
+    .map(([k, v]) => {
+      const value = String(v);
+      const label =
+        k === "q"
+          ? `“${value}”`
+          : k === "status"
+            ? CONTACT_STATUS[value]?.label
+            : k === "source"
+              ? SOURCES[value]
+              : k === "tag"
+                ? allTags.find((t) => String(t.id) === value)?.name
+                : k === "canal"
+                  ? value === "nenhum" ? "Sem canal" : channelRows.find((c) => String(c.id) === value)?.name
+                  : k === "pais"
+                    ? value === "nenhum" ? "Sem país" : `${flag(value)} ${countryName(value)}`
+                    : k === "vista"
+                      ? VIEW_LABELS[value]
+                      : k === "sort"
+                        ? `Ordenar: ${SORTS[value]?.label}`
+                        : value;
+      return { key: k, label: label ?? value };
+    });
+  const advanced = active.filter(([k]) => !["q", "vista", "sort"].includes(k));
+
   return (
     <>
       <PageHeader
@@ -131,7 +161,7 @@ export default async function ContactosPage({
             <a href={exportHref} download className="btn-ghost !px-5 !py-2.5 !text-xs">
               <Download size={14} /> Exportar{active.length ? " filtrados" : ""}
             </a>
-            <NewContactButton channels={channelOptions} />
+            <NewContactButton channels={channelOptions} defaultOpen={params.novo === "1"} />
           </>
         }
       />
@@ -142,16 +172,48 @@ export default async function ContactosPage({
         </p>
       )}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total de contactos" value={num(stats.all)} icon={<Users size={17} />} />
-        <StatCard label="Leads em aberto" value={num(stats.leads)} hint="Lead, qualificado ou em negociação" icon={<UserPlus size={17} />} />
-        <StatCard label="Clientes" value={num(stats.clients)} icon={<UserCheck size={17} />} accent />
-        <StatCard label="Novos (30 dias)" value={num(stats.recent)} icon={<UserPlus size={17} />} />
+      {/* Vistas rápidas, com a contagem de cada uma */}
+      <div className="admin-scroll stagger mb-5 flex gap-2 overflow-x-auto pb-1">
+        {(
+          [
+            [undefined, "Todos", stats.all, Users],
+            ["leads", "Leads em aberto", stats.leads, UserPlus],
+            ["clientes", "Clientes", stats.clients, UserCheck],
+            ["novos", "Novos · 30 dias", stats.recent, Sparkles],
+            ["parados", "Sem actividade · 30 dias", stats.idle, Moon],
+          ] as const
+        ).map(([v, label, n, Icon]) => {
+          const on = (filters.vista ?? undefined) === v;
+          return (
+            <Link
+              key={label}
+              href={`/admin/contactos${qs({ vista: v, page: undefined })}`}
+              scroll={false}
+              className={cn(
+                "group flex min-w-[150px] shrink-0 items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-300",
+                on
+                  ? "border-plum bg-plum text-white shadow-[0_10px_24px_-12px_rgb(128_0_128/0.7)]"
+                  : "border-line bg-white text-zinc-700 hover:-translate-y-0.5 hover:border-plum/25"
+              )}
+            >
+              <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", on ? "bg-white/15" : "bg-plum/[0.07] text-plum")}>
+                <Icon size={16} />
+              </span>
+              <span className="min-w-0">
+                <span className={cn("block font-display text-xl font-semibold leading-none tabular-nums", on ? "text-white" : "text-zinc-950")}>
+                  {num(n)}
+                </span>
+                <span className={cn("mt-1 block whitespace-nowrap text-[11px]", on ? "text-white/75" : "text-zinc-500")}>{label}</span>
+              </span>
+            </Link>
+          );
+        })}
       </div>
 
+      <div className="mb-6 grid gap-4 lg:grid-cols-2">
       {/* De onde vêm os contactos */}
       {withChannel > 0 && (
-        <div className="card mb-6 p-5">
+        <div className="card p-5">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">De onde vêm os contactos</p>
             <Link href="/admin/config?s=equipa#canais" className="text-xs font-semibold text-zinc-500 hover:text-plum">
@@ -186,7 +248,7 @@ export default async function ContactosPage({
 
       {/* Clientes por país */}
       {countries.length > 0 && (
-        <div className="card mb-6 p-5">
+        <div className="card p-5">
           <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">Contactos por país</p>
           <div className="flex flex-wrap gap-2">
             {countries.map((c) => (
@@ -213,75 +275,100 @@ export default async function ContactosPage({
         </div>
       )}
 
-      {/* Filtros */}
-      <Form action="/admin/contactos" className="mb-5 flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[220px] flex-1">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-          <input
-            name="q"
-            defaultValue={filters.q}
-            placeholder="Pesquisar nome, email, telefone ou cidade…"
-            className="field !pl-10"
-          />
+      </div>
+
+      {/* Pesquisa e filtros */}
+      <Form action="/admin/contactos" className="mb-3 flex flex-wrap items-center gap-2.5">
+        {filters.vista && <input type="hidden" name="vista" value={filters.vista} />}
+        <div className="relative min-w-[240px] flex-1">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+          <input name="q" defaultValue={filters.q} placeholder="Pesquisar nome, email, telefone ou cidade…" className="field !pl-10" />
         </div>
-        <select name="status" defaultValue={filters.status ?? ""} className="field !w-auto">
-          <option value="">Todos os estados</option>
-          {Object.entries(CONTACT_STATUS).map(([v, s]) => (
-            <option key={v} value={v}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-        <select name="source" defaultValue={filters.source ?? ""} className="field !w-auto">
-          <option value="">Todas as origens</option>
-          {Object.entries(SOURCES).map(([v, label]) => (
-            <option key={v} value={v}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select name="tag" defaultValue={filters.tag ?? ""} className="field !w-auto max-w-[220px]">
-          <option value="">Todas as tags</option>
-          {allTags.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name} ({num(t.n)})
-            </option>
-          ))}
-        </select>
-        <select name="canal" defaultValue={filters.canal ?? ""} className="field !w-auto max-w-[200px]">
-          <option value="">Todos os canais</option>
-          {channelRows.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name} ({num(c.count)})
-            </option>
-          ))}
-          <option value="nenhum">Sem canal ({num(noChannel)})</option>
-        </select>
-        <select name="pais" defaultValue={filters.pais ?? ""} className="field !w-auto max-w-[200px]">
-          <option value="">Todos os países</option>
-          {countries.map((c) => (
-            <option key={c.country} value={c.country}>
-              {flag(c.country)} {countryName(c.country)} ({num(c.n)})
-            </option>
-          ))}
-          {noCountry > 0 && <option value="nenhum">Sem país ({num(noCountry)})</option>}
-        </select>
-        <select name="sort" defaultValue={filters.sort ?? "recent"} className="field !w-auto">
-          {Object.entries(SORTS).map(([v, s]) => (
-            <option key={v} value={v}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+        <details className="group relative">
+          <summary className="btn-ghost flex cursor-pointer list-none !px-4 !py-2.5 !text-xs">
+            <SlidersHorizontal size={14} /> Filtros
+            {advanced.length > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-plum px-1.5 text-[10px] font-bold text-white">{advanced.length}</span>
+            )}
+          </summary>
+          <div className="pop absolute right-0 z-30 mt-2 grid w-[min(34rem,calc(100vw-2rem))] gap-3 rounded-2xl border border-line bg-white p-4 shadow-[0_24px_60px_-20px_rgb(24_24_27/0.35)] sm:grid-cols-2">
+            <select name="status" defaultValue={filters.status ?? ""} className="field">
+              <option value="">Todos os estados</option>
+              {Object.entries(CONTACT_STATUS).map(([v, st]) => (
+                <option key={v} value={v}>
+                  {st.label}
+                </option>
+              ))}
+            </select>
+            <select name="source" defaultValue={filters.source ?? ""} className="field">
+              <option value="">Todas as origens</option>
+              {Object.entries(SOURCES).map(([v, label]) => (
+                <option key={v} value={v}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <select name="tag" defaultValue={filters.tag ?? ""} className="field">
+              <option value="">Todas as tags</option>
+              {allTags.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({num(t.n)})
+                </option>
+              ))}
+            </select>
+            <select name="canal" defaultValue={filters.canal ?? ""} className="field">
+              <option value="">Todos os canais</option>
+              {channelRows.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({num(c.count)})
+                </option>
+              ))}
+              <option value="nenhum">Sem canal ({num(noChannel)})</option>
+            </select>
+            <select name="pais" defaultValue={filters.pais ?? ""} className="field">
+              <option value="">Todos os países</option>
+              {countries.map((c) => (
+                <option key={c.country} value={c.country}>
+                  {flag(c.country)} {countryName(c.country)} ({num(c.n)})
+                </option>
+              ))}
+              {noCountry > 0 && <option value="nenhum">Sem país ({num(noCountry)})</option>}
+            </select>
+            <select name="sort" defaultValue={filters.sort ?? "recent"} className="field">
+              {Object.entries(SORTS).map(([v, st]) => (
+                <option key={v} value={v}>
+                  Ordenar: {st.label}
+                </option>
+              ))}
+            </select>
+            <button type="submit" className="btn-primary !py-2.5 !text-xs sm:col-span-2">
+              Aplicar filtros
+            </button>
+          </div>
+        </details>
         <button type="submit" className="btn-dark !px-5 !py-2.5 !text-xs">
-          Filtrar
+          Pesquisar
         </button>
-        {active.length > 0 && (
-          <Link href="/admin/contactos" className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-500 hover:text-plum">
-            <X size={13} /> Limpar
-          </Link>
-        )}
       </Form>
+
+      {/* Filtros activos, removíveis um a um */}
+      {active.length > 0 && (
+        <div className="mb-5 flex flex-wrap items-center gap-2">
+          {chips.map((c) => (
+            <Link
+              key={c.key}
+              href={`/admin/contactos${qs({ [c.key]: undefined, page: undefined })}`}
+              scroll={false}
+              className="inline-flex items-center gap-1.5 rounded-full border border-plum/20 bg-plum/[0.05] px-3 py-1 text-xs font-semibold text-plum transition-colors hover:bg-plum/10"
+            >
+              {c.label} <X size={12} />
+            </Link>
+          ))}
+          <Link href="/admin/contactos" className="text-xs font-semibold text-zinc-500 hover:text-plum">
+            Limpar tudo
+          </Link>
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <EmptyState

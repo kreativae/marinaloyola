@@ -9,6 +9,8 @@ export type ContactFilters = {
   tag?: string;
   canal?: string;
   pais?: string;
+  /** Vista rápida: leads | clientes | novos | parados */
+  vista?: string;
   sort?: string;
   ids?: string;
 };
@@ -46,6 +48,15 @@ export function contactWhere(f: ContactFilters): SQL | undefined {
   if (Number.isInteger(tagId) && tagId > 0) {
     conds.push(
       sql`exists (select 1 from ${contactTags} where ${contactTags.contactId} = ${contacts.id} and ${contactTags.tagId} = ${tagId})`
+    );
+  }
+  if (f.vista === "leads") conds.push(sql`${contacts.status} in ('lead','qualified','negotiating')`);
+  else if (f.vista === "clientes") conds.push(eq(contacts.status, "client"));
+  else if (f.vista === "novos") conds.push(sql`${contacts.createdAt} > now() - interval '30 days'`);
+  else if (f.vista === "parados") {
+    // Sem nenhuma interacção nos últimos 30 dias (e criados há mais de 30 dias)
+    conds.push(
+      sql`${contacts.createdAt} <= now() - interval '30 days' and not exists (select 1 from interactions i where i.contact_id = ${contacts.id} and i.created_at > now() - interval '30 days')`
     );
   }
   if (f.pais === "nenhum") conds.push(isNull(contacts.country));
