@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Clock, Loader2, Mail, Move, Phone, Send, Undo2, UserRound, Video, X } from "lucide-react";
+import { CalendarDays, Clock, Loader2, Mail, Move, Phone, RefreshCw, Send, Undo2, UserRound, Video, X } from "lucide-react";
 import { setAppointmentStatus } from "@/lib/actions-admin";
 import { notifyReschedule, rescheduleAppointment } from "@/lib/actions-agenda";
+import { syncGoogleCalendar } from "@/lib/actions-config";
 import { SelectAction, CopyButton } from "@/components/admin-client";
 import { Modal } from "@/components/contacts-client";
 import { APPT_STATUS, cn } from "@/lib/utils";
@@ -557,7 +558,7 @@ function EventModal({ event: e, onClose }: { event: CalEvent | null; onClose: ()
         setStatus(null);
         onClose();
       }}
-      title={e?.kind === "busy" ? "Ocupado no Google Calendar" : (e?.title ?? "")}
+      title={e?.title ?? ""}
     >
       {e && (
         <div className="space-y-4 text-sm">
@@ -574,7 +575,7 @@ function EventModal({ event: e, onClose }: { event: CalEvent | null; onClose: ()
             </p>
           )}
           {e.kind === "busy" ? (
-            <p className="text-zinc-600">{e.subtitle || "Evento sem título"} — este horário não aparece como livre na página de marcação.</p>
+            <p className="text-zinc-600">Evento do Google Calendar — este horário não aparece como livre na página de marcação.</p>
           ) : (
             <>
               <p className="flex items-center gap-2">
@@ -624,5 +625,69 @@ function EventModal({ event: e, onClose }: { event: CalEvent | null; onClose: ()
         </div>
       )}
     </Modal>
+  );
+}
+
+/* --------------------------- GOOGLE CALENDAR --------------------------- */
+
+function ago(ms: number) {
+  const min = Math.floor(ms / 60_000);
+  if (min < 1) return "agora mesmo";
+  if (min < 60) return `há ${min} min`;
+  const h = Math.floor(min / 60);
+  return `há ${h} h`;
+}
+
+/**
+ * Estado da ligação ao Google Calendar com o botão "Sincronizar agora".
+ * Com a página aberta, volta a pedir os dados ao servidor ao ritmo escolhido nas Configurações.
+ */
+export function CalendarSync({ configured, minutes, at, error, serverNow }: { configured: boolean; minutes: number; at: number; error: string | null; serverNow: number }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [now, setNow] = useState(serverNow);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    const tick = setInterval(() => setNow(Date.now()), 30_000);
+    const auto = setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, minutes * 60_000);
+    return () => {
+      clearInterval(tick);
+      clearInterval(auto);
+    };
+  }, [minutes, router]);
+
+  if (!configured)
+    return (
+      <Link href="/admin/config?s=calendar" className="btn-ghost !px-4 !py-2 !text-xs">
+        <RefreshCw size={13} /> Ligar Google Calendar
+      </Link>
+    );
+
+  const sync = () =>
+    start(async () => {
+      const r = await syncGoogleCalendar();
+      setNow(Date.now());
+      setMsg(r.ok ? { ok: true, text: `${r.count} evento${r.count === 1 ? "" : "s"} lido${r.count === 1 ? "" : "s"}` } : { ok: false, text: r.error ?? "Falha a sincronizar" });
+      router.refresh();
+      setTimeout(() => setMsg(null), 5000);
+    });
+
+  const failing = Boolean(error) && !msg;
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className={cn("hidden items-center gap-1.5 text-[11px] sm:flex", failing ? "text-rose-600" : "text-zinc-500")}
+        title={failing ? (error ?? "") : `Sincroniza automaticamente a cada ${minutes} min`}
+      >
+        <span className={cn("h-1.5 w-1.5 rounded-full", failing ? "bg-rose-500" : "bg-emerald-500")} />
+        {msg ? <span className={cn("pop font-semibold", msg.ok ? "text-emerald-600" : "text-rose-600")}>{msg.text}</span> : failing ? "Falha na leitura" : `Google · ${at ? ago(now - at) : "por ler"}`}
+      </span>
+      <button type="button" onClick={sync} disabled={pending} className="btn-ghost !px-4 !py-2 !text-xs disabled:opacity-60">
+        <RefreshCw size={13} className={cn(pending && "animate-spin")} /> {pending ? "A sincronizar…" : "Sincronizar agora"}
+      </button>
+    </div>
   );
 }

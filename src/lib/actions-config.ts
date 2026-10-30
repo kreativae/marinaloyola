@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth";
 import { deleteSettings, getToken, saveSettings } from "@/lib/settings";
 import { getService, type ServiceId } from "@/lib/services-def";
 import { testService } from "@/lib/services";
+import { syncCalendar } from "@/lib/calendar";
 
 export type SaveResult = { ok: boolean; message?: string; errors?: Record<string, string>; savedAt?: number };
 
@@ -85,4 +86,13 @@ export async function regenerateCalendarFeed() {
   await requireAdmin();
   await getToken("calendar_feed_token", true);
   revalidatePath("/admin/config");
+}
+
+/** Botão "Sincronizar agora" da Agenda: relê o Google Calendar e actualiza as páginas que o usam. */
+export async function syncGoogleCalendar() {
+  await requireAdmin();
+  const r = await syncCalendar();
+  revalidatePath("/admin/agenda");
+  revalidatePath("/agendar");
+  return r;
 }

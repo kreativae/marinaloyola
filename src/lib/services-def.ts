@@ -198,6 +198,20 @@ export const SERVICES: ServiceDef[] = [
         help: "Google Calendar → Definições → o seu calendário → “Endereço secreto em formato iCal”. Os eventos ocupados deixam de aparecer como horários livres.",
       },
       { key: "gcal_block_busy", label: "Bloquear horários ocupados no Google Calendar", type: "toggle", default: "1" },
+      {
+        key: "gcal_sync_minutes",
+        label: "Sincronizar a cada",
+        type: "select",
+        default: "5",
+        options: [
+          { value: "1", label: "1 minuto" },
+          { value: "5", label: "5 minutos" },
+          { value: "15", label: "15 minutos" },
+          { value: "30", label: "30 minutos" },
+          { value: "60", label: "1 hora" },
+        ],
+        help: "De quanto em quanto tempo a plataforma relê o seu Google Calendar. Na Agenda há também o botão “Sincronizar agora”.",
+      },
     ],
   },
   {

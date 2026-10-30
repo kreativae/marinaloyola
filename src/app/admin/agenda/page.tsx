@@ -21,8 +21,8 @@ import { createEventType, setAppointmentStatus, toggleEventType } from "@/lib/ac
 import { CopyToWeekdays, DayHoursRow, type DayHours } from "@/components/availability-editor";
 import { EmptyState, PageHeader, Panel } from "@/components/admin-ui";
 import { CopyButton, SelectAction } from "@/components/admin-client";
-import { MonthCalendar, WeekCalendar, type CalEvent } from "@/components/agenda-calendar";
-import { getBusy } from "@/lib/calendar";
+import { CalendarSync, MonthCalendar, WeekCalendar, type CalEvent } from "@/components/agenda-calendar";
+import { calendarStatus, getBusy } from "@/lib/calendar";
 import { appUrl } from "@/lib/settings";
 import { cityOf, countryOfTz, dayIn, flag, fmtTime, HOME_TZ } from "@/lib/timezones";
 import { APPT_STATUS, cn, fmtDate, weekdayLabel } from "@/lib/utils";
@@ -47,7 +47,7 @@ export default async function AgendaPage({
   const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const weekEnd = new Date(startToday.getTime() + 7 * 86_400_000);
 
-  const [upcoming, avail, base] = await Promise.all([
+  const [upcoming, avail, base, gcal] = await Promise.all([
     db
       .select({ appt: appointments, eventName: eventTypes.name, color: eventTypes.color })
       .from(appointments)
@@ -57,6 +57,7 @@ export default async function AgendaPage({
       .limit(60),
     db.select().from(availability).orderBy(asc(availability.dayOfWeek)),
     appUrl(),
+    getBusy().then(() => calendarStatus()),
   ]);
 
   const todayKey = dayIn(now, HOME_TZ);
@@ -71,6 +72,7 @@ export default async function AgendaPage({
         subtitle="Sessões, disponibilidade e tipos de sessão num só lugar."
         actions={
           <>
+            <CalendarSync {...gcal} serverNow={now.getTime()} />
             <CopyButton text={`${base}/agendar`} label="Copiar link de marcação" />
             <Link href="/agendar" target="_blank" className="btn-ghost !px-4 !py-2 !text-xs">
               Página pública <ExternalLink size={13} />
@@ -508,8 +510,8 @@ async function CalendarSection({
         segments(b.start, b.end).map((seg) => ({
           id: i,
           kind: "busy" as const,
-          title: "Ocupado",
-          subtitle: "Google Calendar",
+          title: b.title || "Ocupado",
+          subtitle: b.title ? "Google Calendar" : "",
           ...seg,
           timeLabel: seg.startMin === 0 && seg.endMin === 1440 ? "Dia inteiro" : `${hm(b.start)}–${hm(b.end)}`,
           dateLabel: dateLabel(new Date(`${seg.day}T12:00:00`)),

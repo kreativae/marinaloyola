@@ -7,7 +7,7 @@ import { zonedToUtc } from "@/lib/timezones";
  *  - importação: o "endereço secreto em formato iCal" do Google, lido para bloquear horários ocupados.
  */
 
-export type Busy = { start: Date; end: Date };
+export type Busy = { start: Date; end: Date; title?: string };
 
 /* ------------------------------- EXPORTAÇÃO ------------------------------ */
 
@@ -76,6 +76,7 @@ export function parseBusy(ics: string, from: Date, to: Date): Busy[] {
     if (!ds) continue;
     const start = parseIcsDate(ds.value, ds.params);
     if (!start) continue;
+    const summary = get("SUMMARY")?.value.replace(/\\n/gi, " ").replace(/\\([,;\\])/g, "$1").trim();
     const de = get("DTEND");
     const endParsed = de ? parseIcsDate(de.value, de.params) : null;
     const dur =
@@ -90,7 +91,7 @@ export function parseBusy(ics: string, from: Date, to: Date): Busy[] {
     const push = (s: Date) => {
       if (excluded.has(s.getTime())) return;
       const e = new Date(s.getTime() + dur);
-      if (e > from && s < to) out.push({ start: s, end: e });
+      if (e > from && s < to) out.push({ start: s, end: e, ...(summary && { title: summary }) });
     };
 
     const rrule = get("RRULE")?.value;
@@ -138,8 +139,12 @@ export function parseBusy(ics: string, from: Date, to: Date): Busy[] {
   return out;
 }
 
-const cache = new Map<string, { at: number; busy: Busy[] }>();
-const CACHE_MS = 5 * 60_000;
+/* --------------------------- SINCRONIZAÇÃO ---------------------------- */
+
+type SyncState = { url: string; at: number; tried: number; busy: Busy[]; error: string | null };
+// Em globalThis para ser o mesmo estado em todas as rotas do servidor
+const g = globalThis as unknown as { __gcalSync?: SyncState };
+const state = (): SyncState => (g.__gcalSync ??= { url: "", at: 0, tried: 0, busy: [], error: null });
 
 async function fetchIcs(url: string) {
   const res = await fetch(url.replace(/^webcal:/, "https:"), { cache: "no-store", signal: AbortSignal.timeout(8000) });
@@ -149,28 +154,52 @@ async function fetchIcs(url: string) {
   return text;
 }
 
-const windowFrom = () => new Date(Date.now() - 86_400_000);
+const windowFrom = () => new Date(Date.now() - 35 * 86_400_000);
 const windowTo = () => new Date(Date.now() + 130 * 86_400_000);
 
-/** Horários ocupados do Google Calendar (com cache de 5 min). Falhas não bloqueiam as marcações. */
-export async function getBusy(): Promise<Busy[]> {
-  const m = await getSettings(["gcal_ical_url", "gcal_block_busy"]);
-  if (!m.gcal_ical_url || !isOn(m.gcal_block_busy)) return [];
-  const hit = cache.get(m.gcal_ical_url);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.busy;
+async function calendarSettings() {
+  const m = await getSettings(["gcal_ical_url", "gcal_block_busy", "gcal_sync_minutes"]);
+  return { url: m.gcal_ical_url, block: isOn(m.gcal_block_busy), minutes: Math.max(1, Number(m.gcal_sync_minutes) || 5) };
+}
+
+/** Lê o calendário agora, ignorando o intervalo. Uma falha mantém os últimos eventos lidos. */
+export async function syncCalendar(): Promise<{ ok: boolean; count: number; error?: string; at: number }> {
+  const { url } = await calendarSettings();
+  const st = state();
+  if (!url) return { ok: false, count: 0, error: "Google Calendar não está configurado.", at: st.at };
   try {
-    const busy = parseBusy(await fetchIcs(m.gcal_ical_url), windowFrom(), windowTo());
-    cache.set(m.gcal_ical_url, { at: Date.now(), busy });
-    return busy;
+    const busy = parseBusy(await fetchIcs(url), windowFrom(), windowTo());
+    g.__gcalSync = { url, at: Date.now(), tried: Date.now(), busy, error: null };
+    return { ok: true, count: busy.length, at: Date.now() };
   } catch (e) {
+    const error = e instanceof Error ? e.message : "Falha a ler o calendário.";
     console.error("[calendar] leitura do iCal falhou:", e);
-    return hit?.busy ?? [];
+    g.__gcalSync = st.url === url ? { ...st, tried: Date.now(), error } : { url, at: 0, tried: Date.now(), busy: [], error };
+    return { ok: false, count: 0, error, at: st.at };
   }
+}
+
+/** Horários ocupados do Google Calendar, relidos de acordo com o intervalo das Configurações. Falhas não bloqueiam as marcações. */
+export async function getBusy(): Promise<Busy[]> {
+  const { url, block, minutes } = await calendarSettings();
+  if (!url || !block) return [];
+  const st = state();
+  // Depois de uma falha, espera também o intervalo antes de tentar outra vez
+  if (st.url !== url || Date.now() - Math.max(st.at, st.tried) >= minutes * 60_000) await syncCalendar();
+  return state().url === url ? state().busy : [];
+}
+
+/** Para o botão da Agenda: quando foi a última leitura e de quanto em quanto tempo. */
+export async function calendarStatus() {
+  const { url, block, minutes } = await calendarSettings();
+  const st = state();
+  const same = st.url === url;
+  return { configured: Boolean(url), block, minutes, at: same ? st.at : 0, error: same ? st.error : null };
 }
 
 /** Para o botão de teste: lê sem cache e conta os eventos das próximas semanas. */
 export async function testCalendar(url: string) {
   const busy = parseBusy(await fetchIcs(url), new Date(), new Date(Date.now() + 30 * 86_400_000));
-  cache.delete(url);
+  state().at = 0;
   return busy;
 }
