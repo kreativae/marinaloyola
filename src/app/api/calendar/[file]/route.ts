@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { and, desc, eq, gte, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { appointments, eventTypes } from "@/db/schema";
+import { agendaEvents, appointments, eventTypes } from "@/db/schema";
 import { buildFeed } from "@/lib/calendar";
 import { readRaw } from "@/lib/settings";
 
@@ -34,8 +34,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ file: s
     .orderBy(desc(appointments.startAt))
     .limit(1000);
 
-  const ics = buildFeed(
-    rows.map(({ appt, eventName }) => ({
+  const own = await db
+    .select()
+    .from(agendaEvents)
+    .where(gte(agendaEvents.endAt, new Date(Date.now() - 90 * 86_400_000)))
+    .orderBy(desc(agendaEvents.startAt))
+    .limit(1000);
+
+  const ics = buildFeed([
+    ...rows.map(({ appt, eventName }) => ({
       id: appt.id,
       title: `${eventName ?? "Sessão"} — ${appt.name}`,
       description: [
@@ -50,8 +57,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ file: s
       startAt: appt.startAt,
       endAt: appt.endAt,
       createdAt: appt.createdAt,
-    }))
-  );
+    })),
+    // Compromissos criados no backoffice
+    ...own.map((ev) => ({
+      id: ev.id,
+      uid: `evento-${ev.id}`,
+      title: ev.title,
+      description: [ev.location, ev.notes].filter(Boolean).join("\n"),
+      url: null,
+      startAt: ev.startAt,
+      endAt: ev.endAt,
+      createdAt: ev.createdAt,
+    })),
+  ]);
   return new Response(ics, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",

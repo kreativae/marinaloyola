@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, gte, lt, ne } from "drizzle-orm";
+import { and, eq, gt, gte, lt, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { appointments, availability, eventTypes, users } from "@/db/schema";
+import { agendaEvents, appointments, availability, eventTypes, users } from "@/db/schema";
 import { createSession, destroySession, verifyPassword } from "@/lib/auth";
 import { addInteraction, findOrCreateContact, tagContact } from "@/lib/crm";
 import { getBusy } from "@/lib/calendar";
@@ -97,7 +97,7 @@ async function slotsForLisbonDay(et: typeof eventTypes.$inferSelect, dateStr: st
   if (!avails.length) return [];
 
   const nextDay = new Date(y, m - 1, d + 1);
-  const [dayAppts, busy] = await Promise.all([
+  const [dayAppts, busy, own] = await Promise.all([
     db
       .select({ startAt: appointments.startAt, endAt: appointments.endAt })
       .from(appointments)
@@ -109,10 +109,15 @@ async function slotsForLisbonDay(et: typeof eventTypes.$inferSelect, dateStr: st
         )
       ),
     getBusy(),
+    db
+      .select({ startAt: agendaEvents.startAt, endAt: agendaEvents.endAt })
+      .from(agendaEvents)
+      .where(and(eq(agendaEvents.blocksBooking, true), lt(agendaEvents.startAt, nextDay), gt(agendaEvents.endAt, day))),
   ]);
-  // Agendamentos e eventos ocupados do Google Calendar, como intervalos absolutos
+  // Agendamentos, compromissos do backoffice e eventos ocupados do Google Calendar, como intervalos absolutos
   const blocked = [
     ...dayAppts.map((a) => ({ start: new Date(a.startAt), end: new Date(a.endAt) })),
+    ...own.map((a) => ({ start: new Date(a.startAt), end: new Date(a.endAt) })),
     ...busy.filter((b) => b.start < nextDay && b.end > day),
   ];
 

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowRight,
   CalendarDays,
+  CalendarPlus,
   ChevronsLeft,
   CornerDownLeft,
   ExternalLink,
@@ -393,6 +394,7 @@ function Topbar({ onMenu, onSearch }: { onMenu: () => void; onSearch: () => void
             <div className="pop absolute right-0 top-12 z-40 w-56 overflow-hidden rounded-2xl border border-line bg-white p-1.5 shadow-[0_20px_50px_-20px_rgb(24_24_27/0.35)]">
               {[
                 { href: "/admin/contactos?novo=1", label: "Novo contacto", icon: UserPlus },
+                { href: "/admin/agenda?view=calendario&modo=semana&evento=novo", label: "Novo evento", icon: CalendarPlus },
                 { href: "/admin/financeiro?novo=1", label: "Registar recebimento", icon: Wallet },
                 { href: "/admin/financeiro?despesa=1", label: "Registar despesa", icon: Wallet },
                 { href: "/admin/marketing?novo=1", label: "Novo conteúdo", icon: Megaphone },
@@ -448,6 +450,7 @@ type Command = { id: string; label: string; hint?: string; icon: LucideIcon; hre
 const STATIC_COMMANDS: Command[] = [
   ...ALL_ITEMS.map((i) => ({ id: i.href, label: i.label, icon: i.icon, href: i.href, group: "Ir para" })),
   { id: "novo-contacto", label: "Novo contacto", icon: UserPlus, href: "/admin/contactos?novo=1", group: "Ações" },
+  { id: "novo-evento", label: "Novo evento na agenda", icon: CalendarPlus, href: "/admin/agenda?view=calendario&modo=semana&evento=novo", group: "Ações" },
   { id: "pagamento", label: "Registar recebimento", icon: Wallet, href: "/admin/financeiro?novo=1", group: "Ações" },
   { id: "despesa", label: "Registar despesa", icon: Wallet, href: "/admin/financeiro?despesa=1", group: "Ações" },
   { id: "semana", label: "Agenda desta semana", icon: CalendarDays, href: "/admin/agenda?view=calendario&modo=semana", group: "Ações" },

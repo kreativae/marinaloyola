@@ -14,14 +14,14 @@ import {
   UserRound,
   Video,
 } from "lucide-react";
-import { and, asc, desc, eq, gte, lt, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, lt, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { appointments, availability, eventTypes } from "@/db/schema";
+import { agendaEvents, appointments, availability, eventTypes } from "@/db/schema";
 import { createEventType, setAppointmentStatus, toggleEventType } from "@/lib/actions-admin";
 import { CopyToWeekdays, DayHoursRow, type DayHours } from "@/components/availability-editor";
 import { EmptyState, PageHeader, Panel } from "@/components/admin-ui";
 import { CopyButton, SelectAction } from "@/components/admin-client";
-import { CalendarSync, MonthCalendar, WeekCalendar, type CalEvent } from "@/components/agenda-calendar";
+import { CalendarSync, MonthCalendar, NewAgendaEventButton, WeekCalendar, type CalEvent } from "@/components/agenda-calendar";
 import { calendarStatus, getBusy } from "@/lib/calendar";
 import { appUrl } from "@/lib/settings";
 import { cityOf, countryOfTz, dayIn, flag, fmtTime, HOME_TZ } from "@/lib/timezones";
@@ -39,7 +39,7 @@ type Tab = "calendario" | "lista" | "disponibilidade";
 export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; modo?: string; m?: string; d?: string }>;
+  searchParams: Promise<{ view?: string; modo?: string; m?: string; d?: string; evento?: string }>;
 }) {
   const sp = await searchParams;
   const tab: Tab = sp.view === "lista" || sp.view === "disponibilidade" ? sp.view : "calendario";
@@ -73,6 +73,7 @@ export default async function AgendaPage({
         actions={
           <>
             <CalendarSync {...gcal} serverNow={now.getTime()} />
+            <NewAgendaEventButton today={todayKey} initialOpen={sp.evento === "novo"} />
             <CopyButton text={`${base}/agendar`} label="Copiar link de marcação" />
             <Link href="/agendar" target="_blank" className="btn-ghost !px-4 !py-2 !text-xs">
               Página pública <ExternalLink size={13} />
@@ -454,7 +455,7 @@ async function CalendarSection({
     nextHref = `/admin/agenda?view=calendario&m=${ym(new Date(y, mo, 1))}`;
   }
 
-  const [rows, busy] = await Promise.all([
+  const [rows, busy, own] = await Promise.all([
     db
       .select({ appt: appointments, eventName: eventTypes.name, color: eventTypes.color })
       .from(appointments)
@@ -462,6 +463,11 @@ async function CalendarSection({
       .where(and(gte(appointments.startAt, from), lt(appointments.startAt, to)))
       .orderBy(asc(appointments.startAt)),
     getBusy(),
+    db
+      .select()
+      .from(agendaEvents)
+      .where(and(lt(agendaEvents.startAt, to), gt(agendaEvents.endAt, from)))
+      .orderBy(asc(agendaEvents.startAt)),
   ]);
 
   // Divide cada evento por dia (hora de Lisboa, o fuso do servidor)
@@ -504,6 +510,34 @@ async function CalendarSection({
         contactId: appt.contactId,
       }))
     ),
+    // Compromissos criados no backoffice
+    ...own.flatMap((ev) => {
+      const lastDay = new Date(ev.endAt.getTime() - (ev.allDay ? 86_400_000 : 0));
+      return segments(ev.startAt, ev.endAt).map((seg) => ({
+        id: ev.id,
+        kind: "event" as const,
+        title: ev.title,
+        subtitle: [ev.blocksBooking ? "Bloqueia marcações" : "Não bloqueia marcações", ev.location].filter(Boolean).join(" · "),
+        ...seg,
+        timeLabel: ev.allDay ? "Dia inteiro" : `${hm(ev.startAt)}–${hm(ev.endAt)}`,
+        dateLabel: dateLabel(ev.startAt),
+        color: ev.color,
+        notes: ev.notes,
+        draft: {
+          id: ev.id,
+          title: ev.title,
+          date: iso(ev.startAt),
+          endDate: iso(lastDay),
+          start: hm(ev.startAt),
+          end: hm(ev.endAt),
+          allDay: ev.allDay,
+          blocks: ev.blocksBooking,
+          notes: ev.notes,
+          location: ev.location,
+          color: ev.color,
+        },
+      }));
+    }),
     ...busy
       .filter((b) => b.start < to && b.end > from)
       .flatMap((b, i) =>

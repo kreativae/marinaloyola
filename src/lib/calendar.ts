@@ -16,7 +16,7 @@ const icsEsc = (s: string) =>
   s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 
 export function buildFeed(
-  events: { id: number; title: string; description: string; url: string | null; startAt: Date; endAt: Date; createdAt: Date }[]
+  events: { id: number; uid?: string; title: string; description: string; url: string | null; startAt: Date; endAt: Date; createdAt: Date }[]
 ) {
   const lines = [
     "BEGIN:VCALENDAR",
@@ -30,7 +30,7 @@ export function buildFeed(
   for (const e of events) {
     lines.push(
       "BEGIN:VEVENT",
-      `UID:agendamento-${e.id}@marinaloyola.com`,
+      `UID:${e.uid ?? `agendamento-${e.id}`}@marinaloyola.com`,
       `DTSTAMP:${icsStamp(e.createdAt)}`,
       `DTSTART:${icsStamp(e.startAt)}`,
       `DTEND:${icsStamp(e.endAt)}`,

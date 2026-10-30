@@ -250,6 +250,20 @@ export const appointments = pgTable("appointments", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+/** Compromissos da Marina criados no backoffice (reuniões, viagens, pausas). Podem bloquear a marcação pública. */
+export const agendaEvents = pgTable("agenda_events", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  notes: text("notes"),
+  location: text("location"),
+  startAt: timestamp("start_at").notNull(),
+  endAt: timestamp("end_at").notNull(),
+  allDay: boolean("all_day").notNull().default(false),
+  blocksBooking: boolean("blocks_booking").notNull().default(true),
+  color: text("color").notNull().default("#0ea5e9"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 /* -------------------------------- LMS ----------------------------------- */
 
 export const courses = pgTable("courses", {

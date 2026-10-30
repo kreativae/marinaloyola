@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Clock, Loader2, Mail, Move, Phone, RefreshCw, Send, Undo2, UserRound, Video, X } from "lucide-react";
+import { AlertTriangle, CalendarDays, CalendarPlus, Check, Clock, Loader2, Mail, MapPin, Move, PenLine, Phone, RefreshCw, Send, Trash2, Undo2, UserRound, Video, X } from "lucide-react";
 import { setAppointmentStatus } from "@/lib/actions-admin";
-import { notifyReschedule, rescheduleAppointment } from "@/lib/actions-agenda";
+import { deleteAgendaEvent, moveAgendaEvent, notifyReschedule, rescheduleAppointment, saveAgendaEvent, type AgendaEventResult } from "@/lib/actions-agenda";
 import { syncGoogleCalendar } from "@/lib/actions-config";
 import { SelectAction, CopyButton } from "@/components/admin-client";
-import { Modal } from "@/components/contacts-client";
+import { Field, FormSection, IconInput, Modal, ModalFooter, PillGroup, ToggleRow } from "@/components/form-kit";
 import { APPT_STATUS, cn } from "@/lib/utils";
 
 /**
@@ -17,7 +17,7 @@ import { APPT_STATUS, cn } from "@/lib/utils";
  */
 export type CalEvent = {
   id: number;
-  kind: "appt" | "busy";
+  kind: "appt" | "busy" | "event";
   title: string;
   subtitle: string;
   day: string; // AAAA-MM-DD (Lisboa)
@@ -36,6 +36,8 @@ export type CalEvent = {
   clientLabel?: string | null;
   /** Versão curta para blocos pequenos: "🇧🇷 14:00" */
   clientShort?: string | null;
+  /** Compromissos do backoffice: dados para o formulário de edição */
+  draft?: AgendaEventDraft;
 };
 
 const STATUS_OPTIONS = Object.entries(APPT_STATUS).map(([value, s]) => ({ value, label: s.label }));
@@ -51,7 +53,9 @@ function eventsOn(events: CalEvent[], day: Date) {
   return events.filter((e) => e.day === key).sort((a, b) => a.startMin - b.startMin);
 }
 
-const canDrag = (e: CalEvent) => e.kind === "appt" && e.status !== "cancelled";
+const canDrag = (e: CalEvent) => (e.kind === "appt" && e.status !== "cancelled") || (e.kind === "event" && !e.draft?.allDay);
+const keyOf = (e: { kind: string; id: number }) => `${e.kind}:${e.id}`;
+const tinted = (e: CalEvent) => e.kind === "appt" || e.kind === "event";
 
 /* ---------------------------- ARRASTAR E SOLTAR --------------------------- */
 
@@ -65,7 +69,7 @@ type Toast =
  */
 function useReschedule(events: CalEvent[]) {
   const router = useRouter();
-  const [overrides, setOverrides] = useState<Map<number, { day: string; startMin: number }>>(new Map());
+  const [overrides, setOverrides] = useState<Map<string, { day: string; startMin: number }>>(new Map());
   const [seen, setSeen] = useState(events);
   const [toast, setToast] = useState<Toast | null>(null);
   const [pending, start] = useTransition();
@@ -77,22 +81,39 @@ function useReschedule(events: CalEvent[]) {
   }
 
   const shown = events.map((e) => {
-    const o = e.kind === "appt" ? overrides.get(e.id) : undefined;
+    const o = e.kind !== "busy" ? overrides.get(keyOf(e)) : undefined;
     if (!o) return e;
     const dur = e.endMin - e.startMin;
     return { ...e, day: o.day, startMin: o.startMin, endMin: Math.min(1440, o.startMin + dur), timeLabel: `${hhmm(o.startMin)}–${hhmm(Math.min(1439, o.startMin + dur))}` };
   });
 
   const move = (e: CalEvent, day: string, startMin: number, undo = false) => {
-    const cur = shown.find((x) => x.kind === "appt" && x.id === e.id) ?? e;
+    const cur = shown.find((x) => keyOf(x) === keyOf(e)) ?? e;
     if (cur.day === day && cur.startMin === startMin) return;
-    setOverrides((m) => new Map(m).set(e.id, { day, startMin }));
+    setOverrides((m) => new Map(m).set(keyOf(e), { day, startMin }));
+    if (e.kind === "event") {
+      start(async () => {
+        const r = await moveAgendaEvent(e.id, day, startMin);
+        if (!r.ok) {
+          setOverrides((m) => {
+            const n = new Map(m);
+            n.delete(keyOf(e));
+            return n;
+          });
+          setToast({ kind: "error", message: r.error ?? "Não foi possível mover o evento." });
+          return;
+        }
+        setToast({ kind: "info", message: `“${e.title}” movido para ${hhmm(startMin)}.` });
+        router.refresh();
+      });
+      return;
+    }
     start(async () => {
       const r = await rescheduleAppointment(e.id, day, startMin);
       if (!r.ok) {
         setOverrides((m) => {
           const n = new Map(m);
-          n.delete(e.id);
+          n.delete(keyOf(e));
           return n;
         });
         setToast({ kind: "error", message: r.error ?? "Não foi possível mover a sessão." });
@@ -178,7 +199,9 @@ function RescheduleToast({
 /* --------------------------------- MÊS ---------------------------------- */
 
 export function MonthCalendar({ month, today, events }: { month: string; today: string; events: CalEvent[] }) {
-  const [open, setOpen] = useState<CalEvent | null>(null);
+  const [open, setOpenRaw] = useState<CalEvent | null>(null);
+  const [draft, setDraft] = useState<AgendaEventDraft | null>(null);
+  const setOpen = (e: CalEvent | null) => (e?.kind === "event" && e.draft ? setDraft(e.draft) : setOpenRaw(e));
   const { shown, move, toast, setToast, pending } = useReschedule(events);
   const dragging = useRef<CalEvent | null>(null);
   const [over, setOver] = useState<string | null>(null);
@@ -210,6 +233,10 @@ export function MonthCalendar({ month, today, events }: { month: string; today: 
                   setOver(iso);
                 }}
                 onDragLeave={() => setOver((o) => (o === iso ? null : o))}
+                onClick={(ev) => {
+                  if (ev.target === ev.currentTarget) setDraft({ date: iso, start: "10:00", end: "11:00" });
+                }}
+                title="Clique num espaço vazio para criar um evento"
                 onDrop={(ev) => {
                   ev.preventDefault();
                   setOver(null);
@@ -218,7 +245,7 @@ export function MonthCalendar({ month, today, events }: { month: string; today: 
                   if (e) move(e, iso, e.startMin);
                 }}
                 className={cn(
-                  "min-h-[112px] p-1.5 transition-colors",
+                  "min-h-[112px] cursor-pointer p-1.5 transition-colors hover:bg-plum/[0.02]",
                   over === iso ? "bg-plum/[0.07] ring-2 ring-inset ring-plum/40" : inMonth ? "bg-white" : "bg-zinc-50"
                 )}
               >
@@ -261,7 +288,8 @@ export function MonthCalendar({ month, today, events }: { month: string; today: 
           })}
         </div>
       </div>
-      <EventModal event={open} onClose={() => setOpen(null)} />
+      <EventModal event={open} onClose={() => setOpenRaw(null)} />
+      <AgendaEventModal draft={draft} onClose={() => setDraft(null)} />
       <RescheduleToast
         toast={toast}
         pending={pending}
@@ -304,11 +332,11 @@ function EventChip({
         e.kind === "busy" ? "border border-dashed border-zinc-300 bg-zinc-50 text-zinc-500" : "text-zinc-800",
         cancelled && "line-through opacity-50"
       )}
-      style={e.kind === "appt" ? { backgroundColor: `${e.color}1f` } : undefined}
+      style={tinted(e) ? { backgroundColor: `${e.color}1f` } : undefined}
       title={`${e.timeLabel} ${e.title}${e.clientLabel ? ` · ${e.clientLabel}` : ""}`}
     >
       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: e.color }} />
-      <span className="shrink-0 tabular-nums text-zinc-500">{e.kind === "busy" && e.startMin === 0 && e.endMin === 1440 ? "Dia" : hhmm(e.startMin)}</span>
+      <span className="shrink-0 tabular-nums text-zinc-500">{e.kind !== "appt" && e.startMin === 0 && e.endMin === 1440 ? "Dia" : hhmm(e.startMin)}</span>
       <span className="truncate">{e.title}</span>
       {e.clientShort && <span className="ml-auto shrink-0 text-[9px] text-sky-700">{e.clientShort}</span>}
     </button>
@@ -360,7 +388,9 @@ export function WeekCalendar({
     active: boolean;
   }[];
 }) {
-  const [open, setOpen] = useState<CalEvent | null>(null);
+  const [open, setOpenRaw] = useState<CalEvent | null>(null);
+  const [draft, setDraft] = useState<AgendaEventDraft | null>(null);
+  const setOpen = (e: CalEvent | null) => (e?.kind === "event" && e.draft ? setDraft(e.draft) : setOpenRaw(e));
   const { shown, move, toast, setToast, pending } = useReschedule(events);
   // Evento a ser arrastado e o ponto onde foi agarrado (minutos desde o início do evento)
   const dragging = useRef<{ e: CalEvent; grabMin: number } | null>(null);
@@ -375,7 +405,7 @@ export function WeekCalendar({
   // Intervalo de horas: disponibilidade e eventos da semana, com margem
   const mins = [
     ...availability.filter((a) => a.active).flatMap((a) => [toMin(a.startTime), toMin(a.endTime)]),
-    ...shown.filter((e) => e.kind === "appt").flatMap((e) => [e.startMin, e.endMin]),
+    ...shown.filter((e) => tinted(e) && !(e.startMin === 0 && e.endMin === 1440)).flatMap((e) => [e.startMin, e.endMin]),
   ];
   const startHour = Math.max(0, Math.floor((mins.length ? Math.min(...mins) : 540) / 60) - 1);
   const endHour = Math.min(24, Math.ceil((mins.length ? Math.max(...mins) : 1080) / 60) + 1);
@@ -444,6 +474,14 @@ export function WeekCalendar({
                     setPreview(null);
                     move(drag.e, iso, startMin);
                   }}
+                  onClick={(ev) => {
+                    // Clique num espaço vazio: novo evento a essa hora (de 30 em 30 minutos)
+                    if ((ev.target as HTMLElement).closest("button")) return;
+                    const rect = ev.currentTarget.getBoundingClientRect();
+                    const min = Math.max(0, Math.min(1410, Math.floor((startHour * 60 + ((ev.clientY - rect.top) / HOUR_PX) * 60) / 30) * 30));
+                    setDraft({ date: iso, start: hhmm(min), end: hhmm(Math.min(1439, min + 60)) });
+                  }}
+                  title="Clique num espaço vazio para criar um evento"
                 >
                   {/* Fora do horário de trabalho fica sombreado */}
                   <div className="absolute inset-0 bg-[repeating-linear-gradient(135deg,#fafafa_0,#fafafa_6px,#f4f4f5_6px,#f4f4f5_12px)]" />
@@ -503,7 +541,7 @@ export function WeekCalendar({
                         className={cn(
                           "absolute z-10 overflow-hidden rounded-lg border-l-[3px] px-1.5 py-1 text-left text-[11px] leading-tight shadow-sm transition-shadow hover:z-30 hover:shadow-md",
                           canDrag(e) && "cursor-grab active:cursor-grabbing",
-                          preview?.id === e.id && e.kind === "appt" && "opacity-40",
+                          preview?.id === e.id && tinted(e) && "opacity-40",
                           e.kind === "busy" ? "border border-dashed border-zinc-300 bg-zinc-100/90 text-zinc-500" : "text-zinc-900",
                           cancelled && "opacity-50"
                         )}
@@ -512,7 +550,7 @@ export function WeekCalendar({
                           height: Math.max(20, top(eMin) - top(sMin) - 2),
                           left: `calc(${(lane / n) * 100}% + 2px)`,
                           width: `calc(${100 / n}% - 4px)`,
-                          ...(e.kind === "appt" ? { backgroundColor: `${e.color}26`, borderLeftColor: e.color } : {}),
+                          ...(tinted(e) ? { backgroundColor: `${e.color}26`, borderLeftColor: e.color } : {}),
                         }}
                       >
                         <span className={cn("block truncate font-semibold", cancelled && "line-through")}>{e.title}</span>
@@ -530,9 +568,10 @@ export function WeekCalendar({
         </div>
       </div>
       <p className="mt-3 flex items-center gap-1.5 text-[11px] text-zinc-500">
-        <Move size={12} /> Arraste uma sessão para outro dia ou hora (encaixa de 15 em 15 minutos).
+        <Move size={12} /> Arraste uma sessão ou evento para outro dia ou hora (encaixa de 15 em 15 minutos) · clique num espaço vazio para criar um evento.
       </p>
-      <EventModal event={open} onClose={() => setOpen(null)} />
+      <EventModal event={open} onClose={() => setOpenRaw(null)} />
+      <AgendaEventModal draft={draft} onClose={() => setDraft(null)} />
       <RescheduleToast
         toast={toast}
         pending={pending}
@@ -689,5 +728,254 @@ export function CalendarSync({ configured, minutes, at, error, serverNow }: { co
         <RefreshCw size={13} className={cn(pending && "animate-spin")} /> {pending ? "A sincronizar…" : "Sincronizar agora"}
       </button>
     </div>
+  );
+}
+
+/* --------------------------- EVENTOS INTERNOS --------------------------- */
+
+export type AgendaEventDraft = {
+  id?: number;
+  title?: string;
+  date: string; // AAAA-MM-DD
+  endDate?: string;
+  start?: string; // HH:MM
+  end?: string;
+  allDay?: boolean;
+  blocks?: boolean;
+  notes?: string | null;
+  location?: string | null;
+  color?: string;
+};
+
+const EVENT_COLORS = [
+  { value: "#0ea5e9", label: "Azul" },
+  { value: "#800080", label: "Ameixa" },
+  { value: "#10b981", label: "Verde" },
+  { value: "#f59e0b", label: "Âmbar" },
+  { value: "#f43f5e", label: "Rosa" },
+  { value: "#71717a", label: "Cinza" },
+];
+
+const addMin = (time: string, min: number) => {
+  const [h, m] = time.split(":").map(Number);
+  const t = Math.min(23 * 60 + 59, h * 60 + m + min);
+  return hhmm(t);
+};
+
+/** Formulário de compromisso (criar ou editar). Com "bloquear", o período deixa de estar livre na página de marcação. */
+export function AgendaEventModal({ draft, onClose }: { draft: AgendaEventDraft | null; onClose: () => void }) {
+  return (
+    <Modal
+      open={Boolean(draft)}
+      onClose={onClose}
+      title={draft?.id ? "Editar evento" : "Novo evento"}
+      description="Compromisso na sua agenda — pode bloquear o horário para marcações"
+      icon={CalendarPlus}
+      size="lg"
+    >
+      {draft && <AgendaEventForm key={JSON.stringify(draft)} draft={draft} onClose={onClose} />}
+    </Modal>
+  );
+}
+
+function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose: () => void }) {
+  const router = useRouter();
+  const [allDay, setAllDay] = useState(Boolean(draft.allDay));
+  const [date, setDate] = useState(draft.date);
+  const [endDate, setEndDate] = useState(draft.endDate ?? draft.date);
+  const [start, setStart] = useState(draft.start ?? "10:00");
+  const [end, setEnd] = useState(draft.end ?? addMin(draft.start ?? "10:00", 60));
+  const [deleting, startDelete] = useTransition();
+  const [state, run, pending] = useActionState(async (prev: AgendaEventResult | null, fd: FormData) => {
+    const r = await saveAgendaEvent(draft.id ?? null, prev, fd);
+    if (r.ok) {
+      router.refresh();
+      if (!r.warning) onClose();
+    }
+    return r;
+  }, null);
+
+  if (state?.ok && state.warning) {
+    return (
+      <div className="pb-6">
+        <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-500" />
+          <div>
+            <p className="font-semibold">Evento guardado.</p>
+            <p className="mt-1">{state.warning} Essas sessões mantêm-se; mude-as na agenda se for preciso.</p>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end">
+          <button type="button" onClick={onClose} className="btn-primary !px-5 !py-2.5 !text-xs">
+            Entendido
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        startTransition(() => run(fd));
+      }}
+    >
+      <FormSection icon={PenLine} title="O quê">
+        <Field label="Título" required>
+          <input name="title" required data-autofocus defaultValue={draft.title} placeholder="Ex.: Reunião com fornecedor, consulta médica, viagem…" className="field !text-base" />
+        </Field>
+        <Field label="Cor">
+          <PillGroup name="color" defaultValue={draft.color ?? EVENT_COLORS[0].value} options={EVENT_COLORS.map((c) => ({ value: c.value, label: c.label, color: c.value }))} size="sm" />
+        </Field>
+      </FormSection>
+
+      <FormSection
+        icon={Clock}
+        title="Quando"
+        aside={
+          <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-zinc-600">
+            <input type="checkbox" name="allDay" value="1" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} className="peer sr-only" />
+            <span className="relative h-4 w-7 rounded-full bg-zinc-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-3 after:w-3 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-plum peer-checked:after:translate-x-3" />
+            Dia inteiro
+          </label>
+        }
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={allDay ? "De" : "Dia"}>
+            <IconInput icon={CalendarDays}>
+              <input
+                type="date"
+                name="date"
+                required
+                value={date}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  if (endDate < e.target.value) setEndDate(e.target.value);
+                }}
+                className="field"
+              />
+            </IconInput>
+          </Field>
+          {allDay ? (
+            <Field label="Até" hint="Para vários dias seguidos (férias, viagem…)">
+              <IconInput icon={CalendarDays}>
+                <input type="date" name="endDate" min={date} value={endDate} onChange={(e) => setEndDate(e.target.value)} className="field" />
+              </IconInput>
+            </Field>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Início">
+                <input
+                  type="time"
+                  name="start"
+                  required
+                  step={300}
+                  value={start}
+                  onChange={(e) => {
+                    const dur = Math.max(15, toMinutes(end) - toMinutes(start));
+                    setStart(e.target.value);
+                    if (e.target.value) setEnd(addMin(e.target.value, dur));
+                  }}
+                  className="field tabular-nums"
+                />
+              </Field>
+              <Field label="Fim">
+                <input type="time" name="end" required step={300} value={end} onChange={(e) => setEnd(e.target.value)} className="field tabular-nums" />
+              </Field>
+            </div>
+          )}
+        </div>
+        {!allDay && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[11px] font-semibold text-zinc-400">Duração</span>
+            {[
+              [30, "30 min"],
+              [60, "1 h"],
+              [90, "1 h 30"],
+              [120, "2 h"],
+              [240, "4 h"],
+            ].map(([min, label]) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setEnd(addMin(start, Number(min)))}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                  toMinutes(end) - toMinutes(start) === min ? "border-plum bg-plum text-white" : "border-zinc-200 bg-white text-zinc-600 hover:border-plum/40 hover:text-plum"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+            <input type="hidden" name="endDate" value={date} />
+          </div>
+        )}
+        <ToggleRow name="blocksBooking" label="Bloquear marcações neste horário" description="As clientes deixam de ver estas horas como livres na página de agendamento." defaultChecked={draft.blocks ?? true} />
+      </FormSection>
+
+      <FormSection icon={MapPin} title="Detalhes">
+        <Field label="Local ou link">
+          <IconInput icon={MapPin}>
+            <input name="location" defaultValue={draft.location ?? ""} placeholder="Morada, sala ou link da videochamada" className="field" />
+          </IconInput>
+        </Field>
+        <Field label="Notas">
+          <textarea name="notes" rows={3} defaultValue={draft.notes ?? ""} className="field resize-y" />
+        </Field>
+      </FormSection>
+
+      <ModalFooter error={state?.error}>
+        {draft.id && (
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={() =>
+              confirm("Apagar este evento? O horário volta a ficar livre para marcações.") &&
+              startDelete(async () => {
+                await deleteAgendaEvent(draft.id!);
+                router.refresh();
+                onClose();
+              })
+            }
+            className="btn-ghost mr-auto !px-4 !py-2.5 !text-xs hover:!border-rose-200 hover:!text-rose-600"
+          >
+            <Trash2 size={13} /> Apagar
+          </button>
+        )}
+        <button type="button" onClick={onClose} className="btn-ghost !px-5 !py-2.5 !text-xs">
+          Cancelar
+        </button>
+        <button type="submit" disabled={pending} className="btn-primary !px-5 !py-2.5 !text-xs disabled:opacity-60">
+          {pending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {draft.id ? "Guardar" : "Criar evento"}
+        </button>
+      </ModalFooter>
+    </form>
+  );
+}
+
+const toMinutes = (t: string) => {
+  const [h, m] = t.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+/** Botão "Novo evento" da Agenda (abre sozinho com ?evento=novo, vindo do botão + do topo). */
+export function NewAgendaEventButton({ today, initialOpen }: { today: string; initialOpen?: boolean }) {
+  const router = useRouter();
+  const [draft, setDraft] = useState<AgendaEventDraft | null>(initialOpen ? { date: today } : null);
+  return (
+    <>
+      <button type="button" onClick={() => setDraft({ date: today })} className="btn-primary !px-4 !py-2 !text-xs">
+        <CalendarPlus size={13} /> Novo evento
+      </button>
+      <AgendaEventModal
+        draft={draft}
+        onClose={() => {
+          setDraft(null);
+          if (initialOpen) router.replace("/admin/agenda?view=calendario&modo=semana", { scroll: false });
+        }}
+      />
+    </>
   );
 }
