@@ -1,7 +1,30 @@
 "use client";
 
 import { startTransition, useActionState, useState, useTransition } from "react";
-import { CheckCircle2, Loader2, Paperclip, Pencil, Plus, Repeat, Save, Trash2 } from "lucide-react";
+import {
+  Banknote,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  FileText,
+  Hash,
+  Landmark,
+  Loader2,
+  Package,
+  Paperclip,
+  Pencil,
+  PenLine,
+  Plus,
+  Receipt,
+  Repeat,
+  Save,
+  ShoppingBag,
+  Smartphone,
+  Trash2,
+  UserRound,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import {
   createExpenseAction,
   createPaymentAction,
@@ -13,11 +36,10 @@ import {
   updatePaymentAction,
   type FinanceResult,
 } from "@/lib/actions-finance";
-import { Modal } from "@/components/contacts-client";
+import { Field, FormSection, IconInput, Modal, ModalFooter, MoneyInput, PillGroup, ToggleRow } from "@/components/form-kit";
 import { EXPENSE_CATEGORIES } from "@/lib/finance-def";
 import { cn, eur, PAYMENT_METHODS, PAYMENT_STATUS } from "@/lib/utils";
 
-const label = "mb-1.5 block text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500";
 const iconBtn =
   "rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-plum disabled:pointer-events-none disabled:opacity-40";
 const today = () => {
@@ -49,42 +71,51 @@ function useFinanceForm(
 
 function Footer({ pending, error, onCancel, submit }: { pending: boolean; error?: string; onCancel: () => void; submit: string }) {
   return (
-    <>
-      {error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
-        <button type="button" onClick={onCancel} className="btn-ghost !px-5 !py-2.5 !text-xs">
-          Cancelar
-        </button>
-        <button type="submit" disabled={pending} className="btn-primary !px-5 !py-2.5 !text-xs disabled:opacity-60">
-          {pending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} {submit}
-        </button>
-      </div>
-    </>
+    <ModalFooter error={error}>
+      <button type="button" onClick={onCancel} className="btn-ghost !px-5 !py-2.5 !text-xs">
+        Cancelar
+      </button>
+      <button type="submit" disabled={pending} className="btn-primary !px-6 !py-2.5 !text-xs disabled:opacity-60">
+        {pending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} {submit}
+      </button>
+    </ModalFooter>
   );
 }
 
 function ReceiptField({ current, href }: { current?: string | null; href?: string }) {
+  const [file, setFile] = useState<string | null>(null);
   return (
     <div>
-      <label className={label}>Comprovativo</label>
-      <input
-        type="file"
-        name="receipt"
-        accept=".pdf,image/*"
-        className="block w-full text-xs text-zinc-500 file:mr-3 file:rounded-full file:border-0 file:bg-plum/[0.08] file:px-4 file:py-2 file:text-xs file:font-semibold file:text-plum hover:file:bg-plum/15"
-      />
-      {current && (
+      <label className="group flex cursor-pointer items-center gap-3 rounded-2xl border-2 border-dashed border-zinc-200 px-4 py-3.5 transition-colors hover:border-plum/40 hover:bg-plum/[0.03]">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-500 transition-colors group-hover:bg-plum/10 group-hover:text-plum">
+          <Paperclip size={17} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-zinc-800">{file ?? (current ? "Substituir comprovativo" : "Anexar comprovativo")}</span>
+          <span className="block text-xs text-zinc-500">PDF ou imagem · fica privado, só a equipa vê</span>
+        </span>
+        <input type="file" name="receipt" accept=".pdf,image/*" onChange={(e) => setFile(e.target.files?.[0]?.name ?? null)} className="sr-only" />
+      </label>
+      {current && !file && (
         <p className="mt-1.5 text-xs text-zinc-500">
           Actual:{" "}
           <a href={href} target="_blank" rel="noreferrer" className="font-semibold text-plum hover:underline">
             {current}
-          </a>{" "}
-          — escolha outro para substituir.
+          </a>
         </p>
       )}
     </div>
   );
 }
+
+const METHOD_ICONS: Record<string, LucideIcon> = { mbway: Smartphone, transfer: Landmark, hotmart: ShoppingBag, other: Wallet };
+const PAY_STATUS_COLORS: Record<string, string> = {
+  pending: "#d97706",
+  confirmed: "#059669",
+  completed: "#047857",
+  refunded: "#71717a",
+  cancelled: "#e11d48",
+};
 
 /* ------------------------------ RECEBIMENTOS ----------------------------- */
 
@@ -137,119 +168,116 @@ export function PaymentFormButton({
           <Plus size={14} /> Recebimento
         </button>
       )}
-      <Modal open={open} onClose={() => setOpen(false)} title={payment ? "Editar recebimento" : "Novo recebimento"}>
-        <form onSubmit={onSubmit} className="space-y-4">
-          {!payment && (
-            <div>
-              <label className={label}>Contacto *</label>
-              <select name="contactId" required defaultValue="" className="field">
-                <option value="" disabled>
-                  Escolha o contacto…
-                </option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={payment ? "Editar recebimento" : "Novo recebimento"}
+        description={payment ? payment.product : "Pagamento por MBWay, transferência ou outro método"}
+        icon={Wallet}
+        size="lg"
+      >
+        <form onSubmit={onSubmit}>
+          <FormSection icon={ShoppingBag} title="O quê e quem">
+            {!payment && (
+              <Field label="Contacto" required>
+                <IconInput icon={UserRound}>
+                  <select name="contactId" required defaultValue="" className="field">
+                    <option value="" disabled>
+                      Escolha o contacto…
+                    </option>
+                    {contacts.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </IconInput>
+              </Field>
+            )}
+            <Field label="Produto ou serviço" required>
+              <IconInput icon={Package}>
+                <input name="product" list="finance-products" required defaultValue={payment?.product} placeholder="Ex: Mentoria Design Business" className="field" />
+              </IconInput>
+              <datalist id="finance-products">
+                {products.map((p) => (
+                  <option key={p} value={p} />
                 ))}
-              </select>
-            </div>
-          )}
-          <div>
-            <label className={label}>Produto ou serviço *</label>
-            <input name="product" list="finance-products" required defaultValue={payment?.product} placeholder="Ex: Mentoria Design Business" className="field" />
-            <datalist id="finance-products">
-              {products.map((p) => (
-                <option key={p} value={p} />
-              ))}
-            </datalist>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className={label}>{payment ? "Valor *" : "Valor total *"}</label>
-              <div className="relative">
-                <input
-                  name="amount"
-                  inputMode="decimal"
-                  required
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0,00"
-                  className="field !pr-9 text-right tabular-nums"
-                />
-                <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-zinc-400">€</span>
-              </div>
-            </div>
-            <div>
-              <label className={label}>Método</label>
-              <select name="method" defaultValue={payment?.method ?? "mbway"} className="field">
-                {Object.entries(PAYMENT_METHODS).map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className={label}>Estado</label>
-              <select name="status" value={status} onChange={(e) => setStatus(e.target.value)} className="field">
-                {Object.entries(PAYMENT_STATUS).map(([v, s]) => (
-                  <option key={v} value={v}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={label}>{paid ? "Recebido em" : installments > 1 ? "1.º vencimento" : "Vencimento"}</label>
-              <input
-                name="date"
-                type="date"
-                defaultValue={payment ? isoDate(paid ? payment.paidAt : payment.dueDate) : today()}
-                className="field"
+              </datalist>
+            </Field>
+          </FormSection>
+
+          <FormSection icon={Banknote} title="Valor e pagamento">
+            <Field label={payment ? "Valor" : "Valor total"} required>
+              <MoneyInput name="amount" required value={amount} onChange={setAmount} />
+            </Field>
+            <Field label="Método">
+              <PillGroup
+                name="method"
+                defaultValue={payment?.method ?? "mbway"}
+                options={Object.entries(PAYMENT_METHODS).map(([v, l]) => ({ value: v, label: l, icon: METHOD_ICONS[v] }))}
               />
-            </div>
-          </div>
-          {!payment && (
-            <div className="rounded-2xl border border-line bg-zinc-50/60 p-4">
-              <label className={label}>Dividir em parcelas</label>
-              <div className="flex flex-wrap items-center gap-2">
-                {[1, 2, 3, 4, 6, 12].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setInstallments(n)}
-                    className={cn(
-                      "rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors",
-                      installments === n ? "border-plum bg-plum text-white" : "border-zinc-200 bg-white text-zinc-600 hover:border-plum/40"
-                    )}
-                  >
-                    {n === 1 ? "À vista" : `${n}×`}
-                  </button>
-                ))}
-                <input type="hidden" name="installments" value={installments} />
-              </div>
-              {installments > 1 && total > 0 && (
-                <p className="mt-3 text-xs text-zinc-600">
-                  {installments} parcelas mensais de <b>{eur(Math.floor((total * 100) / installments) / 100)}</b>. A primeira fica
-                  como “{PAYMENT_STATUS[status]?.label}”; as restantes ficam pendentes, com vencimento todos os meses.
-                </p>
-              )}
-            </div>
-          )}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className={label}>Referência</label>
-              <input name="reference" defaultValue={payment?.reference ?? ""} placeholder="N.º MBWay, IBAN, transação…" className="field" />
-            </div>
+            </Field>
+            <Field label="Estado">
+              <PillGroup
+                name="status"
+                value={status}
+                onChange={setStatus}
+                options={Object.entries(PAYMENT_STATUS).map(([v, st]) => ({ value: v, label: st.label, color: PAY_STATUS_COLORS[v] }))}
+              />
+            </Field>
+          </FormSection>
+
+          <FormSection icon={CalendarDays} title={payment ? "Data" : "Data e parcelas"}>
+            <Field label={paid ? "Recebido em" : installments > 1 ? "1.º vencimento" : "Vencimento"}>
+              <IconInput icon={CalendarDays}>
+                <input name="date" type="date" defaultValue={payment ? isoDate(paid ? payment.paidAt : payment.dueDate) : today()} className="field" />
+              </IconInput>
+            </Field>
+            {!payment && (
+              <Field label="Dividir em parcelas">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[1, 2, 3, 4, 6, 12].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setInstallments(n)}
+                      className={cn(
+                        "rounded-full border px-3.5 py-2 text-xs font-semibold transition-all",
+                        installments === n ? "border-plum bg-plum text-white shadow-[0_6px_14px_-8px_rgb(128_0_128/0.8)]" : "border-zinc-200 bg-white text-zinc-600 hover:border-plum/40"
+                      )}
+                    >
+                      {n === 1 ? "À vista" : `${n}×`}
+                    </button>
+                  ))}
+                  <input type="hidden" name="installments" value={installments} />
+                </div>
+                {installments > 1 && total > 0 && (
+                  <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+                    {Array.from({ length: installments }, (_, i) => (
+                      <div key={i} className={cn("rounded-xl border px-2 py-2 text-center", i === 0 ? "border-plum/30 bg-plum/[0.05]" : "border-line bg-zinc-50/60")}>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">{i + 1}/{installments}</p>
+                        <p className="text-xs font-semibold tabular-nums text-zinc-800">{eur(Math.floor((total * 100) / installments) / 100)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Field>
+            )}
+          </FormSection>
+
+          <FormSection icon={FileText} title="Comprovativo e notas">
             <ReceiptField current={payment?.receiptName} href={payment ? `/api/comprovativos/pagamento/${payment.id}` : undefined} />
-          </div>
-          <div>
-            <label className={label}>Notas</label>
-            <textarea name="notes" rows={2} defaultValue={payment?.notes ?? ""} className="field resize-y" />
-          </div>
-          <Footer pending={pending} error={state?.error} onCancel={() => setOpen(false)} submit={payment ? "Guardar" : "Registar"} />
+            <Field label="Referência">
+              <IconInput icon={Hash}>
+                <input name="reference" defaultValue={payment?.reference ?? ""} placeholder="N.º MBWay, IBAN, transação…" className="field" />
+              </IconInput>
+            </Field>
+            <Field label="Notas">
+              <textarea name="notes" rows={2} defaultValue={payment?.notes ?? ""} className="field resize-y" />
+            </Field>
+          </FormSection>
+
+          <Footer pending={pending} error={state?.error} onCancel={() => setOpen(false)} submit={payment ? "Guardar" : "Registar recebimento"} />
         </form>
       </Modal>
     </>
@@ -363,60 +391,55 @@ export function ExpenseFormButton({
           <Plus size={14} /> Despesa
         </button>
       )}
-      <Modal open={open} onClose={() => setOpen(false)} title={expense ? "Editar despesa" : "Nova despesa"}>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div>
-            <label className={label}>Descrição *</label>
-            <input name="description" required defaultValue={expense?.description} placeholder="Ex: Assinatura Adobe" className="field" />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className={label}>Categoria</label>
-              <select name="category" defaultValue={expense?.category ?? "Software & ferramentas"} className="field">
-                {Object.keys(EXPENSE_CATEGORIES).map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={expense ? "Editar despesa" : "Nova despesa"}
+        description="Custos do negócio, para calcular o lucro"
+        icon={Receipt}
+        size="lg"
+      >
+        <form onSubmit={onSubmit}>
+          <FormSection icon={Receipt} title="Despesa">
+            <Field label="Descrição" required>
+              <IconInput icon={PenLine}>
+                <input name="description" required defaultValue={expense?.description} placeholder="Ex: Assinatura Adobe" className="field" />
+              </IconInput>
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Valor" required>
+                <MoneyInput name="amount" required defaultValue={expense ? String(expense.amount).replace(".", ",") : ""} />
+              </Field>
+              <Field label="Data">
+                <IconInput icon={CalendarDays}>
+                  <input name="date" type="date" defaultValue={expense ? isoDate(expense.date) : today()} className="field !h-12" />
+                </IconInput>
+              </Field>
             </div>
-            <div>
-              <label className={label}>Valor *</label>
-              <div className="relative">
-                <input
-                  name="amount"
-                  inputMode="decimal"
-                  required
-                  defaultValue={expense ? String(expense.amount).replace(".", ",") : ""}
-                  placeholder="0,00"
-                  className="field !pr-9 text-right tabular-nums"
-                />
-                <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-zinc-400">€</span>
-              </div>
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className={label}>Data</label>
-              <input name="date" type="date" defaultValue={expense ? isoDate(expense.date) : today()} className="field" />
-            </div>
-            <div>
-              <label className={label}>Fornecedor</label>
-              <input name="supplier" defaultValue={expense?.supplier ?? ""} placeholder="Opcional" className="field" />
-            </div>
-          </div>
-          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-line px-4 py-3">
-            <input type="checkbox" name="recurring" value="1" defaultChecked={expense?.recurring} className="h-4 w-4 accent-[#800080]" />
-            <span className="text-sm text-zinc-700">
-              <b className="font-semibold">Despesa mensal</b> — assinaturas, contabilidade, renda…
-            </span>
-          </label>
-          <ReceiptField current={expense?.receiptName} href={expense ? `/api/comprovativos/despesa/${expense.id}` : undefined} />
-          <div>
-            <label className={label}>Notas</label>
-            <textarea name="notes" rows={2} defaultValue={expense?.notes ?? ""} className="field resize-y" />
-          </div>
-          <Footer pending={pending} error={state?.error} onCancel={() => setOpen(false)} submit={expense ? "Guardar" : "Registar"} />
+            <Field label="Categoria">
+              <PillGroup
+                name="category"
+                size="sm"
+                defaultValue={expense?.category ?? "Software & ferramentas"}
+                options={Object.entries(EXPENSE_CATEGORIES).map(([c, color]) => ({ value: c, label: c, color }))}
+              />
+            </Field>
+            <Field label="Fornecedor">
+              <IconInput icon={Building2}>
+                <input name="supplier" defaultValue={expense?.supplier ?? ""} placeholder="Opcional" className="field" />
+              </IconInput>
+            </Field>
+          </FormSection>
+
+          <FormSection icon={Repeat} title="Recorrência e comprovativo">
+            <ToggleRow name="recurring" label="Despesa mensal" description="Assinaturas, contabilidade, renda… aparece o atalho “Lançar este mês”." defaultChecked={expense?.recurring} />
+            <ReceiptField current={expense?.receiptName} href={expense ? `/api/comprovativos/despesa/${expense.id}` : undefined} />
+            <Field label="Notas">
+              <textarea name="notes" rows={2} defaultValue={expense?.notes ?? ""} className="field resize-y" />
+            </Field>
+          </FormSection>
+
+          <Footer pending={pending} error={state?.error} onCancel={() => setOpen(false)} submit={expense ? "Guardar" : "Registar despesa"} />
         </form>
       </Modal>
     </>

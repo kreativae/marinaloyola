@@ -5,9 +5,11 @@ import Link from "next/link";
 import {
   ArrowDown,
   ArrowUp,
+  BookOpen,
   Check,
   Download,
   FileText,
+  GraduationCap,
   ListChecks,
   Loader2,
   Paperclip,
@@ -94,7 +96,7 @@ export function CourseEditButton({ course }: { course: CourseData }) {
       <button type="button" onClick={() => setOpen(true)} className="btn-ghost !px-5 !py-2.5 !text-xs">
         <Pencil size={14} /> Editar curso
       </button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Editar curso">
+      <Modal open={open} onClose={() => setOpen(false)} title="Editar curso" description="Textos, preço, capa e link de venda" icon={GraduationCap}>
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
             <label className={labelCls}>Título</label>
@@ -145,7 +147,7 @@ export function NewCourseButton() {
       <button type="button" onClick={() => setOpen(true)} className="btn-primary !px-5 !py-2.5 !text-xs">
         <Plus size={14} /> Novo curso
       </button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Novo curso">
+      <Modal open={open} onClose={() => setOpen(false)} title="Novo curso" description="Começa em rascunho, com um primeiro módulo" icon={GraduationCap}>
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
             <label className={labelCls}>Título *</label>
@@ -311,7 +313,7 @@ export function LessonActions({
         </button>
       </div>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Editar aula">
+      <Modal open={open} onClose={() => setOpen(false)} title="Editar aula" description={lesson.title} icon={BookOpen} size="lg">
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
             <label className={labelCls}>Título</label>

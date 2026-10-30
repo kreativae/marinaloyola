@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useActionState, useEffect, useState, useTransition } from "react";
-import { ArrowDown, ArrowUp, Eye, EyeOff, ImageIcon, Loader2, Pencil, Plus, RotateCw, Save, Sparkles, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, ImageIcon, Link2, Loader2, Pencil, Plus, RotateCw, Save, Sparkles, Trash2 } from "lucide-react";
 import { Modal } from "@/components/contacts-client";
 import { deleteBioLink, moveBioLink, saveBioLink, saveBioProfile, toggleBioLink, type BioResult } from "@/lib/actions-bio";
 import { cn, num } from "@/lib/utils";
@@ -114,7 +114,7 @@ export type BioLinkRow = {
 function LinkModal({ link, onClose }: { link?: BioLinkRow; onClose: () => void }) {
   const { state, pending, onSubmit } = useBioForm(saveBioLink.bind(null, link?.id ?? null), onClose);
   return (
-    <Modal open onClose={onClose} title={link ? "Editar link" : "Novo link"}>
+    <Modal open onClose={onClose} title={link ? "Editar link" : "Novo link"} description="Aparece na página de links do Instagram" icon={Link2}>
       <form onSubmit={onSubmit} className="space-y-4">
         <div>
           <label className={label}>Título *</label>

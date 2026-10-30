@@ -1,27 +1,44 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { startTransition, useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
+  AtSign,
+  Building2,
   CalendarDays,
+  Check,
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  Clock3,
+  Compass,
+  Contact2,
+  CreditCard,
   Download,
   Eye,
+  Flag,
+  Globe,
+  Handshake,
+  HeartHandshake,
   Loader2,
   Mail,
   MapPin,
   MessageCircle,
+  PenLine,
   Pencil,
   Phone,
   Plus,
   Tag,
   Trash2,
   Upload,
+  UserPen,
+  UserPlus,
+  UserRound,
+  Users,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import {
   bulkAddTag,
@@ -44,6 +61,7 @@ import {
 import { setContactStatus } from "@/lib/actions-admin";
 import { SelectAction } from "@/components/admin-client";
 import { LocalTime } from "@/components/local-time";
+import { Field, FormSection, IconInput, Modal, ModalFooter, PillGroup } from "@/components/form-kit";
 import { COUNTRIES, countryName, defaultTzOf, flag, HOME_TZ, inferFromPhone, offsetLabel, cityOf, zonesOf } from "@/lib/timezones";
 import { APPT_STATUS, CONTACT_STATUS, cn, initials, eur, INTERACTION_ICONS, num, PAYMENT_STATUS, SOURCES } from "@/lib/utils";
 
@@ -393,45 +411,8 @@ export function ContactsTable({
 
 /* --------------------------- MODAL GENÉRICO ------------------------------ */
 
-export function Modal({
-  open,
-  onClose,
-  title,
-  children,
-}: {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (open && !d.open) d.showModal();
-    if (!open && d.open) d.close();
-  }, [open]);
-  return (
-    <dialog
-      ref={ref}
-      onClose={onClose}
-      onClick={(e) => e.target === ref.current && onClose()}
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-zinc-200 bg-white p-0 text-left text-zinc-900 shadow-2xl backdrop:bg-zinc-950/30 backdrop:backdrop-blur-[2px]"
-    >
-      {open && (
-        <div className="p-6">
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="font-display text-2xl text-zinc-950">{title}</h2>
-            <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100" aria-label="Fechar">
-              <X size={18} />
-            </button>
-          </div>
-          {children}
-        </div>
-      )}
-    </dialog>
-  );
-}
+// A janela modal vive em form-kit; reexportada para os imports existentes
+export { Modal };
 
 const label = "mb-1.5 block text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500";
 
@@ -454,12 +435,36 @@ export function ContactFormButton({
       <button type="button" onClick={() => setOpen(true)} className="contents">
         {trigger}
       </button>
-      <Modal open={open} onClose={() => setOpen(false)} title={contact ? "Editar contacto" : "Novo contacto"}>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={contact ? "Editar contacto" : "Novo contacto"}
+        description={contact ? "Dados, origem e relacionamento" : "Basta o nome e um email ou telefone"}
+        icon={contact ? UserPen : UserPlus}
+        size="lg"
+      >
         <ContactForm contact={contact} channels={channels} onDone={() => setOpen(false)} />
       </Modal>
     </>
   );
 }
+
+const SOURCE_ICONS: Record<string, LucideIcon> = {
+  site: Globe,
+  whatsapp: MessageCircle,
+  hotmart: CreditCard,
+  social: AtSign,
+  referral: Users,
+  manual: PenLine,
+};
+const STATUS_COLORS: Record<string, string> = {
+  lead: "#0284c7",
+  qualified: "#7c3aed",
+  negotiating: "#d97706",
+  client: "#059669",
+  inactive: "#71717a",
+  lost: "#e11d48",
+};
 
 function ContactForm({
   contact,
@@ -471,106 +476,141 @@ function ContactForm({
   onDone: () => void;
 }) {
   const router = useRouter();
+  const [name, setName] = useState(contact?.name ?? "");
   const [channel, setChannel] = useState(contact?.channelId ? String(contact.channelId) : "");
   const action = contact ? updateContactAction.bind(null, contact.id) : createContactAction;
-  const [state, formAction, pending] = useActionState<FormResult | null, FormData>(action, null);
-
-  useEffect(() => {
-    if (state?.ok) {
+  const [state, formAction, pending] = useActionState<FormResult | null, FormData>(async (prev, fd) => {
+    const r = await action(prev, fd);
+    if (r.ok) {
       onDone();
       router.refresh();
     }
-  }, [state, onDone, router]);
+    return r;
+  }, null);
 
   return (
-    <form action={formAction} className="space-y-4">
-      <div>
-        <label className={label}>Nome *</label>
-        <input name="name" required defaultValue={contact?.name} className="field" />
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className={label}>Email</label>
-          <input name="email" type="email" defaultValue={contact?.email ?? ""} className="field" />
-        </div>
-        <div>
-          <label className={label}>Telefone / WhatsApp</label>
-          <input name="phone" defaultValue={contact?.phone ?? ""} placeholder="+351 ..." className="field" />
-        </div>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className={label}>Localização</label>
-          <input name="location" defaultValue={contact?.location ?? ""} className="field" />
-        </div>
-        <div>
-          <label className={label}>Origem</label>
-          <select name="source" defaultValue={contact?.source ?? "manual"} className="field">
-            {SOURCE_OPTIONS.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
+    // Submissão manual: um erro (ex: contacto duplicado) não apaga o que foi escrito
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        startTransition(() => formAction(fd));
+      }}
+    >
+      {/* Pré-visualização do contacto */}
+      <div className="mb-6 flex items-center gap-4 rounded-2xl border border-plum/15 bg-plum/[0.04] p-4">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-plum font-display text-lg font-semibold text-white">
+          {name.trim() ? initials(name) : <UserRound size={22} />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <input
+            name="name"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nome completo *"
+            aria-label="Nome"
+            className="w-full bg-transparent font-display text-2xl tracking-[-0.01em] text-zinc-950 outline-none placeholder:text-zinc-300"
+          />
+          <p className="text-xs text-zinc-500">
+            {contact ? `${SOURCES[contact.source] ?? contact.source} · ${CONTACT_STATUS[contact.status]?.label ?? contact.status}` : "Novo contacto"}
+          </p>
         </div>
       </div>
-      <LocaleFields contact={contact} />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className={label}>Canal de origem</label>
-          <select name="channelId" value={channel} onChange={(e) => setChannel(e.target.value)} className="field">
-            <option value="">— Sem canal —</option>
-            {channels.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-            <option value="new">+ Novo canal…</option>
-          </select>
+
+      <FormSection icon={Contact2} title="Contactos">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Email">
+            <IconInput icon={Mail}>
+              <input name="email" type="email" defaultValue={contact?.email ?? ""} placeholder="nome@email.com" className="field" />
+            </IconInput>
+          </Field>
+          <Field label="Telefone / WhatsApp" hint="Com indicativo: +351, +55…">
+            <IconInput icon={Phone}>
+              <input name="phone" defaultValue={contact?.phone ?? ""} placeholder="+351 912 345 678" className="field" />
+            </IconInput>
+          </Field>
+        </div>
+      </FormSection>
+
+      <FormSection icon={MapPin} title="Localização">
+        <Field label="Cidade">
+          <IconInput icon={Building2}>
+            <input name="location" defaultValue={contact?.location ?? ""} placeholder="Lisboa, São Paulo…" className="field" />
+          </IconInput>
+        </Field>
+        <LocaleFields contact={contact} />
+      </FormSection>
+
+      <FormSection icon={Compass} title="De onde veio">
+        <Field label="Origem">
+          <PillGroup
+            name="source"
+            defaultValue={contact?.source ?? "manual"}
+            options={SOURCE_OPTIONS.map((o) => ({ value: o.value, label: o.label, icon: SOURCE_ICONS[o.value] }))}
+          />
+        </Field>
+        <Field label="Canal de origem">
+          <PillGroup
+            name="channelId"
+            value={channel}
+            onChange={setChannel}
+            options={[
+              { value: "", label: "Sem canal" },
+              ...channels.map((c) => ({ value: String(c.id), label: c.name, color: c.color })),
+              { value: "new", label: "Novo canal", icon: Plus },
+            ]}
+          />
           {channel === "new" && (
-            <input name="newChannel" autoFocus placeholder="Ex: BNI, CNN, BNEX…" className="field mt-2" />
+            <div className="mt-2.5">
+              <IconInput icon={Tag}>
+                <input name="newChannel" autoFocus placeholder="Nome do canal — ex: BNI Lisboa" className="field" />
+              </IconInput>
+            </div>
           )}
-        </div>
-        <div>
-          <label className={label}>Indicado por</label>
-          <input name="referredBy" defaultValue={contact?.referredBy ?? ""} placeholder="Quem indicou (opcional)" className="field" />
-        </div>
-      </div>
-      {contact && (
-        <div>
-          <label className={label}>Estado</label>
-          <select name="status" defaultValue={contact.status} className="field">
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-      <div>
-        <label className={label}>Notas internas</label>
-        <textarea name="notes" rows={3} defaultValue={contact?.notes ?? ""} className="field resize-y" />
-      </div>
-      {state?.error && (
-        <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          {state.error}{" "}
-          {state.id && (
-            <Link href={`/admin/crm/${state.id}`} className="font-semibold underline">
-              Ver contacto
-            </Link>
-          )}
-        </p>
-      )}
-      <div className="flex justify-end gap-2 pt-1">
+        </Field>
+        <Field label="Indicado por">
+          <IconInput icon={Handshake}>
+            <input name="referredBy" defaultValue={contact?.referredBy ?? ""} placeholder="Quem indicou (opcional)" className="field" />
+          </IconInput>
+        </Field>
+      </FormSection>
+
+      <FormSection icon={HeartHandshake} title="Relacionamento">
+        {contact && (
+          <Field label="Estado">
+            <PillGroup
+              name="status"
+              defaultValue={contact.status}
+              options={STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label, color: STATUS_COLORS[o.value] }))}
+            />
+          </Field>
+        )}
+        <Field label="Notas internas" hint="Só a equipa vê estas notas.">
+          <textarea name="notes" rows={3} defaultValue={contact?.notes ?? ""} placeholder="Contexto, preferências, próximos passos…" className="field resize-y" />
+        </Field>
+      </FormSection>
+
+      <ModalFooter
+        error={
+          state?.error
+            ? `${state.error}${state.id ? " " : ""}`
+            : undefined
+        }
+      >
+        {state?.id && state.error && (
+          <Link href={`/admin/crm/${state.id}`} className="mr-auto text-xs font-semibold text-plum hover:underline">
+            Ver contacto existente
+          </Link>
+        )}
         <button type="button" onClick={onDone} className="btn-ghost !px-5 !py-2.5 !text-xs">
           Cancelar
         </button>
-        <button type="submit" disabled={pending} className="btn-primary !px-5 !py-2.5 !text-xs">
-          {pending && <Loader2 size={14} className="animate-spin" />}
+        <button type="submit" disabled={pending} className="btn-primary !px-6 !py-2.5 !text-xs disabled:opacity-60">
+          {pending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
           {contact ? "Guardar alterações" : "Criar contacto"}
         </button>
-      </div>
+      </ModalFooter>
     </form>
   );
 }
@@ -598,7 +638,7 @@ export function ImportButton() {
       <button type="button" onClick={() => setOpen(true)} className="btn-ghost !px-5 !py-2.5 !text-xs">
         <Upload size={14} /> Importar CSV
       </button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Importar contactos">
+      <Modal open={open} onClose={() => setOpen(false)} title="Importar contactos" description="Ficheiro CSV exportado do Excel ou Google Sheets" icon={Upload}>
         <ImportForm onClose={() => setOpen(false)} />
       </Modal>
     </>
@@ -1144,48 +1184,47 @@ function LocaleFields({ contact }: { contact?: ContactData }) {
   const guess = !contact?.country && contact?.phone ? inferFromPhone(contact.phone) : null;
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <div>
-        <label className={label}>País</label>
-        <select
-          name="country"
-          value={country}
-          onChange={(e) => {
-            const c = e.target.value;
-            setCountry(c);
-            setTz(defaultTzOf(c) ?? "");
-          }}
-          className="field"
-        >
-          <option value="">{guess ? `Automático (${flag(guess.country)} ${countryName(guess.country)})` : "Automático pelo telefone"}</option>
-          {!knownCountry && country && <option value={country}>{flag(country)} {countryName(country)}</option>}
-          {COUNTRY_OPTIONS.map((c) => (
-            <option key={c.code} value={c.code}>
-              {flag(c.code)} {c.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className={label}>Fuso horário</label>
-        {zones ? (
-          <select name="timezone" value={tz} onChange={(e) => setTz(e.target.value)} className="field">
-            {zones.map((z) => (
-              <option key={z.tz} value={z.tz}>
-                {z.label} ({offsetLabel(z.tz)})
+      <Field label="País">
+        <IconInput icon={Flag}>
+          <select
+            name="country"
+            value={country}
+            onChange={(e) => {
+              const c = e.target.value;
+              setCountry(c);
+              setTz(defaultTzOf(c) ?? "");
+            }}
+            className="field"
+          >
+            <option value="">{guess ? `Automático (${flag(guess.country)} ${countryName(guess.country)})` : "Automático pelo telefone"}</option>
+            {!knownCountry && country && (
+              <option value={country}>
+                {flag(country)} {countryName(country)}
+              </option>
+            )}
+            {COUNTRY_OPTIONS.map((c) => (
+              <option key={c.code} value={c.code}>
+                {flag(c.code)} {c.name}
               </option>
             ))}
           </select>
-        ) : (
-          <>
+        </IconInput>
+      </Field>
+      <Field label="Fuso horário" hint={tz ? `${cityOf(tz)} · ${offsetLabel(tz)}` : "Preenchido a partir do país ou do telefone"}>
+        <IconInput icon={Clock3}>
+          {zones ? (
+            <select name="timezone" value={tz} onChange={(e) => setTz(e.target.value)} className="field">
+              {zones.map((z) => (
+                <option key={z.tz} value={z.tz}>
+                  {z.label} ({offsetLabel(z.tz)})
+                </option>
+              ))}
+            </select>
+          ) : (
             <input name="timezone" value={tz} readOnly={Boolean(country)} onChange={(e) => setTz(e.target.value)} className="field" placeholder={HOME_TZ} />
-            {tz && (
-              <p className="mt-1 text-[11px] text-zinc-500">
-                {cityOf(tz)} · {offsetLabel(tz)}
-              </p>
-            )}
-          </>
-        )}
-      </div>
+          )}
+        </IconInput>
+      </Field>
     </div>
   );
 }

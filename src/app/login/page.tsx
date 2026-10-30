@@ -71,6 +71,8 @@ export default async function LoginPage({
             </button>
           </form>
 
+          {/* Só em desenvolvimento: no servidor as contas de exemplo não existem nem devem ser anunciadas */}
+          {process.env.NODE_ENV !== "production" && (
           <div className="mt-8 rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
             <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
               <Lock size={12} /> Acesso de demonstração
@@ -84,6 +86,7 @@ export default async function LoginPage({
               </p>
             </div>
           </div>
+          )}
         </div>
 
         <p className="mt-8 flex items-center justify-center gap-2 text-center text-xs text-zinc-500">

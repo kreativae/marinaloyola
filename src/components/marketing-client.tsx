@@ -2,15 +2,29 @@
 
 import { startTransition, useActionState, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, ExternalLink, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import {
+  AlignLeft,
+  CalendarClock,
+  CalendarDays,
+  Copy,
+  ExternalLink,
+  Hash,
+  Lightbulb,
+  Link2,
+  Loader2,
+  Megaphone,
+  PenLine,
+  Plus,
+  Save,
+  Trash2,
+} from "lucide-react";
 import { KanbanBoard } from "@/components/admin-client";
-import { Modal } from "@/components/contacts-client";
+import { Field, FormSection, IconInput, Modal, ModalFooter, PillGroup } from "@/components/form-kit";
 import { movePost, deletePost } from "@/lib/actions-admin";
 import { duplicatePost, reschedulePost, savePostAction, type PostResult } from "@/lib/actions-marketing";
 import { FORMATS, LIMITS, NETWORK_COLORS, STATUS_COLORS } from "@/lib/marketing-def";
 import { cn, num, POST_STATUS } from "@/lib/utils";
 
-const label = "mb-1.5 block text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500";
 
 export type PostData = {
   id: number;
@@ -36,7 +50,7 @@ export function NetworkDot({ network, className }: { network: string; className?
 
 export function PostModal({ post, defaults, onClose }: { post?: PostData; defaults?: Partial<PostData>; onClose: () => void }) {
   const router = useRouter();
-  const [network, setNetwork] = useState(post?.network ?? defaults?.network ?? "Instagram");
+  const [network, setNetwork] = useState<string>(post?.network ?? defaults?.network ?? "Instagram");
   const [copy, setCopy] = useState(post?.copy ?? "");
   const [state, run, pending] = useActionState(async (prev: PostResult | null, fd: FormData) => {
     const r = await savePostAction(post?.id ?? null, prev, fd);
@@ -50,89 +64,100 @@ export function PostModal({ post, defaults, onClose }: { post?: PostData; defaul
   const limit = LIMITS[network];
 
   return (
-    <Modal open onClose={onClose} title={post ? "Editar conteúdo" : "Novo conteúdo"}>
+    <Modal
+      open
+      onClose={onClose}
+      title={post ? "Editar conteúdo" : "Novo conteúdo"}
+      description="Da ideia à publicação, com o texto pronto para a rede"
+      icon={Megaphone}
+      size="lg"
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault();
           const fd = new FormData(e.currentTarget);
           startTransition(() => run(fd));
         }}
-        className="space-y-4"
       >
-        <div>
-          <label className={label}>Tema / título *</label>
-          <input name="title" required defaultValue={post?.title} placeholder="Ex: 5 erros que barateiam uma marca" className="field" />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <label className={label}>Rede</label>
-            <select name="network" value={network} onChange={(e) => setNetwork(e.target.value)} className="field">
-              {Object.keys(NETWORK_COLORS).map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={label}>Formato</label>
-            <select name="format" defaultValue={post?.format ?? "Carrossel"} className="field">
-              {FORMATS.map((f) => (
-                <option key={f} value={f}>
-                  {f}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={label}>Estado</label>
-            <select name="status" defaultValue={post?.status ?? defaults?.status ?? "idea"} className="field">
-              {Object.entries(POST_STATUS).map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div>
-          <label className={label}>Publicação (hora de Lisboa)</label>
-          <input name="publishAt" type="datetime-local" defaultValue={post?.publishLocal ?? defaults?.publishLocal ?? ""} className="field" />
-        </div>
-        <div>
-          <div className="flex items-baseline justify-between">
-            <label className={label}>Legenda / texto</label>
+        <FormSection icon={Lightbulb} title="Ideia">
+          <Field label="Tema / título" required>
+            <IconInput icon={PenLine}>
+              <input name="title" required defaultValue={post?.title} placeholder="Ex: 5 erros que barateiam uma marca" className="field" />
+            </IconInput>
+          </Field>
+          <Field label="Rede">
+            <PillGroup
+              name="network"
+              value={network}
+              onChange={setNetwork}
+              options={Object.entries(NETWORK_COLORS).map(([n, color]) => ({ value: n, label: n, color }))}
+            />
+          </Field>
+          <Field label="Formato">
+            <PillGroup name="format" size="sm" defaultValue={post?.format ?? "Carrossel"} options={FORMATS.map((f) => ({ value: f, label: f }))} />
+          </Field>
+        </FormSection>
+
+        <FormSection icon={CalendarClock} title="Produção e agenda">
+          <Field label="Estado">
+            <PillGroup
+              name="status"
+              defaultValue={post?.status ?? defaults?.status ?? "idea"}
+              options={Object.entries(POST_STATUS).map(([v, l]) => ({ value: v, label: l, color: STATUS_COLORS[v] }))}
+            />
+          </Field>
+          <Field label="Publicação" hint="Hora de Lisboa">
+            <IconInput icon={CalendarDays}>
+              <input name="publishAt" type="datetime-local" defaultValue={post?.publishLocal ?? defaults?.publishLocal ?? ""} className="field" />
+            </IconInput>
+          </Field>
+        </FormSection>
+
+        <FormSection
+          icon={AlignLeft}
+          title="Texto"
+          aside={
             <span className={cn("text-[11px] tabular-nums", limit && copy.length > limit ? "font-semibold text-rose-600" : "text-zinc-400")}>
               {copy.length}
               {limit ? ` / ${num(limit)}` : ""}
             </span>
-          </div>
+          }
+        >
           <textarea
             name="copy"
-            rows={5}
+            rows={6}
             value={copy}
             onChange={(e) => setCopy(e.target.value)}
             placeholder="Gancho, desenvolvimento, chamada para acção…"
+            aria-label="Legenda"
             className="field resize-y leading-relaxed"
           />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className={label}>Hashtags</label>
-            <input name="hashtags" defaultValue={post?.hashtags ?? ""} placeholder="#branding #designer" className="field" />
+          {limit && (
+            <div className="-mt-2 h-1 overflow-hidden rounded-full bg-zinc-100">
+              <div
+                className={cn("h-full rounded-full transition-all", copy.length > limit ? "bg-rose-500" : "bg-plum")}
+                style={{ width: `${Math.min(100, (copy.length / limit) * 100)}%` }}
+              />
+            </div>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Hashtags">
+              <IconInput icon={Hash}>
+                <input name="hashtags" defaultValue={post?.hashtags ?? ""} placeholder="#branding #designer" className="field" />
+              </IconInput>
+            </Field>
+            <Field label="Link">
+              <IconInput icon={Link2}>
+                <input name="link" defaultValue={post?.link ?? ""} placeholder="Ficheiro, Canva, publicação…" className="field" />
+              </IconInput>
+            </Field>
           </div>
-          <div>
-            <label className={label}>Link</label>
-            <input name="link" defaultValue={post?.link ?? ""} placeholder="Ficheiro, Canva, publicação…" className="field" />
-          </div>
-        </div>
-        <div>
-          <label className={label}>Notas internas</label>
-          <textarea name="notes" rows={2} defaultValue={post?.notes ?? ""} className="field resize-y" />
-        </div>
-        {state?.error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{state.error}</p>}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
-          <div className="flex gap-1">
+          <Field label="Notas internas">
+            <textarea name="notes" rows={2} defaultValue={post?.notes ?? ""} className="field resize-y" />
+          </Field>
+        </FormSection>
+        <ModalFooter error={state?.error}>
+          <div className="mr-auto flex gap-1">
             {post && (
               <>
                 <button
@@ -175,7 +200,7 @@ export function PostModal({ post, defaults, onClose }: { post?: PostData; defaul
           <button type="submit" disabled={pending} className="btn-primary !px-5 !py-2.5 !text-xs disabled:opacity-60">
             {pending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} {post ? "Guardar" : "Criar"}
           </button>
-        </div>
+        </ModalFooter>
       </form>
     </Modal>
   );
