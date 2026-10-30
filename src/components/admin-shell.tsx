@@ -114,7 +114,7 @@ export function AdminShell({
   }, []);
 
   return (
-    <div className="min-h-screen bg-canvas text-zinc-800">
+    <div className="admin-root min-h-screen bg-canvas text-zinc-800">
       {/* Barra lateral (desktop) */}
       <aside
         className={cn(
@@ -141,7 +141,7 @@ export function AdminShell({
 
       <div className={cn("transition-[padding] duration-500 ease-[var(--ease-out-soft)]", collapsed ? "lg:pl-[76px]" : "lg:pl-64")}>
         <Topbar onMenu={() => setMobileOpen(true)} onSearch={() => setPaletteOpen(true)} />
-        <main className="mx-auto max-w-[1440px] px-4 pb-16 pt-6 sm:px-6 lg:px-10 lg:pt-8">{children}</main>
+        <main className="mx-auto max-w-[112rem] px-4 pb-16 pt-6 sm:px-6 lg:px-10 lg:pt-8 min-[1800px]:px-14">{children}</main>
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />

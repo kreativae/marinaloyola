@@ -87,6 +87,19 @@ html {
   color-scheme: light;
 }
 
+/* Backoffice em ecrãs grandes (iMac, monitores externos): tudo cresce um pouco
+   em vez de ficar uma coluna estreita ao centro. Só afecta páginas com o .admin-root. */
+@media (min-width: 1800px) {
+  html:has(.admin-root) {
+    font-size: 17px;
+  }
+}
+@media (min-width: 2300px) {
+  html:has(.admin-root) {
+    font-size: 18px;
+  }
+}
+
 /* Modais (dialog nativo) */
 dialog[open] {
   animation: var(--animate-dialog-in);
