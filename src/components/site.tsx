@@ -6,13 +6,18 @@ import { usePathname } from "next/navigation";
 import { AtSign, Briefcase, CalendarDays, Mail, Menu, MessageCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const NAV = [
-  { href: "/", label: "Início" },
-  { href: "/sobre", label: "Sobre" },
-  { href: "/mentoria", label: "Mentoria" },
-  { href: "/cursos", label: "Cursos" },
-  { href: "/contato", label: "Contacto" },
-];
+/** Textos do cabeçalho e rodapé (editáveis em Backoffice → Site → Geral). */
+export type SiteChrome = {
+  brand: string;
+  brandTag: string;
+  nav: { label: string; href: string }[];
+  ctaLabel: string;
+  ctaHref: string;
+  about: string;
+  instagram: string;
+  linkedin: string;
+  bottom: string;
+};
 
 export function Reveal({
   children,
@@ -46,7 +51,7 @@ export function Reveal({
   );
 }
 
-export function Header({ whatsapp }: { whatsapp: string }) {
+export function Header({ whatsapp, chrome }: { whatsapp: string; chrome: SiteChrome }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [lastPath, setLastPath] = useState(pathname);
@@ -61,16 +66,16 @@ export function Header({ whatsapp }: { whatsapp: string }) {
         <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 lg:px-8">
           <Link href="/" className="group flex items-baseline gap-2">
             <span className="font-display text-2xl font-semibold italic text-zinc-950 transition-colors group-hover:text-plum">
-              Marina Loyola
+              {chrome.brand}
             </span>
             <span className="hidden text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500 sm:block">
-              Design & Mentoria
+              {chrome.brandTag}
             </span>
           </Link>
           <nav className="hidden items-center gap-8 lg:flex">
-            {NAV.map((item) => (
+            {chrome.nav.map((item) => (
               <Link
-                key={item.href}
+                key={item.href + item.label}
                 href={item.href}
                 className={cn("nav-link", pathname === item.href && "nav-link-active")}
               >
@@ -78,11 +83,11 @@ export function Header({ whatsapp }: { whatsapp: string }) {
               </Link>
             ))}
             <Link
-              href="/agendar"
+              href={chrome.ctaHref}
               className="inline-flex items-center gap-2 rounded-full bg-plum px-5 py-2.5 text-[13px] font-bold uppercase tracking-[0.14em] text-white transition-all hover:bg-plum-bright"
             >
               <CalendarDays size={15} />
-              Agendar
+              {chrome.ctaLabel}
             </Link>
           </nav>
           <button
@@ -97,17 +102,17 @@ export function Header({ whatsapp }: { whatsapp: string }) {
       {open && (
         <div className="fixed inset-0 z-40 animate-fade-in bg-white/98 pt-24 backdrop-blur-xl lg:hidden">
           <nav className="flex flex-col items-center gap-7 px-6">
-            {NAV.map((item) => (
+            {chrome.nav.map((item) => (
               <Link
-                key={item.href}
+                key={item.href + item.label}
                 href={item.href}
                 className="font-display text-3xl italic text-zinc-950"
               >
                 {item.label}
               </Link>
             ))}
-            <Link href="/agendar" className="btn-primary mt-4">
-              <CalendarDays size={16} /> Agendar sessão
+            <Link href={chrome.ctaHref} className="btn-primary mt-4">
+              <CalendarDays size={16} /> {chrome.ctaLabel}
             </Link>
             <a
               href={`https://wa.me/${whatsapp}?text=${encodeURIComponent("Olá Marina! Gostaria de saber mais sobre a mentoria.")}`}
@@ -124,10 +129,10 @@ export function Header({ whatsapp }: { whatsapp: string }) {
   );
 }
 
-export function WhatsAppFloat({ number }: { number: string }) {
+export function WhatsAppFloat({ number, message }: { number: string; message: string }) {
   return (
     <a
-      href={`https://wa.me/${number}?text=${encodeURIComponent("Olá Marina! Vim do site e gostaria de mais informações.")}`}
+      href={`https://wa.me/${number}?text=${encodeURIComponent(message)}`}
       target="_blank"
       rel="noreferrer"
       aria-label="Falar no WhatsApp"
@@ -138,22 +143,20 @@ export function WhatsAppFloat({ number }: { number: string }) {
   );
 }
 
-export function Footer({ whatsapp, email }: { whatsapp: string; email: string }) {
+export function Footer({ whatsapp, email, chrome }: { whatsapp: string; email: string; chrome: SiteChrome }) {
   return (
     <footer className="border-t border-zinc-200 bg-white text-zinc-950">
       <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 lg:grid-cols-[1.4fr_1fr_1fr] lg:px-8">
         <div>
-          <p className="font-display text-3xl font-semibold italic">Marina Loyola</p>
+          <p className="font-display text-3xl font-semibold italic">{chrome.brand}</p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-500">
-            Design & Mentoria
+            {chrome.brandTag}
           </p>
-          <p className="mt-6 max-w-sm text-sm leading-relaxed text-zinc-500">
-            Design com estratégia, marcas com alma. Mentoria, workshops e cursos para
-            designers que querem construir um negócio criativo sólido e sofisticado.
-          </p>
+          <p className="mt-6 max-w-sm whitespace-pre-line text-sm leading-relaxed text-zinc-500">{chrome.about}</p>
           <div className="mt-6 flex gap-3">
+            {chrome.instagram && (
             <a
-              href="https://instagram.com/marinaloyola"
+              href={chrome.instagram}
               target="_blank"
               rel="noreferrer"
               aria-label="Instagram"
@@ -161,8 +164,10 @@ export function Footer({ whatsapp, email }: { whatsapp: string; email: string })
             >
               <AtSign size={17} />
             </a>
+            )}
+            {chrome.linkedin && (
             <a
-              href="https://linkedin.com/in/marinaloyola"
+              href={chrome.linkedin}
               target="_blank"
               rel="noreferrer"
               aria-label="LinkedIn"
@@ -170,6 +175,7 @@ export function Footer({ whatsapp, email }: { whatsapp: string; email: string })
             >
               <Briefcase size={17} />
             </a>
+            )}
             <a
               href={`https://wa.me/${whatsapp}`}
               target="_blank"
@@ -186,8 +192,8 @@ export function Footer({ whatsapp, email }: { whatsapp: string; email: string })
             Navegação
           </p>
           <ul className="mt-5 space-y-3 text-sm text-zinc-600">
-            {[...NAV, { href: "/agendar", label: "Agendar sessão" }].map((l) => (
-              <li key={l.href}>
+            {[...chrome.nav, { href: chrome.ctaHref, label: chrome.ctaLabel }].map((l) => (
+              <li key={l.href + l.label}>
                 <Link href={l.href} className="transition-colors hover:text-plum">
                   {l.label}
                 </Link>
@@ -231,8 +237,7 @@ export function Footer({ whatsapp, email }: { whatsapp: string; email: string })
         </div>
       </div>
       <div className="border-t border-zinc-200 py-6 text-center text-xs text-zinc-500">
-        © {new Date().getFullYear()} Marina Loyola · marinaloyola.com · Todos os direitos
-        reservados · RGPD compliant
+        © {new Date().getFullYear()} {chrome.bottom}
       </div>
     </footer>
   );

@@ -6,12 +6,13 @@ import { num } from "@/lib/utils";
 /**
  * Ficheiros guardados em ./uploads/<pasta> (fora de /public), com nome aleatório:
  *  - cursos: servidos por /api/ficheiros/[id], que verifica a inscrição da aluna;
- *  - comprovativos: recibos de pagamentos e despesas, só para a equipa.
+ *  - comprovativos: recibos de pagamentos e despesas, só para a equipa;
+ *  - site: imagens do site público, servidas sem sessão por /api/imagens/[nome].
  */
 
 export const MAX_FILE_BYTES = 50_000_000;
 
-export type UploadFolder = "cursos" | "comprovativos";
+export type UploadFolder = "cursos" | "comprovativos" | "site";
 
 const dirOf = (folder: UploadFolder) => path.join(process.cwd(), "uploads", folder);
 

@@ -1,34 +1,19 @@
 import Link from "next/link";
 import { ArrowUpRight, AtSign, CalendarDays, Mail, MapPin, MessageCircle, Send } from "lucide-react";
-import type { Metadata } from "next";
-import { db } from "@/db";
-import { settings } from "@/db/schema";
 import { Reveal } from "@/components/site";
+import { Rich } from "@/components/site-text";
 import { submitLead } from "@/lib/actions";
+import { getSettings } from "@/lib/settings";
+import { getSitePage, siteMetadata } from "@/lib/site-content";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Contacto",
-  description:
-    "Fale com Marina Loyola: formulário, WhatsApp direto ou email. Resposta em menos de 24 horas úteis.",
-};
+export const generateMetadata = () => siteMetadata("contato");
 
-const SUBJECTS = [
-  "Mentoria 1:1",
-  "Workshops & Cursos",
-  "Parcerias & Imprensa",
-  "Outro assunto",
-];
-
-async function getSettings() {
+async function contacts() {
   try {
-    const rows = await db.select().from(settings);
-    const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
-    return {
-      whatsapp: map.whatsapp_number || "351912345678",
-      email: map.contact_email || "ola@marinaloyola.com",
-    };
+    const s = await getSettings(["whatsapp_number", "contact_email"]);
+    return { whatsapp: s.whatsapp_number || "351912345678", email: s.contact_email || "ola@marinaloyola.com" };
   } catch {
     return { whatsapp: "351912345678", email: "ola@marinaloyola.com" };
   }
@@ -40,38 +25,33 @@ export default async function ContatoPage({
   searchParams: Promise<{ ok?: string; erro?: string }>;
 }) {
   const { ok, erro } = await searchParams;
-  const { whatsapp, email } = await getSettings();
-  const waLink = `https://wa.me/${whatsapp}?text=${encodeURIComponent(
-    "Olá Marina! Gostaria de falar consigo."
-  )}`;
+  const [{ whatsapp, email }, page] = await Promise.all([contacts(), getSitePage("contato")]);
+  const { hero, form, channels } = page.s;
+  const waLink = `https://wa.me/${whatsapp}?text=${encodeURIComponent(channels.waMessage)}`;
 
   return (
     <section className="grain relative overflow-hidden bg-white pb-24 pt-16 text-zinc-950 lg:pt-24">
       <div className="glow-plum pointer-events-none absolute -right-40 top-10 h-[520px] w-[520px]" />
       <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
         <Reveal>
-          <p className="kicker flex items-center gap-3">
-            <span className="h-px w-10 bg-plum-bright" /> Contacto
-          </p>
-          <h1 className="mt-6 max-w-3xl font-display text-5xl font-medium leading-[1.02] tracking-tight lg:text-7xl">
-            Vamos <span className="italic text-plum">conversar.</span>
-          </h1>
-          <p className="mt-6 max-w-xl text-zinc-500">
-            Resposta em menos de 24 horas úteis. Escolha o canal que lhe for mais
-            confortável — ou escreva diretamente pelo formulário.
-          </p>
+          <div id="bloco-hero" className="scroll-mt-28">
+            <p className="kicker flex items-center gap-3">
+              <span className="h-px w-10 bg-plum-bright" /> {hero.kicker}
+            </p>
+            <h1 className="mt-6 max-w-3xl font-display text-5xl font-medium leading-[1.02] tracking-tight lg:text-7xl">
+              <Rich text={hero.title} />
+            </h1>
+            <p className="mt-6 max-w-xl whitespace-pre-line text-zinc-500">{hero.text}</p>
+          </div>
         </Reveal>
 
         <div className="mt-14 grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
           <Reveal delay={120}>
-            <div className="rounded-3xl border border-zinc-200 bg-zinc-50 p-8 lg:p-10">
+            <div id="bloco-form" className="scroll-mt-28 rounded-3xl border border-zinc-200 bg-zinc-50 p-8 lg:p-10">
               {ok === "1" ? (
                 <div className="rounded-2xl border border-plum/40 bg-plum/[0.06] p-8 text-center">
-                  <p className="font-display text-3xl italic">Mensagem recebida.</p>
-                  <p className="mx-auto mt-3 max-w-sm text-sm text-zinc-600">
-                    Obrigada pelo contacto — responderei em menos de 24 horas úteis.
-                    Entretanto, pode acompanhar o trabalho no Instagram.
-                  </p>
+                  <p className="font-display text-3xl italic">{form.successTitle}</p>
+                  <p className="mx-auto mt-3 max-w-sm whitespace-pre-line text-sm text-zinc-600">{form.successText}</p>
                   <Link href="/agendar" className="btn-primary mt-6">
                     <CalendarDays size={15} /> Agendar sessão exploratória
                   </Link>
@@ -117,7 +97,7 @@ export default async function ContatoPage({
                         Assunto
                       </label>
                       <select name="subject" className="field">
-                        {SUBJECTS.map((s) => (
+                        {form.subjects.map((s) => (
                           <option key={s} value={s} className="bg-white">
                             {s}
                           </option>
@@ -138,7 +118,7 @@ export default async function ContatoPage({
                   </div>
                   <button type="submit" className="btn-primary w-full sm:w-auto">
                     <Send size={15} />
-                    Enviar mensagem
+                    {form.button}
                   </button>
                 </form>
               )}
@@ -146,7 +126,7 @@ export default async function ContatoPage({
           </Reveal>
 
           <Reveal delay={220}>
-            <div className="space-y-4">
+            <div id="bloco-channels" className="scroll-mt-28 space-y-4">
               <a
                 href={waLink}
                 target="_blank"
@@ -157,8 +137,8 @@ export default async function ContatoPage({
                   <MessageCircle size={22} />
                 </span>
                 <div className="flex-1">
-                  <p className="font-semibold text-zinc-950">WhatsApp direto</p>
-                  <p className="text-sm text-zinc-500">O canal mais rápido — resposta no próprio dia.</p>
+                  <p className="font-semibold text-zinc-950">{channels.waTitle}</p>
+                  <p className="text-sm text-zinc-500">{channels.waText}</p>
                 </div>
                 <ArrowUpRight size={18} className="text-plum transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
               </a>
@@ -170,7 +150,7 @@ export default async function ContatoPage({
                   <Mail size={22} />
                 </span>
                 <div className="flex-1">
-                  <p className="font-semibold text-zinc-950">Email</p>
+                  <p className="font-semibold text-zinc-950">{channels.emailTitle}</p>
                   <p className="text-sm text-zinc-500">{email}</p>
                 </div>
                 <ArrowUpRight size={18} className="text-zinc-500 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
@@ -180,8 +160,8 @@ export default async function ContatoPage({
                   <MapPin size={22} />
                 </span>
                 <div>
-                  <p className="font-semibold text-zinc-950">Lisboa, Portugal</p>
-                  <p className="text-sm text-zinc-500">Sessões online para todo o mundo.</p>
+                  <p className="font-semibold text-zinc-950">{channels.locationTitle}</p>
+                  <p className="text-sm text-zinc-500">{channels.locationText}</p>
                 </div>
               </div>
               <Link
@@ -192,13 +172,13 @@ export default async function ContatoPage({
                   <CalendarDays size={22} />
                 </span>
                 <div className="flex-1">
-                  <p className="font-semibold text-zinc-950">Agendar diretamente</p>
-                  <p className="text-sm text-zinc-500">Escolha data e hora em tempo real.</p>
+                  <p className="font-semibold text-zinc-950">{channels.bookTitle}</p>
+                  <p className="text-sm text-zinc-500">{channels.bookText}</p>
                 </div>
                 <ArrowUpRight size={18} className="text-zinc-500 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
               </Link>
               <p className="flex items-center gap-2 px-2 pt-2 text-xs text-zinc-500">
-                <AtSign size={13} /> @marinaloyola nas redes sociais
+                <AtSign size={13} /> {channels.social}
               </p>
             </div>
           </Reveal>
