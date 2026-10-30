@@ -319,6 +319,11 @@ export default async function AdminDashboard() {
           <div className="space-y-3.5">
             {stages.map((s, i) => (
               <div key={s.id} className="group">
+                {s.pipeline !== stages[i - 1]?.pipeline && (
+                  <p className={cn("mb-2.5 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400", i > 0 && "mt-5 border-t border-line pt-4")}>
+                    {s.pipeline === "workshops" ? "Workshops" : "Mentoria"}
+                  </p>
+                )}
                 <div className="flex items-center justify-between gap-3 text-sm">
                   <span className="flex min-w-0 items-center gap-2 text-zinc-600 group-hover:text-zinc-950">
                     <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: s.color }} />
