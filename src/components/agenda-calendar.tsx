@@ -258,8 +258,14 @@ export function MonthCalendar({ month, today, events }: { month: string; today: 
                   if (e) move(e, iso, e.startMin);
                 }}
                 className={cn(
-                  "min-h-[112px] cursor-pointer p-1.5 transition-colors hover:bg-plum/[0.02]",
-                  over === iso ? "bg-plum/[0.07] ring-2 ring-inset ring-plum/40" : inMonth ? "bg-white" : "bg-zinc-50"
+                  "min-h-[112px] cursor-pointer p-1.5 transition-colors",
+                  over === iso
+                    ? "bg-plum/[0.07] ring-2 ring-inset ring-plum/40"
+                    : iso < today
+                      ? "bg-zinc-100/80 hover:bg-zinc-100"
+                      : inMonth
+                        ? "bg-white hover:bg-plum/[0.025]"
+                        : "bg-zinc-50 hover:bg-plum/[0.025]"
                 )}
               >
                 <Link
@@ -267,7 +273,7 @@ export function MonthCalendar({ month, today, events }: { month: string; today: 
                   scroll={false}
                   className={cn(
                     "mb-1 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition-colors hover:bg-plum/10",
-                    iso === today ? "bg-plum text-white hover:bg-plum" : inMonth ? "text-zinc-700" : "text-zinc-400"
+                    iso === today ? "bg-plum text-white hover:bg-plum" : iso < today ? "text-zinc-400" : inMonth ? "text-zinc-700" : "text-zinc-400"
                   )}
                   title="Ver semana"
                 >
@@ -436,7 +442,7 @@ export function WeekCalendar({
                 <p
                   className={cn(
                     "mx-auto mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold",
-                    isoDay(day) === today ? "bg-plum text-white" : "text-zinc-800"
+                    isoDay(day) === today ? "bg-plum text-white" : isoDay(day) < today ? "text-zinc-400" : "text-zinc-800"
                   )}
                 >
                   {day.getDate()}
@@ -515,6 +521,13 @@ export function WeekCalendar({
                   {hours.map((h) => (
                     <div key={h} className="absolute inset-x-0 border-t border-zinc-100" style={{ top: (h - startHour) * HOUR_PX }} />
                   ))}
+                  {/* Tempo que já passou fica a cinzento */}
+                  {(iso < today || (iso === today && nowMin > startHour * 60)) && (
+                    <div
+                      className="pointer-events-none absolute inset-x-0 top-0 bg-zinc-500/[0.09]"
+                      style={{ height: iso < today ? "100%" : Math.min(top(nowMin), hours.length * HOUR_PX) }}
+                    />
+                  )}
                   {isoDay(day) === today && nowMin >= startHour * 60 && nowMin <= endHour * 60 && (
                     <div className="absolute inset-x-0 z-20 flex items-center" style={{ top: top(nowMin) }}>
                       <span className="-ml-1 h-2 w-2 rounded-full bg-rose-500" />
