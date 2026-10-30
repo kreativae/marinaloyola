@@ -74,13 +74,26 @@ function useReschedule(events: CalEvent[]) {
   const [toast, setToast] = useState<Toast | null>(null);
   const [pending, start] = useTransition();
 
+  // Eventos acabados de criar, editar ou apagar no formulário: aparecem já, antes da resposta do servidor
+  const [local, setLocal] = useState<Map<string, CalEvent[] | null>>(new Map());
+  useEffect(() => {
+    const onSaved = (ev: Event) => {
+      const { id, draft, deleted } = (ev as CustomEvent<{ id: number; draft?: AgendaEventDraft; deleted?: boolean }>).detail;
+      setLocal((m) => new Map(m).set(`event:${id}`, deleted || !draft ? null : draftToEvents({ ...draft, id })));
+    };
+    window.addEventListener(AGENDA_SAVED, onSaved);
+    return () => window.removeEventListener(AGENDA_SAVED, onSaved);
+  }, []);
+
   // Chegaram dados novos do servidor: as posições optimistas já não são precisas
   if (seen !== events) {
     setSeen(events);
     setOverrides(new Map());
+    setLocal(new Map());
   }
 
-  const shown = events.map((e) => {
+  const merged = [...events.filter((e) => !local.has(keyOf(e))), ...[...local.values()].flatMap((l) => l ?? [])];
+  const shown = merged.map((e) => {
     const o = e.kind !== "busy" ? overrides.get(keyOf(e)) : undefined;
     if (!o) return e;
     const dur = e.endMin - e.startMin;
@@ -747,6 +760,34 @@ export type AgendaEventDraft = {
   color?: string;
 };
 
+const AGENDA_SAVED = "agenda:event-saved";
+const announce = (detail: { id: number; draft?: AgendaEventDraft; deleted?: boolean }) =>
+  window.dispatchEvent(new CustomEvent(AGENDA_SAVED, { detail }));
+
+/** Mesma forma que o servidor dá aos compromissos (um bloco por dia), para os mostrar logo após gravar. */
+function draftToEvents(d: AgendaEventDraft & { id: number }): CalEvent[] {
+  const [y, m, dd] = d.date.split("-").map(Number);
+  const last = d.allDay ? (d.endDate ?? d.date) : d.date;
+  const out: CalEvent[] = [];
+  for (let cur = new Date(y, m - 1, dd); isoDay(cur) <= last && out.length < 62; cur.setDate(cur.getDate() + 1)) {
+    out.push({
+      id: d.id,
+      kind: "event",
+      title: d.title ?? "",
+      subtitle: [d.blocks === false ? "Não bloqueia marcações" : "Bloqueia marcações", d.location].filter(Boolean).join(" · "),
+      day: isoDay(cur),
+      startMin: d.allDay ? 0 : toMinutes(d.start ?? "00:00"),
+      endMin: d.allDay ? 1440 : toMinutes(d.end ?? "00:00"),
+      timeLabel: d.allDay ? "Dia inteiro" : `${d.start}–${d.end}`,
+      dateLabel: new Date(y, m - 1, dd).toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" }),
+      color: d.color ?? "#0ea5e9",
+      notes: d.notes,
+      draft: d,
+    });
+  }
+  return out;
+}
+
 const EVENT_COLORS = [
   { value: "#0ea5e9", label: "Azul" },
   { value: "#800080", label: "Ameixa" },
@@ -788,9 +829,26 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
   const [deleting, startDelete] = useTransition();
   const [state, run, pending] = useActionState(async (prev: AgendaEventResult | null, fd: FormData) => {
     const r = await saveAgendaEvent(draft.id ?? null, prev, fd);
-    if (r.ok) {
-      router.refresh();
+    if (r.ok && r.id) {
+      const all = fd.get("allDay") === "1";
+      announce({
+        id: r.id,
+        draft: {
+          id: r.id,
+          title: String(fd.get("title") ?? "").trim(),
+          date: String(fd.get("date")),
+          endDate: String(fd.get("endDate") || fd.get("date")),
+          start: all ? undefined : String(fd.get("start")),
+          end: all ? undefined : String(fd.get("end")),
+          allDay: all,
+          blocks: fd.get("blocksBooking") === "1",
+          notes: String(fd.get("notes") ?? "") || null,
+          location: String(fd.get("location") ?? "") || null,
+          color: String(fd.get("color") ?? "") || undefined,
+        },
+      });
       if (!r.warning) onClose();
+      router.refresh();
     }
     return r;
   }, null);
@@ -935,8 +993,9 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
               confirm("Apagar este evento? O horário volta a ficar livre para marcações.") &&
               startDelete(async () => {
                 await deleteAgendaEvent(draft.id!);
-                router.refresh();
+                announce({ id: draft.id!, deleted: true });
                 onClose();
+                router.refresh();
               })
             }
             className="btn-ghost mr-auto !px-4 !py-2.5 !text-xs hover:!border-rose-200 hover:!text-rose-600"
@@ -962,7 +1021,6 @@ const toMinutes = (t: string) => {
 
 /** Botão "Novo evento" da Agenda (abre sozinho com ?evento=novo, vindo do botão + do topo). */
 export function NewAgendaEventButton({ today, initialOpen }: { today: string; initialOpen?: boolean }) {
-  const router = useRouter();
   const [draft, setDraft] = useState<AgendaEventDraft | null>(initialOpen ? { date: today } : null);
   return (
     <>
@@ -973,7 +1031,8 @@ export function NewAgendaEventButton({ today, initialOpen }: { today: string; in
         draft={draft}
         onClose={() => {
           setDraft(null);
-          if (initialOpen) router.replace("/admin/agenda?view=calendario&modo=semana", { scroll: false });
+          // Tira ?evento=novo do endereço sem navegar (uma navegação podia trazer a página antes de gravar)
+          if (initialOpen) window.history.replaceState(null, "", "/admin/agenda?view=calendario&modo=semana");
         }}
       />
     </>
