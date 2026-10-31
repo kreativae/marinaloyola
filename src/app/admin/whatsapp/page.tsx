@@ -17,6 +17,7 @@ import { LocalTime } from "@/components/local-time";
 import {
   AutoRefresh,
   ContactNameEditor,
+  DeleteConversationButton,
   MessageBubble,
   ReplyBox,
   ScrollToBottom,
@@ -140,7 +141,7 @@ export default async function WhatsappPage({
             </Form>
             <ul className="max-h-[560px] divide-y divide-zinc-100 overflow-y-auto">
               {conversations.map((conv) => (
-                <li key={conv.id}>
+                <li key={conv.id} className="group/conv relative">
                   <Link
                     href={`/admin/whatsapp?c=${conv.id}`}
                     className={cn(
@@ -171,6 +172,14 @@ export default async function WhatsappPage({
                       </span>
                     </span>
                   </Link>
+                  <div className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-lg bg-white shadow-sm ring-1 ring-zinc-200 group-hover/conv:block">
+                    <DeleteConversationButton
+                      contactId={conv.id}
+                      name={conv.name}
+                      redirectTo={conv.id === selectedId ? "/admin/whatsapp" : undefined}
+                      compact
+                    />
+                  </div>
                 </li>
               ))}
               {conversations.length === 0 && (
@@ -201,12 +210,23 @@ export default async function WhatsappPage({
                     )}
                   </div>
                 </div>
-                <Link
-                  href={`/admin/crm/${selected.id}`}
-                  className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-plum hover:underline"
-                >
-                  Ficha no CRM <ArrowUpRight size={13} />
-                </Link>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Link
+                    href={`/admin/crm/${selected.id}`}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-plum hover:underline"
+                  >
+                    Ficha no CRM <ArrowUpRight size={13} />
+                  </Link>
+                  {messages.length > 0 && (
+                    <DeleteConversationButton
+                      contactId={selected.id}
+                      name={selected.name}
+                      count={messages.length < 300 ? messages.length : undefined}
+                      redirectTo="/admin/whatsapp"
+                      compact
+                    />
+                  )}
+                </div>
               </div>
 
               <div className="flex-1 space-y-2 overflow-y-auto bg-zinc-50 px-5 py-5">

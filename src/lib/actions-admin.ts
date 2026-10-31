@@ -12,6 +12,7 @@ import {
   deals,
   enrollments,
   eventTypes,
+  interactions,
   lessonProgress,
   lessons,
   modules,
@@ -69,6 +70,13 @@ export async function addContactNote(contactId: number, formData: FormData) {
   if (!content) return;
   await addInteraction(contactId, "note", content);
   refresh(`/admin/crm/${contactId}`);
+}
+
+/** Apaga uma entrada do histórico do contacto (nota, registo de sistema…). */
+export async function deleteInteraction(id: number) {
+  await requireAdmin();
+  const [row] = await db.delete(interactions).where(eq(interactions.id, id)).returning({ contactId: interactions.contactId });
+  if (row) refresh(`/admin/crm/${row.contactId}`, "/admin/contactos");
 }
 
 export async function createContact(formData: FormData) {

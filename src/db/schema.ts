@@ -167,6 +167,43 @@ export const whatsappMessages = pgTable("whatsapp_messages", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+/* -------------------------------- NOTAS --------------------------------- */
+
+export const noteFolders = pgTable("note_folders", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+/**
+ * Notas da equipa, ao estilo das Notas da Apple. O corpo é texto simples com marcas leves:
+ * "# " título, "- " lista, "- [ ] " / "- [x] " tarefa, e #etiquetas em qualquer linha.
+ */
+export const notes = pgTable("notes", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull().default(""), // primeira linha, guardada para listar e pesquisar
+  body: text("body").notNull().default(""),
+  folderId: integer("folder_id").references(() => noteFolders.id, { onDelete: "set null" }),
+  pinned: boolean("pinned").notNull().default(false),
+  authorId: integer("author_id").references(() => users.id, { onDelete: "set null" }),
+  deletedAt: timestamp("deleted_at"), // "Apagadas recentemente": some de vez ao fim de 30 dias
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const noteContacts = pgTable(
+  "note_contacts",
+  {
+    noteId: integer("note_id")
+      .notNull()
+      .references(() => notes.id, { onDelete: "cascade" }),
+    contactId: integer("contact_id")
+      .notNull()
+      .references(() => contacts.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.noteId, t.contactId] })]
+);
+
 /* ------------------------------ PIPELINE -------------------------------- */
 
 export const pipelineStages = pgTable("pipeline_stages", {
@@ -489,3 +526,5 @@ export type QuizAttempt = typeof quizAttempts.$inferSelect;
 export type Post = typeof posts.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
 export type BioLink = typeof bioLinks.$inferSelect;
+export type Note = typeof notes.$inferSelect;
+export type NoteFolder = typeof noteFolders.$inferSelect;

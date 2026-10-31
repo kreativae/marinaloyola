@@ -11,9 +11,12 @@ import {
   Pencil,
   Phone,
   Plus,
+  NotebookPen,
+  Pin,
   StickyNote,
+  Trash2,
 } from "lucide-react";
-import { desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   appointments,
@@ -22,16 +25,22 @@ import {
   deals,
   eventTypes,
   interactions,
+  noteContacts,
+  notes,
   payments,
   pipelineStages,
   tags,
+  whatsappMessages,
 } from "@/db/schema";
-import { addContactNote, setContactStatus, setPaymentStatus } from "@/lib/actions-admin";
+import { addContactNote, deleteInteraction, setContactStatus, setPaymentStatus } from "@/lib/actions-admin";
 import { EmptyState, PageHeader, Panel, StatCard } from "@/components/admin-ui";
 import { SelectAction } from "@/components/admin-client";
 import { ChannelChip, ContactFormButton, DeleteContactButton } from "@/components/contacts-client";
 import { listChannels } from "@/lib/channels";
 import { LocalTime } from "@/components/local-time";
+import { NewContactNoteButton } from "@/components/notes-client";
+import { DeleteConversationButton } from "@/components/whatsapp-client";
+import { notePreview, noteTasks, noteTitle } from "@/lib/notes-def";
 import { countryName, flag } from "@/lib/timezones";
 import { APPT_STATUS, CONTACT_STATUS, eur, fmtDate, fmtDateTime, initials, INTERACTION_ICONS, num, PAYMENT_METHODS, PAYMENT_STATUS, SOURCES } from "@/lib/utils";
 
@@ -89,6 +98,15 @@ export default async function ContactDetailPage({
   ]);
 
   if (!contact) notFound();
+  const [noteRows, [{ waCount }]] = await Promise.all([
+    db
+      .select({ id: notes.id, body: notes.body, pinned: notes.pinned, updatedAt: notes.updatedAt })
+      .from(noteContacts)
+      .innerJoin(notes, eq(notes.id, noteContacts.noteId))
+      .where(and(eq(noteContacts.contactId, contactId), isNull(notes.deletedAt)))
+      .orderBy(desc(notes.pinned), desc(notes.updatedAt)),
+    db.select({ waCount: count() }).from(whatsappMessages).where(eq(whatsappMessages.contactId, contactId)),
+  ]);
   const channelOptions = await listChannels();
   const channel = channelOptions.find((c) => c.id === contact.channelId);
 
@@ -123,6 +141,7 @@ export default async function ContactDetailPage({
                 <MessageCircle size={14} /> Conversa WhatsApp
               </Link>
             )}
+            {waCount > 0 && <DeleteConversationButton contactId={contact.id} name={contact.name} count={waCount} />}
             <SelectAction
               value={contact.status}
               options={STATUS_OPTIONS}
@@ -243,14 +262,24 @@ export default async function ContactDetailPage({
           ) : (
             <ul className="relative space-y-0 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-zinc-200/70">
               {timeline.map((i) => (
-                <li key={i.id} className="relative flex gap-4 pb-5 pl-6 last:pb-0">
+                <li key={i.id} className="group relative flex gap-4 pb-5 pl-6 last:pb-0">
                   <span className="absolute left-0 top-1.5 h-[11px] w-[11px] rounded-full border-2 border-plum bg-white" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm leading-relaxed text-zinc-600">{i.content}</p>
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500">
                       {INTERACTION_ICONS[i.type] ?? i.type} · {fmtDateTime(i.createdAt)}
                     </p>
                   </div>
+                  <form action={deleteInteraction.bind(null, i.id)} className="shrink-0">
+                    <button
+                      type="submit"
+                      title="Apagar do histórico"
+                      aria-label="Apagar do histórico"
+                      className="rounded-lg p-1.5 text-zinc-300 opacity-0 transition-all hover:bg-rose-50 hover:text-rose-600 focus:opacity-100 group-hover:opacity-100"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </form>
                 </li>
               ))}
             </ul>
@@ -258,6 +287,44 @@ export default async function ContactDetailPage({
         </Panel>
 
         <div className="space-y-6">
+          {/* Notas ligadas */}
+          <Panel title="Notas" action={<NewContactNoteButton contactId={contact.id} />}>
+            {noteRows.length === 0 ? (
+              <EmptyState text="Sem notas ligadas a este contacto." />
+            ) : (
+              <ul className="space-y-2.5">
+                {noteRows.map((n) => {
+                  const t = noteTasks(n.body);
+                  return (
+                    <li key={n.id}>
+                      <Link
+                        href={`/admin/notas?n=${n.id}`}
+                        className="flex items-start gap-3 rounded-xl border border-amber-200/70 bg-amber-50/60 px-4 py-3 transition-colors hover:border-amber-300 hover:bg-amber-50"
+                      >
+                        <NotebookPen size={15} className="mt-0.5 shrink-0 text-amber-600" />
+                        <div className="min-w-0 flex-1">
+                          <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-zinc-950">
+                            {n.pinned && <Pin size={12} className="shrink-0 text-amber-500" />}
+                            {noteTitle(n.body) || "Nova nota"}
+                          </p>
+                          <p className="truncate text-xs text-zinc-500">{notePreview(n.body) || "Sem texto adicional"}</p>
+                        </div>
+                        <div className="shrink-0 text-right text-[11px] text-zinc-500">
+                          <p>{fmtDate(n.updatedAt)}</p>
+                          {t.open + t.done > 0 && (
+                            <p className={t.open ? "text-amber-700" : "text-emerald-600"}>
+                              {t.done}/{t.open + t.done} tarefas
+                            </p>
+                          )}
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Panel>
+
           {/* Compras */}
           <Panel title="Compras & pagamentos">
             {paymentRows.length === 0 ? (

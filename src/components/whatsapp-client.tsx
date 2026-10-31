@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import {
   connectWhatsapp,
+  deleteWhatsappConversation,
   deleteWhatsappMessage,
   disconnectWhatsapp,
   getWhatsappStatus,
@@ -699,4 +700,45 @@ export function ScrollToBottom({ dep }: { dep: number }) {
     if (box) box.scrollTop = box.scrollHeight;
   }, [dep]);
   return <div ref={ref} />;
+}
+
+/** Apaga todas as mensagens da conversa na plataforma, com confirmação. */
+export function DeleteConversationButton({
+  contactId,
+  name,
+  count,
+  redirectTo,
+  compact,
+}: {
+  contactId: number;
+  name: string;
+  count?: number;
+  redirectTo?: string;
+  compact?: boolean;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() => {
+        const n = count ? ` (${count} mensage${count === 1 ? "m" : "ns"})` : "";
+        if (!confirm(`Apagar a conversa com "${name}"${n}? As mensagens e ficheiros saem da plataforma; o contacto e a ficha no CRM ficam. No WhatsApp do telemóvel a conversa não é apagada.`)) return;
+        start(async () => {
+          await deleteWhatsappConversation(contactId);
+          if (redirectTo) router.push(redirectTo);
+          else router.refresh();
+        });
+      }}
+      title="Apagar conversa"
+      className={cn(
+        "inline-flex items-center gap-1.5 font-semibold text-rose-600 transition-colors hover:bg-rose-50 disabled:opacity-50",
+        compact ? "rounded-lg p-2" : "rounded-full border border-rose-200 bg-white px-5 py-2.5 text-xs"
+      )}
+    >
+      {pending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={compact ? 16 : 14} />}
+      {!compact && "Apagar conversa"}
+    </button>
+  );
 }

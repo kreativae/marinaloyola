@@ -20,6 +20,7 @@ import {
   Megaphone,
   Menu,
   MessageCircle,
+  NotebookPen,
   Plus,
   Search,
   Settings,
@@ -47,6 +48,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { href: "/admin/contactos", label: "Contactos", icon: Users },
       { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, badge: "whatsapp" },
       { href: "/admin/pipeline", label: "Pipeline", icon: Layers },
+      { href: "/admin/notas", label: "Notas", icon: NotebookPen },
     ],
   },
   {
@@ -398,6 +400,7 @@ function Topbar({ onMenu, onSearch }: { onMenu: () => void; onSearch: () => void
               {[
                 { href: "/admin/contactos?novo=1", label: "Novo contacto", icon: UserPlus },
                 { href: "/admin/agenda?view=calendario&modo=semana&evento=novo", label: "Novo evento", icon: CalendarPlus },
+                { href: "/admin/notas?nova=1", label: "Nova nota", icon: NotebookPen },
                 { href: "/admin/financeiro?novo=1", label: "Registar recebimento", icon: Wallet },
                 { href: "/admin/financeiro?despesa=1", label: "Registar despesa", icon: Wallet },
                 { href: "/admin/marketing?novo=1", label: "Novo conteúdo", icon: Megaphone },
@@ -453,6 +456,7 @@ type Command = { id: string; label: string; hint?: string; icon: LucideIcon; hre
 const STATIC_COMMANDS: Command[] = [
   ...ALL_ITEMS.map((i) => ({ id: i.href, label: i.label, icon: i.icon, href: i.href, group: "Ir para" })),
   { id: "novo-contacto", label: "Novo contacto", icon: UserPlus, href: "/admin/contactos?novo=1", group: "Ações" },
+  { id: "nova-nota", label: "Nova nota", icon: NotebookPen, href: "/admin/notas?nova=1", group: "Ações" },
   { id: "novo-evento", label: "Novo evento na agenda", icon: CalendarPlus, href: "/admin/agenda?view=calendario&modo=semana&evento=novo", group: "Ações" },
   { id: "pagamento", label: "Registar recebimento", icon: Wallet, href: "/admin/financeiro?novo=1", group: "Ações" },
   { id: "despesa", label: "Registar despesa", icon: Wallet, href: "/admin/financeiro?despesa=1", group: "Ações" },

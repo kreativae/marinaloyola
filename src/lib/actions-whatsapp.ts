@@ -2,7 +2,7 @@
 
 import fs from "node:fs/promises";
 import { revalidatePath } from "next/cache";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { contacts, whatsappMessages } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
@@ -132,4 +132,22 @@ export async function renameWhatsappContact(contactId: number, name: string): Pr
   revalidatePath("/admin/contactos");
   revalidatePath(`/admin/crm/${contactId}`);
   return { ok: true };
+}
+
+/**
+ * Apaga a conversa inteira na plataforma (mensagens e ficheiros descarregados). O contacto e a ficha
+ * no CRM ficam; no WhatsApp do telemóvel a conversa continua a existir.
+ */
+export async function deleteWhatsappConversation(contactId: number): Promise<{ ok: boolean; deleted: number }> {
+  await requireAdmin();
+  const files = await db
+    .select({ file: whatsappMessages.mediaFile })
+    .from(whatsappMessages)
+    .where(and(eq(whatsappMessages.contactId, contactId), isNotNull(whatsappMessages.mediaFile)));
+  const gone = await db.delete(whatsappMessages).where(eq(whatsappMessages.contactId, contactId)).returning({ id: whatsappMessages.id });
+  await Promise.all(files.map((f) => fs.rm(filePath(f.file!, "whatsapp"), { force: true })));
+  revalidatePath("/admin/whatsapp");
+  revalidatePath(`/admin/crm/${contactId}`);
+  revalidatePath("/admin/contactos");
+  return { ok: true, deleted: gone.length };
 }
