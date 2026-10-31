@@ -14,7 +14,15 @@ import {
 } from "@/lib/evolution";
 import { PageHeader } from "@/components/admin-ui";
 import { LocalTime } from "@/components/local-time";
-import { AutoRefresh, ReplyBox, ScrollToBottom, WhatsappConnection } from "@/components/whatsapp-client";
+import {
+  AutoRefresh,
+  ContactNameEditor,
+  MessageBubble,
+  ReplyBox,
+  ScrollToBottom,
+  WhatsappConnection,
+} from "@/components/whatsapp-client";
+import { waPreview } from "@/lib/whatsapp-def";
 import { cn, initials } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +32,8 @@ type Conversation = {
   name: string;
   phone: string | null;
   body: string;
+  kind: string;
+  media_name: string | null;
   direction: string;
   at: Date;
   unread: number;
@@ -36,6 +46,9 @@ const timeLabel = (d: Date) => {
     ? d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })
     : d.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" });
 };
+
+/** O WhatsApp só deixa apagar para todos durante cerca de 2 dias. */
+const isRecent = (d: Date) => Date.now() - d.getTime() < 2 * 86400000;
 
 export default async function WhatsappPage({
   searchParams,
@@ -58,12 +71,12 @@ export default async function WhatsappPage({
 
   const [convRows, selected, messages, withPhone] = await Promise.all([
     db.execute(sql`
-      SELECT c.id, c.name, c.phone, m.body, m.direction, m.created_at AS at,
+      SELECT c.id, c.name, c.phone, m.body, m.kind, m.media_name, m.direction, m.created_at AS at,
         (SELECT COUNT(*)::int FROM whatsapp_messages u
           WHERE u.contact_id = c.id AND u.read_at IS NULL AND u.direction = 'in') AS unread
       FROM contacts c
       JOIN LATERAL (
-        SELECT body, direction, created_at FROM whatsapp_messages
+        SELECT body, kind, media_name, direction, created_at FROM whatsapp_messages
         WHERE contact_id = c.id ORDER BY created_at DESC, id DESC LIMIT 1
       ) m ON true
       ORDER BY m.created_at DESC
@@ -148,7 +161,7 @@ export default async function WhatsappPage({
                       <span className="mt-0.5 flex items-center justify-between gap-2">
                         <span className="truncate text-xs text-zinc-500">
                           {conv.direction === "out" && "Você: "}
-                          {conv.body}
+                          {waPreview(conv.kind, conv.body, conv.media_name)}
                         </span>
                         {conv.unread > 0 && (
                           <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white">
@@ -179,7 +192,7 @@ export default async function WhatsappPage({
                     {initials(selected.name)}
                   </span>
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-zinc-950">{selected.name}</p>
+                    <ContactNameEditor key={selected.name} contactId={selected.id} name={selected.name} />
                     <p className="text-xs text-zinc-500">
                       {selectedPhone ? formatPhone(selectedPhone) : "Sem número válido"}
                     </p>
@@ -203,31 +216,23 @@ export default async function WhatsappPage({
                   </p>
                 )}
                 {messages.map((m) => (
-                  <div key={m.id} className={cn("flex", m.direction === "out" ? "justify-end" : "justify-start")}>
-                    <div
-                      className={cn(
-                        "max-w-[75%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
-                        m.direction === "out"
-                          ? "rounded-br-md bg-plum text-white"
-                          : "rounded-bl-md border border-zinc-200 bg-white text-zinc-800"
-                      )}
-                    >
-                      {m.body}
-                      <span
-                        className={cn(
-                          "mt-1 block text-right text-[10px]",
-                          m.direction === "out" ? "text-white/70" : "text-zinc-500"
-                        )}
-                      >
-                        {m.createdAt.toLocaleString("pt-PT", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                  </div>
+                  <MessageBubble
+                    key={m.id}
+                    m={{
+                      id: m.id,
+                      direction: m.direction,
+                      body: m.body,
+                      kind: m.kind,
+                      mediaMime: m.mediaMime,
+                      mediaName: m.mediaName,
+                      mediaSize: m.mediaSize,
+                      mediaSeconds: m.mediaSeconds,
+                      downloaded: !!m.mediaFile,
+                      canFetch: !!m.waRaw,
+                      deletable: m.direction === "out" && !!m.waMessageId && isRecent(m.createdAt),
+                      at: m.createdAt.toISOString(),
+                    }}
+                  />
                 ))}
                 <ScrollToBottom dep={messages.length} />
               </div>

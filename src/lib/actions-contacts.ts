@@ -24,6 +24,7 @@ import { contactWhere } from "@/lib/contacts-query";
 import { addInteraction, attachTag, ensureTag, localeFor } from "@/lib/crm";
 import { COUNTRIES, countryName, countryOfTz, defaultTzOf, isValidTz } from "@/lib/timezones";
 import { CONTACT_STATUS, SOURCES } from "@/lib/utils";
+import { waPreview } from "@/lib/whatsapp-def";
 
 type ContactStatus = (typeof contacts.$inferSelect)["status"];
 type Source = (typeof contacts.$inferSelect)["source"];
@@ -499,7 +500,7 @@ export async function getContactSummary(id: number): Promise<ContactSummary | nu
     deals: dealRows.slice(0, 3).map(({ d, stage }) => ({ id: d.id, title: d.title, stage, value: Number(d.value) })),
     timeline: timeline.map((i) => ({ id: i.id, type: i.type, content: i.content, createdAt: i.createdAt.toISOString() })),
     whatsapp: {
-      last: lastWa ? { body: lastWa.body, direction: lastWa.direction, createdAt: lastWa.createdAt.toISOString() } : null,
+      last: lastWa ? { body: waPreview(lastWa.kind, lastWa.body, lastWa.mediaName), direction: lastWa.direction, createdAt: lastWa.createdAt.toISOString() } : null,
       unread,
     },
     courses: courseRows,

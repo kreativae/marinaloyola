@@ -133,7 +133,15 @@ export const whatsappMessages = pgTable("whatsapp_messages", {
     .notNull()
     .references(() => contacts.id, { onDelete: "cascade" }),
   direction: text("direction").notNull(), // in | out
-  body: text("body").notNull(),
+  body: text("body").notNull(), // texto, ou a legenda de um ficheiro
+  kind: text("kind").notNull().default("text"), // text | image | video | audio | document | sticker | location | contact
+  // Ficheiros: só são descarregados da Evolution quando alguém pede para ver (poupa o servidor)
+  mediaMime: text("media_mime"),
+  mediaName: text("media_name"),
+  mediaSize: integer("media_size"),
+  mediaSeconds: integer("media_seconds"),
+  mediaFile: text("media_file"), // nome em uploads/whatsapp, depois de descarregado ou enviado por nós
+  waRaw: jsonb("wa_raw").$type<{ key: Record<string, unknown>; message: Record<string, unknown> }>(), // para pedir o ficheiro à Evolution
   waMessageId: text("wa_message_id").unique(),
   readAt: timestamp("read_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

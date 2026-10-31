@@ -34,14 +34,14 @@ export const isConfigured = (c: EvolutionConfig) => Boolean(c.url && c.apiKey);
 export const webhookUrl = (c: EvolutionConfig) =>
   `${c.appUrl}/api/webhooks/evolution?token=${c.webhookToken}`;
 
-async function call<T>(c: EvolutionConfig, method: string, path: string, body?: unknown): Promise<T> {
+async function call<T>(c: EvolutionConfig, method: string, path: string, body?: unknown, timeoutMs = 15000): Promise<T> {
   if (!isConfigured(c)) throw new Error("Evolution API não configurada.");
   const res = await fetch(`${c.url}${path}`, {
     method,
     headers: { apikey: c.apiKey, "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
     cache: "no-store",
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`Evolution ${res.status}: ${text.slice(0, 300)}`);
@@ -117,6 +117,56 @@ export async function sendText(c: EvolutionConfig, number: string, text: string)
     { number, text }
   );
   return { id: r.key?.id ?? null };
+}
+
+export type MediaType = "image" | "video" | "document";
+
+/** Foto, vídeo ou documento (base64 sem prefixo data:). */
+export async function sendMedia(
+  c: EvolutionConfig,
+  number: string,
+  file: { mediatype: MediaType; mimetype: string; base64: string; fileName: string; caption?: string }
+) {
+  const r = await call<{ key?: { id?: string } }>(
+    c,
+    "POST",
+    `/message/sendMedia/${encodeURIComponent(c.instance)}`,
+    { number, mediatype: file.mediatype, mimetype: file.mimetype, media: file.base64, fileName: file.fileName, caption: file.caption ?? "" },
+    120000
+  );
+  return { id: r.key?.id ?? null };
+}
+
+/** Mensagem de voz (a Evolution converte para o formato do WhatsApp). */
+export async function sendAudio(c: EvolutionConfig, number: string, base64: string) {
+  const r = await call<{ key?: { id?: string } }>(
+    c,
+    "POST",
+    `/message/sendWhatsAppAudio/${encodeURIComponent(c.instance)}`,
+    { number, audio: base64, encoding: true },
+    120000
+  );
+  return { id: r.key?.id ?? null };
+}
+
+/** Descarrega o ficheiro de uma mensagem recebida (áudios convertidos para mp4, que todos os browsers tocam). */
+export async function mediaBase64(c: EvolutionConfig, raw: { key: Record<string, unknown>; message: Record<string, unknown> }, audio: boolean) {
+  return call<{ base64?: string; mimetype?: string; fileName?: string }>(
+    c,
+    "POST",
+    `/chat/getBase64FromMediaMessage/${encodeURIComponent(c.instance)}`,
+    { message: raw, convertToMp4: audio },
+    120000
+  );
+}
+
+/** Apaga uma mensagem nossa também no WhatsApp da outra pessoa. */
+export async function deleteForEveryone(c: EvolutionConfig, number: string, id: string) {
+  await call(c, "DELETE", `/chat/deleteMessageForEveryone/${encodeURIComponent(c.instance)}`, {
+    id,
+    remoteJid: `${number}@s.whatsapp.net`,
+    fromMe: true,
+  });
 }
 
 /* -------------------------------- TELEFONES ----------------------------- */
