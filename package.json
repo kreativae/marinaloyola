@@ -12,7 +12,8 @@
     "db:setup": "npm run db:push && npm run db:seed",
     "db:admin": "tsx scripts/create-admin.ts",
     "db:init": "tsx scripts/init.ts",
-    "db:deploy": "drizzle-kit push && tsx scripts/init.ts"
+    "db:deploy": "drizzle-kit push && tsx scripts/init.ts",
+    "db:demo": "TZ=Europe/Lisbon tsx scripts/demo.ts"
   },
   "dependencies": {
     "dotenv": "17.3.1",
