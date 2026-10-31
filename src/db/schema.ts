@@ -67,6 +67,26 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   role: roleEnum("role").notNull().default("student"),
+  phone: text("phone"),
+  lastLoginAt: timestamp("last_login_at"),
+  passwordChangedAt: timestamp("password_changed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+/** Chaves de acesso (WebAuthn): Face ID, Touch ID, Windows Hello ou chave física. */
+export const passkeys = pgTable("passkeys", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  credentialId: text("credential_id").notNull().unique(),
+  publicKey: text("public_key").notNull(),
+  counter: integer("counter").notNull().default(0),
+  transports: jsonb("transports").$type<string[]>(),
+  deviceType: text("device_type"),
+  backedUp: boolean("backed_up").notNull().default(false),
+  name: text("name").notNull(),
+  lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -447,6 +467,7 @@ export const settings = pgTable("settings", {
 /* ------------------------------- TYPES ---------------------------------- */
 
 export type User = typeof users.$inferSelect;
+export type Passkey = typeof passkeys.$inferSelect;
 export type Contact = typeof contacts.$inferSelect;
 export type Channel = typeof channels.$inferSelect;
 export type CourseFile = typeof courseFiles.$inferSelect;

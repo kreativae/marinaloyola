@@ -24,6 +24,7 @@ export async function login(formData: FormData) {
   if (!user || !verifyPassword(password, user.passwordHash)) {
     redirect("/login?erro=1");
   }
+  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
   await createSession(user.id);
   redirect(user.role === "student" ? "/aluno" : "/admin");
 }

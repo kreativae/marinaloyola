@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Lock, LogIn, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import { login } from "@/lib/actions";
+import { passkeyLoginEnabled } from "@/lib/actions-account";
+import { PasskeyLogin } from "@/components/account-client";
 
 export const metadata: Metadata = {
   title: "Entrar",
@@ -14,6 +16,7 @@ export default async function LoginPage({
   searchParams: Promise<{ erro?: string }>;
 }) {
   const { erro } = await searchParams;
+  const passkeys = await passkeyLoginEnabled();
 
   return (
     <section className="grain relative flex min-h-screen items-center justify-center bg-white px-5 text-zinc-950">
@@ -47,7 +50,7 @@ export default async function LoginPage({
                 name="email"
                 type="email"
                 required
-                autoComplete="email"
+                autoComplete={passkeys ? "username webauthn" : "email"}
                 className="field"
                 placeholder="voce@email.com"
               />
@@ -70,6 +73,8 @@ export default async function LoginPage({
               Entrar
             </button>
           </form>
+
+          {passkeys && <PasskeyLogin />}
 
           {/* Só em desenvolvimento: no servidor as contas de exemplo não existem nem devem ser anunciadas */}
           {process.env.NODE_ENV !== "production" && (

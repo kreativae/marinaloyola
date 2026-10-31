@@ -15,12 +15,14 @@ import {
 } from "lucide-react";
 import { asc, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { channels, contacts, contactTags, payments, tags, users } from "@/db/schema";
+import { channels, contacts, contactTags, passkeys, payments, tags, users } from "@/db/schema";
 import { PageHeader, Panel } from "@/components/admin-ui";
 import { CopyButton } from "@/components/admin-client";
 import { RegenerateFeedButton, ServiceForm } from "@/components/config-client";
 import { ChannelManager } from "@/components/contacts-client";
 import { TagManager, UserManager } from "@/components/team-client";
+import { PasskeyAdmin } from "@/components/account-client";
+import { passkeyLoginEnabled } from "@/lib/actions-account";
 import { getSessionUser } from "@/lib/auth";
 import { getEvolutionConfig, webhookUrl } from "@/lib/evolution";
 import { SERVICES, getService, type ServiceId } from "@/lib/services-def";
@@ -119,7 +121,7 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
               <Users size={16} />
             </span>
             <span className={cn("flex-1 text-sm font-semibold", tab === "equipa" ? "text-plum" : "text-zinc-900")}>
-              Equipa, tags & canais
+              Equipa, acessos & tags
             </span>
           </Link>
         </nav>
@@ -364,7 +366,7 @@ async function ServiceExtras({ id }: { id: ServiceId }) {
 }
 
 async function TeamTab() {
-  const [me, tagRows, allUsers, channelRows] = await Promise.all([
+  const [me, tagRows, allUsers, channelRows, keyRows, passkeyOn] = await Promise.all([
     getSessionUser(),
     db
       .select({ id: tags.id, name: tags.name, color: tags.color, count: count(contactTags.contactId) })
@@ -382,6 +384,12 @@ async function TeamTab() {
       .leftJoin(contacts, eq(contacts.channelId, channels.id))
       .groupBy(channels.id)
       .orderBy(asc(channels.name)),
+    db
+      .select({ key: passkeys, owner: users.name })
+      .from(passkeys)
+      .innerJoin(users, eq(users.id, passkeys.userId))
+      .orderBy(asc(users.name), desc(passkeys.createdAt)),
+    passkeyLoginEnabled(),
   ]);
   const canManage = me?.role === "admin";
   return (
@@ -396,6 +404,28 @@ async function TeamTab() {
           <p className="mt-4 text-[11px] leading-relaxed text-zinc-500">
             Contas de alunas também são criadas automaticamente ao dar acesso a um curso ou por compra via Hotmart.
           </p>
+        </Panel>
+      </div>
+
+      <div id="face-id" className="scroll-mt-6">
+        <Panel title={`Face ID e chaves de acesso (${keyRows.length})`}>
+          <p className="mb-4 text-xs leading-relaxed text-zinc-500">
+            Cada pessoa ativa o Face ID no próprio aparelho, em “Minha conta”. Aqui vê todos os aparelhos ativados e pode
+            remover um aparelho perdido ou de alguém que saiu da equipa.
+          </p>
+          <PasskeyAdmin
+            enabled={passkeyOn}
+            canManage={canManage}
+            keys={keyRows.map(({ key: k, owner }) => ({
+              id: k.id,
+              name: k.name,
+              owner,
+              deviceType: k.deviceType,
+              backedUp: k.backedUp,
+              createdAt: k.createdAt.toISOString(),
+              lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+            }))}
+          />
         </Panel>
       </div>
 

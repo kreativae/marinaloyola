@@ -29,14 +29,14 @@ export default async function AlunoLayout({ children }: { children: ReactNode })
             >
               <ExternalLink size={13} /> Ver site
             </Link>
-            <span className="flex items-center gap-2.5">
+            <Link href="/aluno/conta" title="Minha conta" className="flex items-center gap-2.5 rounded-full transition-opacity hover:opacity-80">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-plum text-[11px] font-bold text-white">
                 {initials(user.name)}
               </span>
               <span className="hidden text-sm font-medium text-zinc-600 sm:block">
                 {user.name.split(" ")[0]}
               </span>
-            </span>
+            </Link>
             <form action={logout}>
               <button
                 type="submit"

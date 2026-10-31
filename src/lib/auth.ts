@@ -38,6 +38,29 @@ export async function createSession(userId: number) {
   });
 }
 
+/** Desafio WebAuthn guardado num cookie assinado durante 5 minutos (registo ou entrada). */
+const CHALLENGE = "ml_webauthn";
+
+export async function storeChallenge(challenge: string, userId = 0) {
+  const store = await cookies();
+  const payload = `${challenge}.${userId}.${Date.now() + 5 * 60_000}`;
+  store.set(CHALLENGE, `${payload}.${sign(payload)}`, { httpOnly: true, sameSite: "strict", path: "/", maxAge: 300 });
+}
+
+export async function takeChallenge(userId = 0) {
+  const store = await cookies();
+  const raw = store.get(CHALLENGE)?.value;
+  store.delete(CHALLENGE);
+  if (!raw) return null;
+  const [challenge, uid, exp, sig] = raw.split(".");
+  const payload = `${challenge}.${uid}.${exp}`;
+  const a = Buffer.from(sign(payload));
+  const b = Buffer.from(sig ?? "");
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  if (Number(uid) !== userId || Number(exp) < Date.now()) return null;
+  return challenge;
+}
+
 export async function destroySession() {
   const store = await cookies();
   store.delete(COOKIE);

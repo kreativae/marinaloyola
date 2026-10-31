@@ -28,6 +28,7 @@ import {
   Wallet,
   X,
   type LucideIcon,
+  UserRound,
 } from "lucide-react";
 import { logout } from "@/lib/actions";
 import { quickSearchContacts } from "@/lib/actions-contacts";
@@ -283,6 +284,7 @@ function SidebarContent({
 
       <div className={cn("shrink-0 border-t border-line p-3", collapsed && "px-2")}>
         <div className={cn("flex items-center gap-3 rounded-2xl p-2 transition-colors hover:bg-zinc-50", collapsed && "flex-col")}>
+          <Link href="/admin/conta" title="Minha conta" className={cn("flex min-w-0 flex-1 items-center gap-3", collapsed && "flex-none")}>
           <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-plum text-xs font-bold text-white">
             {initials(user.name)}
             <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
@@ -290,9 +292,10 @@ function SidebarContent({
           {!collapsed && (
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-zinc-950">{user.name}</p>
-              <p className="truncate text-[11px] text-zinc-500">{user.role === "admin" ? "Super Admin" : "Equipa"}</p>
+              <p className="truncate text-[11px] text-zinc-500">{user.role === "admin" ? "Super Admin" : "Equipa"} · Minha conta</p>
             </div>
           )}
+          </Link>
           <form action={logout}>
             <button type="submit" aria-label="Sair" title="Sair" className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-rose-50 hover:text-rose-600">
               <LogOut size={16} />
@@ -457,6 +460,7 @@ const STATIC_COMMANDS: Command[] = [
   { id: "whats-cfg", label: "Configurar WhatsApp", icon: Settings, href: "/admin/config?s=whatsapp", group: "Ações" },
   { id: "email-cfg", label: "Configurar email", icon: Settings, href: "/admin/config?s=email", group: "Ações" },
   { id: "canais", label: "Gerir canais de origem", icon: Settings, href: "/admin/config?s=equipa#canais", group: "Ações" },
+  { id: "conta", label: "Minha conta e Face ID", icon: UserRound, href: "/admin/conta", group: "Ações" },
   { id: "site", label: "Página pública de agendamento", icon: ExternalLink, href: "/agendar", group: "Ações" },
 ];
 
@@ -469,6 +473,7 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
   const [sel, setSel] = useState(0);
   const [people, setPeople] = useState<Command[]>([]);
   const [searching, start] = useTransition();
+  const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     const d = ref.current;
@@ -507,6 +512,11 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
   const statics = term ? STATIC_COMMANDS.filter((c) => normalize(c.label).includes(term)) : STATIC_COMMANDS;
   const items = [...people, ...statics];
   const current = Math.min(sel, Math.max(items.length - 1, 0));
+
+  // Mantém a opção escolhida com as setas sempre visível na lista
+  useEffect(() => {
+    listRef.current?.querySelector(`[data-i="${current}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [current]);
 
   const go = useCallback(
     (c: Command | undefined) => {
@@ -561,17 +571,17 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
             />
             <span className="kbd">Esc</span>
           </div>
-          <ul className="admin-scroll max-h-[50vh] overflow-y-auto p-2">
+          <ul ref={listRef} className="admin-scroll max-h-[50vh] overflow-y-auto scroll-py-2 p-2">
             {items.length === 0 && <li className="px-4 py-10 text-center text-sm text-zinc-500">Nada encontrado para “{q}”.</li>}
             {items.map((c, i) => {
               const header = c.group !== lastGroup ? c.group : null;
               lastGroup = c.group;
               return (
-                <li key={c.id}>
+                <li key={c.id} data-i={i}>
                   {header && <p className="px-3 pb-1.5 pt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">{header}</p>}
                   <button
                     type="button"
-                    onMouseEnter={() => setSel(i)}
+                    onMouseMove={() => i !== current && setSel(i)}
                     onClick={() => go(c)}
                     className={cn(
                       "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors",
