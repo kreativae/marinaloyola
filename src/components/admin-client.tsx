@@ -144,7 +144,7 @@ export function KanbanBoard({
             onDragLeave={() => setOver((o) => (o === col.id ? null : o))}
             onDrop={() => drop(col.id)}
             className={cn(
-              "flex w-[280px] shrink-0 flex-col rounded-[20px] p-2 transition-all duration-300",
+              "flex min-w-[205px] flex-1 basis-0 flex-col rounded-[20px] p-2 transition-all duration-300",
               over === col.id ? "bg-plum/[0.07] ring-2 ring-plum/25" : "bg-zinc-200/40"
             )}
           >

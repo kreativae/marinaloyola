@@ -13,13 +13,15 @@ import {
   Video,
   type LucideIcon,
 } from "lucide-react";
-import { asc, count, desc, eq } from "drizzle-orm";
+import { asc, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { channels, contacts, payments, tags, users } from "@/db/schema";
+import { channels, contacts, contactTags, payments, tags, users } from "@/db/schema";
 import { PageHeader, Panel } from "@/components/admin-ui";
 import { CopyButton } from "@/components/admin-client";
 import { RegenerateFeedButton, ServiceForm } from "@/components/config-client";
 import { ChannelManager } from "@/components/contacts-client";
+import { TagManager, UserManager } from "@/components/team-client";
+import { getSessionUser } from "@/lib/auth";
 import { getEvolutionConfig, webhookUrl } from "@/lib/evolution";
 import { SERVICES, getService, type ServiceId } from "@/lib/services-def";
 import { serviceFormState, serviceStatuses, type ServiceStatus } from "@/lib/services";
@@ -362,9 +364,18 @@ async function ServiceExtras({ id }: { id: ServiceId }) {
 }
 
 async function TeamTab() {
-  const [allTags, allUsers, channelRows] = await Promise.all([
-    db.select().from(tags).orderBy(asc(tags.name)),
-    db.select().from(users).orderBy(desc(users.createdAt)).limit(30),
+  const [me, tagRows, allUsers, channelRows] = await Promise.all([
+    getSessionUser(),
+    db
+      .select({ id: tags.id, name: tags.name, color: tags.color, count: count(contactTags.contactId) })
+      .from(tags)
+      .leftJoin(contactTags, eq(contactTags.tagId, tags.id))
+      .groupBy(tags.id)
+      .orderBy(asc(tags.name)),
+    db
+      .select({ id: users.id, name: users.name, email: users.email, role: users.role, createdAt: users.createdAt })
+      .from(users)
+      .orderBy(asc(sql`case ${users.role} when 'admin' then 0 when 'staff' then 1 else 2 end`), desc(users.createdAt)),
     db
       .select({ id: channels.id, name: channels.name, color: channels.color, count: count(contacts.id) })
       .from(channels)
@@ -372,8 +383,32 @@ async function TeamTab() {
       .groupBy(channels.id)
       .orderBy(asc(channels.name)),
   ]);
+  const canManage = me?.role === "admin";
   return (
     <div className="space-y-6">
+      <div id="utilizadores" className="scroll-mt-6">
+        <Panel title={`Utilizadores da plataforma (${allUsers.length})`}>
+          <UserManager
+            users={allUsers.map((u) => ({ ...u, createdAt: u.createdAt.toISOString() }))}
+            meId={me?.id ?? 0}
+            canManage={canManage}
+          />
+          <p className="mt-4 text-[11px] leading-relaxed text-zinc-500">
+            Contas de alunas também são criadas automaticamente ao dar acesso a um curso ou por compra via Hotmart.
+          </p>
+        </Panel>
+      </div>
+
+      <div id="tags" className="scroll-mt-6">
+        <Panel title={`Tags de segmentação (${tagRows.length})`}>
+          <p className="mb-4 text-xs leading-relaxed text-zinc-500">
+            Etiquetas para segmentar contactos. Também são criadas pelas integrações (Hotmart, WhatsApp, agendamentos).
+            Clique no nome para renomear, na cor para mudar e no número para ver os contactos.
+          </p>
+          <TagManager tags={tagRows} canManage={canManage} />
+        </Panel>
+      </div>
+
       <div id="canais" className="scroll-mt-6">
         <Panel title={`Canais de origem (${channelRows.length})`}>
           <p className="mb-4 text-xs leading-relaxed text-zinc-500">
@@ -383,62 +418,6 @@ async function TeamTab() {
           <ChannelManager channels={channelRows} />
         </Panel>
       </div>
-
-      <Panel title={`Utilizadores da plataforma (${allUsers.length})`}>
-        <div className="table-shell">
-          <table className="w-full">
-            <thead className="border-b border-zinc-200 bg-zinc-50">
-              <tr>
-                <th className="admin-th">Nome</th>
-                <th className="admin-th">Email</th>
-                <th className="admin-th">Perfil</th>
-                <th className="admin-th hidden md:table-cell">Desde</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {allUsers.map((u) => {
-                const r = ROLES[u.role];
-                return (
-                  <tr key={u.id} className="transition-colors hover:bg-zinc-50">
-                    <td className="admin-td font-semibold text-zinc-950">{u.name}</td>
-                    <td className="admin-td text-zinc-500">{u.email}</td>
-                    <td className="admin-td">
-                      <span className={`chip ${r?.className ?? ""}`}>
-                        <Users size={11} /> {r?.label ?? u.role}
-                      </span>
-                    </td>
-                    <td className="admin-td hidden text-xs text-zinc-500 md:table-cell">{fmtDate(u.createdAt)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <p className="mt-4 text-[11px] leading-relaxed text-zinc-500">
-          Contas de alunas são criadas automaticamente ao dar acesso a um curso (ou por compra via Hotmart).
-        </p>
-      </Panel>
-
-      <Panel title={`Tags de segmentação (${allTags.length})`}>
-        <div className="flex flex-wrap gap-2">
-          {allTags.map((t) => (
-            <Link
-              key={t.id}
-              href={`/admin/contactos?tag=${t.id}`}
-              className="chip transition-opacity hover:opacity-75"
-              style={{ borderColor: `${t.color}66`, backgroundColor: `${t.color}14` }}
-            >
-              <Tag size={11} style={{ color: t.color }} />
-              <span className="text-zinc-800">{t.name}</span>
-            </Link>
-          ))}
-          {allTags.length === 0 && <p className="text-sm text-zinc-500">Sem tags criadas.</p>}
-        </div>
-        <p className="mt-4 text-[11px] leading-relaxed text-zinc-500">
-          As tags são criadas pelas integrações (Hotmart, WhatsApp, agendamentos) e nas acções em massa dos
-          Contactos. Clique numa tag para ver os contactos.
-        </p>
-      </Panel>
     </div>
   );
 }

@@ -42,7 +42,7 @@ export type CalEvent = {
 
 const STATUS_OPTIONS = Object.entries(APPT_STATUS).map(([value, s]) => ({ value, label: s.label }));
 const WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-const HOUR_PX = 52;
+const HOUR_PX = 64;
 
 const isoDay = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -364,17 +364,26 @@ function EventChip({
 
 /* -------------------------------- SEMANA -------------------------------- */
 
-/** Distribui eventos sobrepostos em colunas lado a lado. */
+/**
+ * Distribui eventos sobrepostos em colunas lado a lado, sem se taparem uns aos outros.
+ * Cada evento estende-se para as colunas à direita que estejam livres durante o seu horário.
+ */
 function lanes(list: CalEvent[]) {
-  const placed: { e: CalEvent; lane: number; lanes: number }[] = [];
+  const sorted = [...list].sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
+  const placed: { e: CalEvent; lane: number; lanes: number; span: number }[] = [];
   let group: { e: CalEvent; lane: number }[] = [];
   let groupEnd = 0;
+  const overlaps = (a: CalEvent, b: CalEvent) => a.startMin < b.endMin && b.startMin < a.endMin;
   const flush = () => {
     const n = Math.max(1, ...group.map((g) => g.lane + 1));
-    for (const g of group) placed.push({ ...g, lanes: n });
+    for (const g of group) {
+      let span = 1;
+      while (g.lane + span < n && !group.some((o) => o.lane === g.lane + span && overlaps(o.e, g.e))) span++;
+      placed.push({ ...g, lanes: n, span });
+    }
     group = [];
   };
-  for (const e of list) {
+  for (const e of sorted) {
     const s = e.startMin;
     if (group.length && s >= groupEnd) flush();
     const used = new Set(group.filter((g) => g.e.endMin > s).map((g) => g.lane));
@@ -542,11 +551,13 @@ export function WeekCalendar({
                       {hhmm(preview.startMin)}–{hhmm(Math.min(1439, preview.startMin + preview.dur))}
                     </div>
                   )}
-                  {lanes(list).map(({ e, lane, lanes: n }) => {
+                  {lanes(list).map(({ e, lane, lanes: n, span }) => {
                     const sMin = Math.max(startHour * 60, e.startMin);
                     const eMin = Math.min(endHour * 60, e.endMin);
                     if (eMin <= sMin) return null;
                     const cancelled = e.status === "cancelled";
+                    const h = Math.max(20, top(eMin) - top(sMin) - 2);
+                    const compact = h < 38;
                     return (
                       <button
                         key={`${e.kind}-${e.id}`}
@@ -565,7 +576,8 @@ export function WeekCalendar({
                         }}
                         onClick={() => setOpen(e)}
                         className={cn(
-                          "absolute z-10 overflow-hidden rounded-lg border-l-[3px] px-1.5 py-1 text-left text-[11px] leading-tight shadow-sm transition-shadow hover:z-30 hover:shadow-md",
+                          "absolute z-10 overflow-hidden rounded-lg border-l-[3px] px-1.5 text-left text-[11px] leading-tight shadow-sm ring-1 ring-white transition-shadow hover:z-30 hover:shadow-md",
+                          compact ? "flex items-center gap-1.5 py-0" : "py-1",
                           canDrag(e) && "cursor-grab active:cursor-grabbing",
                           preview?.id === e.id && tinted(e) && "opacity-40",
                           e.kind === "busy" ? "border border-dashed border-zinc-300 bg-zinc-100/90 text-zinc-500" : "text-zinc-900",
@@ -573,14 +585,14 @@ export function WeekCalendar({
                         )}
                         style={{
                           top: top(sMin) + 1,
-                          height: Math.max(20, top(eMin) - top(sMin) - 2),
+                          height: h,
                           left: `calc(${(lane / n) * 100}% + 2px)`,
-                          width: `calc(${100 / n}% - 4px)`,
+                          width: `calc(${(span / n) * 100}% - 4px)`,
                           ...(tinted(e) ? { backgroundColor: `${e.color}26`, borderLeftColor: e.color } : {}),
                         }}
                       >
-                        <span className={cn("block truncate font-semibold", cancelled && "line-through")}>{e.title}</span>
-                        <span className="block truncate text-[10px] text-zinc-500">
+                        <span className={cn("block min-w-0 truncate font-semibold", cancelled && "line-through")}>{e.title}</span>
+                        <span className={cn("block truncate text-[10px] text-zinc-500", compact && "min-w-0 shrink-[3]")}>
                           {e.timeLabel}
                           {e.clientShort && <span className="font-semibold text-sky-700"> · {e.clientShort}</span>}
                         </span>
