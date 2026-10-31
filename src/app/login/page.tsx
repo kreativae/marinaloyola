@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { login } from "@/lib/actions";
 import { passkeyLoginEnabled } from "@/lib/actions-account";
 import { PasskeyLogin } from "@/components/account-client";
+import { Mascot } from "@/components/status-screen";
 
 export const metadata: Metadata = {
   title: "Entrar",
@@ -13,9 +14,10 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ erro?: string }>;
+  searchParams: Promise<{ erro?: string; sessao?: string }>;
 }) {
-  const { erro } = await searchParams;
+  const { erro, sessao } = await searchParams;
+  const expired = sessao === "expirada";
   const passkeys = await passkeyLoginEnabled();
 
   return (
@@ -29,10 +31,14 @@ export default async function LoginPage({
           </span>
         </Link>
 
+        {expired && <Mascot mood="sleepy" className="mx-auto -mb-6 mt-4 h-40 w-44" />}
+
         <div className="mt-10 rounded-3xl border border-zinc-200 bg-zinc-50 p-8 backdrop-blur lg:p-10">
-          <h1 className="font-display text-2xl italic">Bem-vinda de volta.</h1>
+          <h1 className="font-display text-2xl italic">{expired ? "A sua sessão terminou." : "Bem-vinda de volta."}</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Entre com as suas credenciais para continuar.
+            {expired
+              ? "Por segurança, precisa de entrar outra vez para continuar onde estava."
+              : "Entre com as suas credenciais para continuar."}
           </p>
 
           {erro === "1" && (

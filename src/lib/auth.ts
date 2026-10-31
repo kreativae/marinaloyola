@@ -81,15 +81,21 @@ export const getSessionUser = cache(async (): Promise<User | null> => {
   return user ?? null;
 });
 
+/** Sem sessão válida: se havia cookie, a sessão expirou ou a conta foi removida. */
+async function toLogin(): Promise<never> {
+  const store = await cookies();
+  redirect(store.has(COOKIE) ? "/login?sessao=expirada" : "/login");
+}
+
 export async function requireAdmin() {
   const user = await getSessionUser();
-  if (!user) redirect("/login");
+  if (!user) return toLogin();
   if (user.role === "student") redirect("/aluno");
   return user;
 }
 
 export async function requireUser() {
   const user = await getSessionUser();
-  if (!user) redirect("/login");
+  if (!user) return toLogin();
   return user;
 }
