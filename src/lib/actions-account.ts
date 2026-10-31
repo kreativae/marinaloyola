@@ -18,6 +18,7 @@ import { db } from "@/db";
 import { passkeys, users } from "@/db/schema";
 import { createSession, getSessionUser, hashPassword, storeChallenge, takeChallenge, verifyPassword } from "@/lib/auth";
 import { readRaw, saveSettings } from "@/lib/settings";
+import { SESSION_DAYS } from "@/lib/login-guard";
 
 export type AccountResult = { ok: boolean; error?: string };
 
@@ -245,11 +246,34 @@ export async function deletePasskey(id: number): Promise<AccountResult> {
   return { ok: true };
 }
 
-export async function setPasskeyLogin(on: boolean): Promise<AccountResult> {
+/* -------------------------------- SEGURANÇA ------------------------------ */
+
+async function superAdmin() {
   const user = await me();
-  if (user.role !== "admin") return { ok: false, error: "Sem permissão." };
-  await saveSettings({ passkey_login: on ? "1" : "0" });
+  if (user.role !== "admin") throw new Error("Sem permissão.");
+  return user;
+}
+
+export async function saveSecuritySettings(_prev: AccountResult | null, fd: FormData): Promise<AccountResult> {
+  await superAdmin();
+  const days = Number(fd.get("session_days"));
+  if (!(SESSION_DAYS as readonly number[]).includes(days)) return { ok: false, error: "Duração inválida." };
+  await saveSettings({
+    session_days: String(days),
+    login_lockout: fd.get("login_lockout") === "1" ? "1" : "0",
+    passkey_login: fd.get("passkey_login") === "1" ? "1" : "0",
+  });
   refresh();
   revalidatePath("/login");
+  return { ok: true };
+}
+
+/** Termina a sessão em todos os aparelhos e de todas as pessoas, mantendo a de quem carregou no botão. */
+export async function revokeAllSessions(): Promise<AccountResult> {
+  const user = await superAdmin();
+  await saveSettings({ session_epoch: String(Date.now()) });
+  await new Promise((r) => setTimeout(r, 5));
+  await createSession(user.id);
+  refresh();
   return { ok: true };
 }

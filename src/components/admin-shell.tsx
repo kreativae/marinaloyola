@@ -460,6 +460,7 @@ const STATIC_COMMANDS: Command[] = [
   { id: "whats-cfg", label: "Configurar WhatsApp", icon: Settings, href: "/admin/config?s=whatsapp", group: "Ações" },
   { id: "email-cfg", label: "Configurar email", icon: Settings, href: "/admin/config?s=email", group: "Ações" },
   { id: "canais", label: "Gerir canais de origem", icon: Settings, href: "/admin/config?s=equipa#canais", group: "Ações" },
+  { id: "seguranca", label: "Segurança e Face ID (Configurações)", icon: Settings, href: "/admin/config?s=seguranca", group: "Ações" },
   { id: "conta", label: "Minha conta e Face ID", icon: UserRound, href: "/admin/conta", group: "Ações" },
   { id: "site", label: "Página pública de agendamento", icon: ExternalLink, href: "/agendar", group: "Ações" },
 ];

@@ -41,6 +41,11 @@ export default async function LoginPage({
               : "Entre com as suas credenciais para continuar."}
           </p>
 
+          {erro === "bloqueado" && (
+            <p className="mt-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
+              Demasiadas tentativas erradas. Por segurança, aguarde 15 minutos ou entre com Face ID.
+            </p>
+          )}
           {erro === "1" && (
             <p className="mt-5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
               Email ou password incorretos. Tente novamente.

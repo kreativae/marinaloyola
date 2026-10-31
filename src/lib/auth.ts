@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users, type User } from "@/db/schema";
+import { readRaw } from "@/lib/settings";
+import { SESSION_DAYS } from "@/lib/login-guard";
 
 const SECRET = process.env.AUTH_SECRET ?? "marina-loyola-dev-secret";
 const COOKIE = "ml_session";
@@ -27,14 +29,27 @@ function sign(payload: string) {
   return crypto.createHmac("sha256", SECRET).update(payload).digest("hex");
 }
 
+/** Regras de sessão definidas em Configurações → Segurança. */
+async function sessionRules() {
+  const raw = await readRaw(["session_days", "session_epoch"]);
+  const days = Number(raw.session_days);
+  return {
+    days: (SESSION_DAYS as readonly number[]).includes(days) ? days : 30,
+    // Sessões criadas antes deste instante deixam de valer ("terminar todas as sessões")
+    epoch: Number(raw.session_epoch) || 0,
+  };
+}
+
 export async function createSession(userId: number) {
   const store = await cookies();
-  const payload = String(userId);
+  const { days } = await sessionRules();
+  const payload = `${userId}:${Date.now()}`;
   store.set(COOKIE, `${payload}.${sign(payload)}`, {
     httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 24 * 30,
+    maxAge: 60 * 60 * 24 * days,
   });
 }
 
@@ -75,8 +90,14 @@ export const getSessionUser = cache(async (): Promise<User | null> => {
   const a = Buffer.from(sign(payload));
   const b = Buffer.from(sig);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  const id = Number(payload);
+  const [uid, iat] = payload.split(":");
+  const id = Number(uid);
   if (!Number.isInteger(id)) return null;
+  // Cookies antigos (sem data) continuam válidos até haver um "terminar todas as sessões"
+  const issued = Number(iat) || 0;
+  const { days, epoch } = await sessionRules();
+  if (issued < epoch) return null;
+  if (issued && issued + days * 86_400_000 < Date.now()) return null;
   const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   return user ?? null;
 });

@@ -8,6 +8,7 @@ import {
   Mail,
   MessageCircle,
   Settings2,
+  ShieldCheck,
   Tag,
   Users,
   Video,
@@ -21,9 +22,10 @@ import { CopyButton } from "@/components/admin-client";
 import { RegenerateFeedButton, ServiceForm } from "@/components/config-client";
 import { ChannelManager } from "@/components/contacts-client";
 import { TagManager, UserManager } from "@/components/team-client";
-import { PasskeyAdmin } from "@/components/account-client";
-import { passkeyLoginEnabled } from "@/lib/actions-account";
+import { PasskeyAdmin, RevokeSessionsButton, SecurityForm } from "@/components/account-client";
+import { headers } from "next/headers";
 import { getSessionUser } from "@/lib/auth";
+import { SESSION_DAYS } from "@/lib/login-guard";
 import { getEvolutionConfig, webhookUrl } from "@/lib/evolution";
 import { SERVICES, getService, type ServiceId } from "@/lib/services-def";
 import { serviceFormState, serviceStatuses, type ServiceStatus } from "@/lib/services";
@@ -56,7 +58,7 @@ const ROLES: Record<string, { label: string; className: string }> = {
 
 export default async function ConfigPage({ searchParams }: { searchParams: Promise<{ s?: string }> }) {
   const { s } = await searchParams;
-  const tab = s === "equipa" ? "equipa" : (getService(s ?? "")?.id ?? "geral");
+  const tab = s === "equipa" || s === "seguranca" ? s : (getService(s ?? "")?.id ?? "geral");
   const statuses = await serviceStatuses();
 
   return (
@@ -121,14 +123,34 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
               <Users size={16} />
             </span>
             <span className={cn("flex-1 text-sm font-semibold", tab === "equipa" ? "text-plum" : "text-zinc-900")}>
-              Equipa, acessos & tags
+              Equipa, tags & canais
+            </span>
+          </Link>
+          <Link
+            href="/admin/config?s=seguranca"
+            scroll={false}
+            className={cn(
+              "group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors",
+              tab === "seguranca" ? "bg-plum/[0.08]" : "hover:bg-zinc-50"
+            )}
+          >
+            <span
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                tab === "seguranca" ? "bg-plum text-white" : "bg-zinc-100 text-zinc-500 group-hover:text-plum"
+              )}
+            >
+              <ShieldCheck size={16} />
+            </span>
+            <span className={cn("flex-1 text-sm font-semibold", tab === "seguranca" ? "text-plum" : "text-zinc-900")}>
+              Segurança e Face ID
             </span>
           </Link>
         </nav>
 
         {/* key: cada separador entra com a animação de página */}
         <div key={tab} className="min-w-0 animate-page-in">
-          {tab === "equipa" ? <TeamTab /> : <ServiceTab id={tab} status={statuses[tab]} />}
+          {tab === "equipa" ? <TeamTab /> : tab === "seguranca" ? <SecurityTab /> : <ServiceTab id={tab} status={statuses[tab]} />}
         </div>
       </div>
     </>
@@ -366,7 +388,7 @@ async function ServiceExtras({ id }: { id: ServiceId }) {
 }
 
 async function TeamTab() {
-  const [me, tagRows, allUsers, channelRows, keyRows, passkeyOn] = await Promise.all([
+  const [me, tagRows, allUsers, channelRows] = await Promise.all([
     getSessionUser(),
     db
       .select({ id: tags.id, name: tags.name, color: tags.color, count: count(contactTags.contactId) })
@@ -384,12 +406,6 @@ async function TeamTab() {
       .leftJoin(contacts, eq(contacts.channelId, channels.id))
       .groupBy(channels.id)
       .orderBy(asc(channels.name)),
-    db
-      .select({ key: passkeys, owner: users.name })
-      .from(passkeys)
-      .innerJoin(users, eq(users.id, passkeys.userId))
-      .orderBy(asc(users.name), desc(passkeys.createdAt)),
-    passkeyLoginEnabled(),
   ]);
   const canManage = me?.role === "admin";
   return (
@@ -404,28 +420,6 @@ async function TeamTab() {
           <p className="mt-4 text-[11px] leading-relaxed text-zinc-500">
             Contas de alunas também são criadas automaticamente ao dar acesso a um curso ou por compra via Hotmart.
           </p>
-        </Panel>
-      </div>
-
-      <div id="face-id" className="scroll-mt-6">
-        <Panel title={`Face ID e chaves de acesso (${keyRows.length})`}>
-          <p className="mb-4 text-xs leading-relaxed text-zinc-500">
-            Cada pessoa ativa o Face ID no próprio aparelho, em “Minha conta”. Aqui vê todos os aparelhos ativados e pode
-            remover um aparelho perdido ou de alguém que saiu da equipa.
-          </p>
-          <PasskeyAdmin
-            enabled={passkeyOn}
-            canManage={canManage}
-            keys={keyRows.map(({ key: k, owner }) => ({
-              id: k.id,
-              name: k.name,
-              owner,
-              deviceType: k.deviceType,
-              backedUp: k.backedUp,
-              createdAt: k.createdAt.toISOString(),
-              lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
-            }))}
-          />
         </Panel>
       </div>
 
@@ -446,6 +440,128 @@ async function TeamTab() {
             do contacto e aparecem nos filtros e no resumo dos Contactos.
           </p>
           <ChannelManager channels={channelRows} />
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+async function SecurityTab() {
+  const [me, raw, keyRows, recent, h] = await Promise.all([
+    getSessionUser(),
+    readRaw(["session_days", "login_lockout", "passkey_login", "session_epoch"]),
+    db
+      .select({ key: passkeys, owner: users.name })
+      .from(passkeys)
+      .innerJoin(users, eq(users.id, passkeys.userId))
+      .orderBy(asc(users.name), desc(passkeys.createdAt)),
+    db
+      .select({ id: users.id, name: users.name, role: users.role, lastLoginAt: users.lastLoginAt })
+      .from(users)
+      .where(sql`${users.lastLoginAt} is not null`)
+      .orderBy(desc(users.lastLoginAt))
+      .limit(8),
+    headers(),
+  ]);
+  const canManage = me?.role === "admin";
+  const days = Number(raw.session_days);
+  const host = (h.get("x-forwarded-host") ?? h.get("host") ?? "").split(",")[0].trim();
+  const hostname = host.split(":")[0];
+  const local = hostname === "localhost" || hostname === "127.0.0.1";
+  const https = (h.get("x-forwarded-proto")?.split(",")[0].trim() ?? (local ? "http" : "https")) === "https";
+  const epoch = Number(raw.session_epoch) || 0;
+
+  const checks = [
+    {
+      ok: https || local,
+      label: https ? "Ligação segura (https)" : local ? "Ambiente local" : "Sem https",
+      text: "O Face ID só funciona em endereços https. Já está tratado pelo Coolify.",
+    },
+    {
+      ok: true,
+      label: `Domínio do Face ID: ${hostname || "—"}`,
+      text: "As chaves ficam associadas a este domínio. Se a plataforma mudar de endereço, cada pessoa ativa o Face ID outra vez.",
+    },
+    {
+      ok: true,
+      label: "Sem chaves nem APIs externas",
+      text: "O Face ID usa o padrão WebAuthn do próprio navegador (Apple, Google, Microsoft). Não há custos nem contas a criar.",
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <Panel title="Como está protegida a plataforma">
+        <ul className="space-y-3">
+          {checks.map((c) => (
+            <li key={c.label} className="flex gap-3">
+              <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", c.ok ? "bg-emerald-500" : "bg-amber-500")} />
+              <span>
+                <span className="block text-sm font-semibold text-zinc-900">{c.label}</span>
+                <span className="block text-xs leading-relaxed text-zinc-500">{c.text}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+
+      <Panel title="Regras de acesso">
+        <SecurityForm
+          canManage={canManage}
+          sessionDays={(SESSION_DAYS as readonly number[]).includes(days) ? days : 30}
+          lockout={raw.login_lockout !== "0"}
+          passkeyLogin={raw.passkey_login !== "0"}
+        />
+        {!canManage && <p className="mt-4 text-[11px] text-zinc-500">Só a Super Admin pode alterar estas definições.</p>}
+      </Panel>
+
+      <div id="face-id" className="scroll-mt-6">
+        <Panel title={`Aparelhos com Face ID (${keyRows.length})`}>
+          <p className="mb-4 text-xs leading-relaxed text-zinc-500">
+            Cada pessoa ativa o Face ID no próprio aparelho, em “Minha conta”. Remova aqui um telemóvel perdido ou de alguém
+            que saiu da equipa.
+          </p>
+          <PasskeyAdmin
+            canManage={canManage}
+            keys={keyRows.map(({ key: k, owner }) => ({
+              id: k.id,
+              name: k.name,
+              owner,
+              deviceType: k.deviceType,
+              backedUp: k.backedUp,
+              createdAt: k.createdAt.toISOString(),
+              lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+            }))}
+          />
+        </Panel>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Panel title="Últimos acessos">
+          {recent.length === 0 ? (
+            <p className="text-xs text-zinc-500">Ainda sem registos de entrada.</p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {recent.map((u) => (
+                <li key={u.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-zinc-900">{u.name}</span>
+                    <span className="text-[11px] text-zinc-500">{ROLES[u.role]?.label ?? u.role}</span>
+                  </span>
+                  <span className="shrink-0 text-xs tabular-nums text-zinc-500">{fmtDateTime(u.lastLoginAt)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+
+        <Panel title="Sessões abertas">
+          <p className="mb-4 text-xs leading-relaxed text-zinc-500">
+            Se suspeitar que alguém entrou sem autorização, ou depois de alterar acessos da equipa, termine todas as sessões:
+            todas as pessoas terão de entrar outra vez, em todos os aparelhos.
+            {epoch > 0 && <> Última vez: {fmtDateTime(new Date(epoch))}.</>}
+          </p>
+          {canManage ? <RevokeSessionsButton /> : <p className="text-[11px] text-zinc-500">Só a Super Admin pode fazer isto.</p>}
         </Panel>
       </div>
     </div>

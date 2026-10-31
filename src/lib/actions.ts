@@ -9,7 +9,8 @@ import { createSession, destroySession, verifyPassword } from "@/lib/auth";
 import { addInteraction, findOrCreateContact, tagContact } from "@/lib/crm";
 import { getBusy } from "@/lib/calendar";
 import { bookingConfirmationEmail, bookingNotificationEmail, getEmailConfig, sendEmail } from "@/lib/email";
-import { getSettings, isOn } from "@/lib/settings";
+import { getSettings, isOn, readRaw } from "@/lib/settings";
+import { clearFailures, isLocked, registerFailure } from "@/lib/login-guard";
 import { dayIn, dualDateTime, fmtTime, HOME_TZ, isValidTz, zonedToUtc } from "@/lib/timezones";
 import { fillTemplate } from "@/lib/utils";
 import { meetingLinkFor } from "@/lib/zoom";
@@ -20,10 +21,14 @@ import { sendWhatsappToContact } from "@/lib/whatsapp";
 export async function login(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const guard = (await readRaw(["login_lockout"])).login_lockout !== "0";
+  if (guard && isLocked(email)) redirect("/login?erro=bloqueado");
   const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (!user || !verifyPassword(password, user.passwordHash)) {
-    redirect("/login?erro=1");
+    if (guard) registerFailure(email);
+    redirect(guard && isLocked(email) ? "/login?erro=bloqueado" : "/login?erro=1");
   }
+  clearFailures(email);
   await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
   await createSession(user.id);
   redirect(user.role === "student" ? "/aluno" : "/admin");

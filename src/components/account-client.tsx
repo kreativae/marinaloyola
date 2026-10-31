@@ -10,8 +10,9 @@ import {
   startRegistration,
   WebAuthnAbortService,
 } from "@simplewebauthn/browser";
-import { Check, KeyRound, Laptop, Loader2, Mail, Pencil, Phone, ScanFace, Smartphone, Trash2, User } from "lucide-react";
-import { Field, FormSection, IconInput } from "@/components/form-kit";
+import { Check, Clock, KeyRound, Laptop, Loader2, LogOut, Mail, Pencil, Phone, ScanFace, Smartphone, Trash2, User } from "lucide-react";
+import { Field, FormSection, IconInput, PillGroup, ToggleRow } from "@/components/form-kit";
+import { LOCK_MINUTES, MAX_ATTEMPTS, SESSION_DAYS } from "@/lib/login-guard";
 import {
   changeMyPassword,
   deletePasskey,
@@ -20,7 +21,8 @@ import {
   passkeyRegisterOptions,
   passkeyRegisterVerify,
   renamePasskey,
-  setPasskeyLogin,
+  revokeAllSessions,
+  saveSecuritySettings,
   updateMyProfile,
   type AccountResult,
 } from "@/lib/actions-account";
@@ -382,48 +384,85 @@ export function PasskeyManager({ keys, enabled }: { keys: PasskeyRow[]; enabled:
 
 /* ----------------------------- CONFIGURAÇÕES ----------------------------- */
 
-export function PasskeyAdmin({ keys, enabled, canManage }: { keys: PasskeyRow[]; enabled: boolean; canManage: boolean }) {
-  const router = useRouter();
-  const [on, setOn] = useState(enabled);
-  const [pending, start] = useTransition();
+export function PasskeyAdmin({ keys, canManage }: { keys: PasskeyRow[]; canManage: boolean }) {
+  return keys.length === 0 ? (
+    <p className="text-xs text-zinc-500">Ainda ninguém ativou o Face ID.</p>
+  ) : (
+    <ul className="space-y-2">
+      {keys.map((k) => (
+        <PasskeyItem key={k.id} k={k} showOwner readOnly={!canManage} />
+      ))}
+    </ul>
+  );
+}
 
+export function SecurityForm({
+  sessionDays,
+  lockout,
+  passkeyLogin,
+  canManage,
+}: {
+  sessionDays: number;
+  lockout: boolean;
+  passkeyLogin: boolean;
+  canManage: boolean;
+}) {
+  const [state, action, pending] = useActionState(saveSecuritySettings, null);
   return (
-    <div>
-      <label className={cn("flex items-center gap-3 rounded-2xl border border-line px-4 py-3", canManage && "cursor-pointer hover:bg-zinc-50/60")}>
-        <input
-          type="checkbox"
-          checked={on}
-          disabled={!canManage || pending}
-          onChange={(e) => {
-            const v = e.target.checked;
-            setOn(v);
-            start(async () => {
-              const r = await setPasskeyLogin(v);
-              if (!r.ok) setOn(!v);
-              router.refresh();
-            });
-          }}
-          className="peer sr-only"
-        />
-        <span className="relative h-5 w-9 shrink-0 rounded-full bg-zinc-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-plum peer-checked:after:translate-x-4" />
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold text-zinc-800">Permitir entrar com Face ID</span>
-          <span className="block text-xs text-zinc-500">
-            Equipa e alunas podem ativar o Face ID / Touch ID em “Minha conta”. Desligar bloqueia de imediato a entrada por Face ID.
-          </span>
-        </span>
-        {pending && <Loader2 size={15} className="animate-spin text-zinc-400" />}
-      </label>
-
-      {keys.length === 0 ? (
-        <p className="mt-4 text-xs text-zinc-500">Ainda ninguém ativou o Face ID.</p>
-      ) : (
-        <ul className="mt-4 space-y-2">
-          {keys.map((k) => (
-            <PasskeyItem key={k.id} k={k} showOwner readOnly={!canManage} />
-          ))}
-        </ul>
+    <form action={action}>
+      <fieldset disabled={!canManage} className="space-y-5 disabled:opacity-70">
+        <FormSection icon={ScanFace} title="Formas de entrar">
+          <ToggleRow
+            name="passkey_login"
+            label="Permitir entrar com Face ID"
+            description="Equipa e alunas ativam o Face ID / Touch ID em “Minha conta”. Desligar bloqueia de imediato esta forma de entrar."
+            defaultChecked={passkeyLogin}
+          />
+          <ToggleRow
+            name="login_lockout"
+            label={`Bloquear após ${MAX_ATTEMPTS} palavras-passe erradas`}
+            description={`O email fica bloqueado ${LOCK_MINUTES} minutos. Protege contra quem tenta adivinhar a palavra-passe.`}
+            defaultChecked={lockout}
+          />
+        </FormSection>
+        <FormSection icon={Clock} title="Duração da sessão">
+          <p className="-mt-1 text-xs text-zinc-500">Depois deste tempo sem voltar a entrar, é pedido o login outra vez.</p>
+          <PillGroup
+            name="session_days"
+            defaultValue={String(sessionDays)}
+            options={SESSION_DAYS.map((d) => ({ value: String(d), label: d === 1 ? "1 dia" : `${d} dias` }))}
+          />
+        </FormSection>
+      </fieldset>
+      {canManage && (
+        <div className="mt-5 flex items-center justify-end gap-4">
+          <Saved state={state} text="Definições guardadas." />
+          <button type="submit" disabled={pending} className="btn-primary !px-5 !py-2.5 !text-xs disabled:opacity-60">
+            {pending && <Loader2 size={14} className="animate-spin" />} Guardar segurança
+          </button>
+        </div>
       )}
+    </form>
+  );
+}
+
+export function RevokeSessionsButton() {
+  const [pending, start] = useTransition();
+  const [done, setDone] = useState<AccountResult | null>(null);
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          confirm("Terminar a sessão de toda a gente, em todos os aparelhos? Só a sua sessão atual continua aberta.") &&
+          start(async () => setDone(await revokeAllSessions()))
+        }
+        className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-5 py-2.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-60"
+      >
+        {pending ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />} Terminar todas as sessões
+      </button>
+      <Saved state={done} text="Todas as outras sessões foram terminadas." />
     </div>
   );
 }
