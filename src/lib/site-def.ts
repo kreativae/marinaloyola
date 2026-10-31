@@ -8,6 +8,8 @@ import {
   HeartHandshake,
   Layers,
   Lightbulb,
+  Lock,
+  LogIn,
   MonitorPlay,
   Palette,
   PenTool,
@@ -16,6 +18,7 @@ import {
   Sparkles,
   Star,
   Target,
+  UserRound,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -47,6 +50,9 @@ export const SITE_ICONS: Record<string, LucideIcon> = {
   compass: Compass,
   crown: Crown,
   layers: Layers,
+  login: LogIn,
+  user: UserRound,
+  lock: Lock,
 };
 
 export type FieldType = "text" | "title" | "textarea" | "image" | "url" | "icon" | "toggle" | "list" | "strings";
@@ -118,6 +124,10 @@ export const SITE_PAGES: SitePageDef[] = [
           t("brandTag", "Assinatura", { half: true }),
           list("nav", "Menu", "item", [t("label", "Texto", { half: true }), url("href", "Link", { half: true, hint: undefined })]),
           ...button("cta", "Botão de destaque"),
+          { key: "loginShow", label: "Mostrar o ícone de entrada na plataforma (ao lado do botão)", type: "toggle" },
+          { key: "loginIcon", label: "Ícone de entrada", type: "icon", half: true },
+          t("loginLabel", "Entrada — texto", { half: true, hint: "Aparece ao passar o rato e no menu do telemóvel." }),
+          url("loginHref", "Entrada — link", { hint: "Por omissão, a página de login da plataforma (/login)." }),
         ],
       },
       {
@@ -375,6 +385,10 @@ export const SITE_DEFAULTS = {
       ],
       ctaLabel: "Agendar",
       ctaHref: "/agendar",
+      loginShow: "1",
+      loginIcon: "user",
+      loginLabel: "Entrar na plataforma",
+      loginHref: "/login",
     },
     footer: {
       about:

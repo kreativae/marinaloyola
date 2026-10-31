@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AtSign, Briefcase, CalendarDays, Mail, Menu, MessageCircle, X } from "lucide-react";
+import { SITE_ICONS } from "@/lib/site-def";
 import { cn } from "@/lib/utils";
 
 /** Textos do cabeçalho e rodapé (editáveis em Backoffice → Site → Geral). */
@@ -13,6 +14,10 @@ export type SiteChrome = {
   nav: { label: string; href: string }[];
   ctaLabel: string;
   ctaHref: string;
+  loginShow: string;
+  loginIcon: string;
+  loginLabel: string;
+  loginHref: string;
   about: string;
   instagram: string;
   linkedin: string;
@@ -53,6 +58,8 @@ export function Reveal({
 
 export function Header({ whatsapp, chrome }: { whatsapp: string; chrome: SiteChrome }) {
   const pathname = usePathname();
+  const showLogin = chrome.loginShow === "1" && !!chrome.loginHref;
+  const LoginIcon = SITE_ICONS[chrome.loginIcon] ?? SITE_ICONS.user;
   const [open, setOpen] = useState(false);
   const [lastPath, setLastPath] = useState(pathname);
   if (pathname !== lastPath) {
@@ -89,14 +96,27 @@ export function Header({ whatsapp, chrome }: { whatsapp: string; chrome: SiteChr
               <CalendarDays size={15} />
               {chrome.ctaLabel}
             </Link>
+            {showLogin && (
+              <Link
+                href={chrome.loginHref}
+                title={chrome.loginLabel}
+                aria-label={chrome.loginLabel || "Entrar"}
+                className="-ml-4 flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 text-zinc-700 transition-all hover:border-plum/40 hover:bg-plum/[0.06] hover:text-plum"
+              >
+                <LoginIcon size={17} />
+              </Link>
+            )}
           </nav>
-          <button
-            onClick={() => setOpen(!open)}
-            className="text-zinc-950 lg:hidden"
-            aria-label="Menu"
-          >
-            {open ? <X size={24} /> : <Menu size={24} />}
-          </button>
+          <div className="flex items-center gap-4 lg:hidden">
+            {showLogin && (
+              <Link href={chrome.loginHref} aria-label={chrome.loginLabel || "Entrar"} className="text-zinc-700 hover:text-plum">
+                <LoginIcon size={21} />
+              </Link>
+            )}
+            <button onClick={() => setOpen(!open)} className="text-zinc-950" aria-label="Menu">
+              {open ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
         </div>
       </header>
       {open && (
@@ -122,6 +142,11 @@ export function Header({ whatsapp, chrome }: { whatsapp: string; chrome: SiteChr
             >
               <MessageCircle size={16} /> WhatsApp
             </a>
+            {showLogin && (
+              <Link href={chrome.loginHref} className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-zinc-600 hover:text-plum">
+                <LoginIcon size={16} /> {chrome.loginLabel || "Entrar"}
+              </Link>
+            )}
           </nav>
         </div>
       )}
