@@ -19,6 +19,7 @@ import { passkeys, users } from "@/db/schema";
 import { createSession, getSessionUser, hashPassword, storeChallenge, takeChallenge, verifyPassword } from "@/lib/auth";
 import { readRaw, saveSettings } from "@/lib/settings";
 import { SESSION_DAYS } from "@/lib/login-guard";
+import { allow } from "@/lib/rate-limit";
 
 export type AccountResult = { ok: boolean; error?: string };
 
@@ -104,6 +105,9 @@ export async function changeMyPassword(_prev: AccountResult | null, fd: FormData
     .update(users)
     .set({ passwordHash: hashPassword(password), passwordChangedAt: new Date() })
     .where(eq(users.id, user.id));
+  // As outras sessões terminam; este aparelho continua com sessão nova
+  await new Promise((r) => setTimeout(r, 5));
+  await createSession(user.id);
   refresh();
   return { ok: true };
 }
@@ -183,6 +187,7 @@ export async function passkeyLoginVerify(
   response: AuthenticationResponseJSON
 ): Promise<{ ok: true; to: string } | { ok: false; error: string }> {
   if (!(await passkeyLoginEnabled())) return { ok: false, error: "A entrada com Face ID está desativada." };
+  if (!(await allow("passkey", 30, 15 * 60_000))) return { ok: false, error: "Demasiadas tentativas. Aguarde alguns minutos." };
   const challenge = await takeChallenge();
   if (!challenge) return { ok: false, error: "O pedido expirou. Tente outra vez." };
   const [row] = await db

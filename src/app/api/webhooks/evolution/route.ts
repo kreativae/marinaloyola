@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getEvolutionConfig } from "@/lib/evolution";
 import { recordWhatsappMessage } from "@/lib/whatsapp";
+import { safeEqual } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +84,7 @@ function parse(message: Record<string, unknown> | null): Parsed | null {
 export async function POST(req: Request) {
   const config = await getEvolutionConfig();
   const token = new URL(req.url).searchParams.get("token");
-  if (token !== config.webhookToken) {
+  if (!safeEqual(token, config.webhookToken)) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 

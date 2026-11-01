@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, count, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { tags, users } from "@/db/schema";
-import { getSessionUser, hashPassword } from "@/lib/auth";
+import { createSession, getSessionUser, hashPassword } from "@/lib/auth";
 
 export type TeamResult = { ok: boolean; error?: string };
 
@@ -70,12 +70,17 @@ export async function saveUser(id: number | null, _prev: TeamResult | null, fd: 
 }
 
 export async function setUserPassword(id: number, _prev: TeamResult | null, fd: FormData): Promise<TeamResult> {
-  await requireSuperAdmin();
+  const me = await requireSuperAdmin();
   const password = String(fd.get("password") ?? "");
   const confirm = String(fd.get("confirm") ?? "");
   if (password.length < 8) return { ok: false, error: "A palavra-passe precisa de pelo menos 8 caracteres." };
   if (password !== confirm) return { ok: false, error: "As palavras-passe não coincidem." };
-  await db.update(users).set({ passwordHash: hashPassword(password) }).where(eq(users.id, id));
+  // Também termina as sessões abertas dessa pessoa
+  await db.update(users).set({ passwordHash: hashPassword(password), passwordChangedAt: new Date() }).where(eq(users.id, id));
+  if (id === me.id) {
+    await new Promise((r) => setTimeout(r, 5));
+    await createSession(me.id);
+  }
   return { ok: true };
 }
 

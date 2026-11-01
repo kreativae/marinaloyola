@@ -5,13 +5,11 @@ import { getSessionUser } from "@/lib/auth";
 import { contactOrder, contactWhere } from "@/lib/contacts-query";
 import { countryName } from "@/lib/timezones";
 import { CONTACT_STATUS, SOURCES } from "@/lib/utils";
+import { csvCell } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
-const cell = (v: unknown) => {
-  const s = v == null ? "" : String(v);
-  return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};
+const cell = csvCell;
 
 export async function GET(req: Request) {
   const user = await getSessionUser();

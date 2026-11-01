@@ -258,6 +258,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                   <form action={submitLead} className="flex flex-col gap-3 sm:flex-row">
                     <input type="hidden" name="tag" value="Newsletter — O Dossiê" />
                     <input type="hidden" name="redirectTo" value="/?ok=1" />
+                    <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
                     <input type="hidden" name="phone" value="" />
                     <input name="name" required placeholder="O seu nome" className="field !border-white !py-3 focus:!ring-white/40" />
                     <input name="email" type="email" required placeholder="O seu melhor email" className="field !border-white !py-3 focus:!ring-white/40" />

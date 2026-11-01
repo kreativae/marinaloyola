@@ -5,6 +5,7 @@ import { payments } from "@/db/schema";
 import { addInteraction, findOrCreateContact, tagContact } from "@/lib/crm";
 import { getSettings, isOn, saveSettings } from "@/lib/settings";
 import { eur } from "@/lib/utils";
+import { safeEqual } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +30,9 @@ const STATUS_MAP: Record<string, "pending" | "confirmed" | "completed" | "refund
 export async function POST(req: Request) {
   // Hottok: Configurações → Hotmart (ou HOTMART_HOTTOK)
   const cfg = await getSettings(["hotmart_hottok", "hotmart_tags"]);
+  // Sem hottok configurado não se aceita nada: qualquer pessoa podia criar pagamentos falsos
   const hottok = cfg.hotmart_hottok;
-  if (hottok && req.headers.get("x-hotmart-hottok") !== hottok) {
+  if (!safeEqual(req.headers.get("x-hotmart-hottok"), hottok)) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 

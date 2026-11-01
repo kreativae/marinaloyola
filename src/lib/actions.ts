@@ -11,6 +11,7 @@ import { getBusy } from "@/lib/calendar";
 import { bookingConfirmationEmail, bookingNotificationEmail, getEmailConfig, sendEmail } from "@/lib/email";
 import { getSettings, isOn, readRaw } from "@/lib/settings";
 import { clearFailures, isLocked, registerFailure } from "@/lib/login-guard";
+import { allow } from "@/lib/rate-limit";
 import { dayIn, dualDateTime, fmtTime, HOME_TZ, isValidTz, zonedToUtc } from "@/lib/timezones";
 import { fillTemplate } from "@/lib/utils";
 import { meetingLinkFor } from "@/lib/zoom";
@@ -19,12 +20,15 @@ import { sendWhatsappToContact } from "@/lib/whatsapp";
 /* -------------------------------- AUTH ---------------------------------- */
 
 export async function login(formData: FormData) {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase().slice(0, 200);
   const password = String(formData.get("password") ?? "");
   const guard = (await readRaw(["login_lockout"])).login_lockout !== "0";
   if (guard && isLocked(email)) redirect("/login?erro=bloqueado");
-  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (!user || !verifyPassword(password, user.passwordHash)) {
+  // Além do bloqueio por email, trava quem tenta muitas contas a partir do mesmo IP
+  if (!(await allow("login", 30, 15 * 60_000))) redirect("/login?erro=bloqueado");
+  const [user] = email ? await db.select().from(users).where(eq(users.email, email)).limit(1) : [];
+  // Sem conta, compara na mesma com um hash falso: o tempo de resposta não revela que emails existem
+  if (!verifyPassword(password, user?.passwordHash) || !user) {
     if (guard) registerFailure(email);
     redirect(guard && isLocked(email) ? "/login?erro=bloqueado" : "/login?erro=1");
   }
@@ -41,15 +45,27 @@ export async function logout() {
 
 /* ------------------------------ LEADS (SITE) ---------------------------- */
 
+/** Etiquetas que os formulários do site podem pôr (o campo vem do browser, por isso não se aceita outra). */
+const LEAD_TAGS = ["Lead Site", "Contacto Site", "Newsletter — O Dossiê"];
+const EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+
+/** Só caminhos do próprio site: impede que o formulário reencaminhe para outro domínio. */
+const safePath = (v: string, fallback: string) => (/^\/(?![/\\])/.test(v) ? v : fallback);
+
 export async function submitLead(formData: FormData) {
-  const name = String(formData.get("name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
-  const phone = String(formData.get("phone") ?? "").trim() || null;
-  const subject = String(formData.get("subject") ?? "").trim();
-  const message = String(formData.get("message") ?? "").trim();
-  const tag = String(formData.get("tag") ?? "Lead Site");
-  const redirectTo = String(formData.get("redirectTo") ?? "/contato?ok=1");
-  if (!name || !email) redirect(redirectTo.split("?")[0] + "?erro=1");
+  const text = (k: string, max: number) => String(formData.get(k) ?? "").trim().slice(0, max);
+  const name = text("name", 120);
+  const email = text("email", 200).toLowerCase();
+  const phone = text("phone", 40) || null;
+  const subject = text("subject", 200);
+  const message = text("message", 5000);
+  const tagRaw = text("tag", 60);
+  const tag = LEAD_TAGS.includes(tagRaw) ? tagRaw : "Lead Site";
+  const redirectTo = safePath(text("redirectTo", 200), "/contato?ok=1");
+  // Campo escondido que só robôs preenchem: finge que correu bem e não guarda nada
+  if (text("website", 200)) redirect(redirectTo);
+  if (!name || !EMAIL_RE.test(email)) redirect(redirectTo.split(/[?#]/)[0] + "?erro=1");
+  if (!(await allow("lead", 8, 10 * 60_000))) redirect(redirectTo.split(/[?#]/)[0] + "?erro=1");
 
   const { contact, created } = await findOrCreateContact({
     name,
@@ -162,8 +178,8 @@ export type Slot = { iso: string; time: string; lisbon: string };
  * de Lisboa, por isso juntam-se os horários dos dias de Lisboa que se sobrepõem.
  */
 export async function getAvailableSlots(eventTypeId: number, dateStr: string, timezone = HOME_TZ): Promise<Slot[]> {
-  const [et] = await db.select().from(eventTypes).where(eq(eventTypes.id, eventTypeId)).limit(1);
-  if (!et || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return [];
+  const [et] = await db.select().from(eventTypes).where(eq(eventTypes.id, Number(eventTypeId))).limit(1);
+  if (!et || !et.active || !/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr))) return [];
   const tz = isValidTz(timezone) ? timezone : HOME_TZ;
   const [y, m, d] = dateStr.split("-").map(Number);
   const from = zonedToUtc(y, m, d, 0, 0, 0, tz);
@@ -186,9 +202,24 @@ export async function createBooking(data: {
   phone?: string;
   notes?: string;
 }): Promise<{ ok: boolean; error?: string }> {
-  const [et] = await db.select().from(eventTypes).where(eq(eventTypes.id, data.eventTypeId)).limit(1);
-  if (!et || !data.name.trim() || !data.email.trim()) {
+  const [et] = await db.select().from(eventTypes).where(eq(eventTypes.id, Number(data.eventTypeId))).limit(1);
+  // O pedido vem do browser: limita tamanhos e só aceita tipos de sessão ativos
+  data = {
+    ...data,
+    name: String(data.name ?? "").trim().slice(0, 120),
+    email: String(data.email ?? "").trim().toLowerCase().slice(0, 200),
+    phone: String(data.phone ?? "").trim().slice(0, 40) || undefined,
+    notes: String(data.notes ?? "").trim().slice(0, 2000) || undefined,
+    date: String(data.date ?? ""),
+    slot: String(data.slot ?? ""),
+    timezone: String(data.timezone ?? ""),
+  };
+  if (!et || !et.active || !data.name || !EMAIL_RE.test(data.email)) {
     return { ok: false, error: "Dados inválidos." };
+  }
+  if (data.phone && !/^\+?[\d\s().-]{6,}$/.test(data.phone)) return { ok: false, error: "Telefone inválido." };
+  if (!(await allow("booking", 6, 60 * 60_000))) {
+    return { ok: false, error: "Demasiados pedidos seguidos. Tente novamente daqui a pouco." };
   }
   const tz = isValidTz(data.timezone) ? data.timezone : HOME_TZ;
   const startAt = new Date(data.slot);

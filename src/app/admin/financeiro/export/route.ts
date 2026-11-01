@@ -4,13 +4,11 @@ import { contacts, expenses, payments } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { asPeriod, expenseWhere, paidDate, paymentWhere, periodRange } from "@/lib/finance";
 import { fmtDate, num, PAYMENT_METHODS, PAYMENT_STATUS } from "@/lib/utils";
+import { csvCell } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
-const cell = (v: unknown) => {
-  const s = v == null ? "" : String(v);
-  return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};
+const cell = csvCell;
 const csv = (header: string[], rows: unknown[][]) =>
   "﻿" + [header, ...rows].map((r) => r.map(cell).join(";")).join("\r\n");
 

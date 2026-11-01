@@ -60,6 +60,7 @@ export default async function ContatoPage({
                 <form action={submitLead} className="space-y-5">
                   <input type="hidden" name="tag" value="Contacto Site" />
                   <input type="hidden" name="redirectTo" value="/contato?ok=1" />
+                  <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
                   {erro === "1" && (
                     <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700">
                       Preencha pelo menos o nome e o email.

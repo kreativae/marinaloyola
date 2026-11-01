@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import { getSessionUser } from "@/lib/auth";
 import { ensureWhatsappMedia } from "@/lib/whatsapp";
+import { fileHeaders } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   let media: Awaited<ReturnType<typeof ensureWhatsappMedia>>;
   try {
-    media = await ensureWhatsappMedia(Number(id));
+    media = await ensureWhatsappMedia(Number(id) || 0);
   } catch (e) {
     return new Response(e instanceof Error ? e.message : "Não foi possível obter o ficheiro.", { status: 502 });
   }
@@ -25,11 +26,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const download = new URL(req.url).searchParams.get("dl") === "1";
   return new Response(new Uint8Array(data), {
     headers: {
-      "Content-Type": media.mime,
+      // O tipo vem de quem enviou a mensagem: HTML, SVG e afins são sempre descarregados
+      ...fileHeaders(media.mime, media.name, !download),
       "Content-Length": String(data.length),
-      "Content-Disposition": `${download ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(media.name)}`,
       "Cache-Control": "private, max-age=86400",
-      "X-Content-Type-Options": "nosniff",
     },
   });
 }

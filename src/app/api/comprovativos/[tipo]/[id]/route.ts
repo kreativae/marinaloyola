@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { expenses, payments } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { filePath } from "@/lib/files";
+import { fileHeaders } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tipo: s
   const [row] = await db
     .select({ name: table.receiptName, file: table.receiptFile })
     .from(table)
-    .where(eq(table.id, Number(id)))
+    .where(eq(table.id, Number(id) || 0))
     .limit(1);
   if (!row?.file) return new Response("Sem comprovativo", { status: 404 });
   let data: Buffer;
@@ -37,10 +38,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tipo: s
   const ext = row.file.split(".").pop()?.toLowerCase() ?? "";
   return new Response(new Uint8Array(data), {
     headers: {
-      "Content-Type": MIME[ext] ?? "application/octet-stream",
-      "Content-Disposition": `${MIME[ext] ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(row.name ?? "comprovativo")}`,
+      ...fileHeaders(MIME[ext], row.name ?? "comprovativo", true),
       "Cache-Control": "private, no-store",
-      "X-Content-Type-Options": "nosniff",
     },
   });
 }

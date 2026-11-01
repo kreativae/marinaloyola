@@ -238,6 +238,7 @@ export default async function LinksPage({
                   <form action={submitLead} className="mt-4 space-y-2">
                     <input type="hidden" name="tag" value="Newsletter — O Dossiê" />
                     <input type="hidden" name="redirectTo" value="/links?inscrito=1#newsletter" />
+                    <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
                     <input type="hidden" name="message" value="Inscreveu-se na newsletter pela página de links." />
                     <div className="flex gap-2">
                       <input

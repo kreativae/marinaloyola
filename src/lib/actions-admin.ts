@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, max, sql } from "drizzle-orm";
+import { and, eq, max, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   appointments,
@@ -247,6 +247,17 @@ export async function enrollStudent(formData: FormData) {
 
 export async function completeLesson(lessonId: number) {
   const user = await requireUser();
+  if (user.role === "student") {
+    // Só aulas de cursos em que a aluna está inscrita
+    const [ok] = await db
+      .select({ id: lessons.id })
+      .from(lessons)
+      .innerJoin(modules, eq(modules.id, lessons.moduleId))
+      .innerJoin(enrollments, and(eq(enrollments.courseId, modules.courseId), eq(enrollments.userId, user.id)))
+      .where(eq(lessons.id, Number(lessonId)))
+      .limit(1);
+    if (!ok) return;
+  }
   await db
     .insert(lessonProgress)
     .values({ userId: user.id, lessonId })

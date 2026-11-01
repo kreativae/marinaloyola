@@ -8,8 +8,26 @@ import { users, type User } from "@/db/schema";
 import { readRaw } from "@/lib/settings";
 import { SESSION_DAYS } from "@/lib/login-guard";
 
-const SECRET = process.env.AUTH_SECRET ?? "marina-loyola-dev-secret";
 const COOKIE = "ml_session";
+
+let warned = false;
+
+/** Em produção é obrigatório um AUTH_SECRET forte: com o valor de exemplo qualquer pessoa podia forjar sessões. */
+function secret() {
+  const s = process.env.AUTH_SECRET ?? "";
+  const weak = !s || s === "troque-por-um-segredo-aleatorio" || s === "marina-loyola-dev-secret";
+  if (!weak) {
+    if (s.length < 32 && !warned) {
+      warned = true;
+      console.warn("[auth] AUTH_SECRET curto: use pelo menos 32 caracteres aleatórios.");
+    }
+    return s;
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("AUTH_SECRET em falta ou com o valor de exemplo: defina no Coolify um segredo aleatório com pelo menos 32 caracteres.");
+  }
+  return "marina-loyola-dev-secret";
+}
 
 export function hashPassword(password: string) {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -17,16 +35,19 @@ export function hashPassword(password: string) {
   return `${salt}:${hash}`;
 }
 
-export function verifyPassword(password: string, stored: string) {
-  const [salt, hash] = stored.split(":");
-  if (!salt || !hash) return false;
+/** Hash de referência para gastar o mesmo tempo quando o email não existe (não revela que contas existem). */
+const DUMMY_HASH = hashPassword(crypto.randomBytes(12).toString("hex"));
+
+export function verifyPassword(password: string, stored: string | null | undefined) {
+  const [salt, hash] = (stored ?? DUMMY_HASH).split(":");
+  if (!salt || !hash || password.length > 1024) return false;
   const candidate = crypto.scryptSync(password, salt, 64);
   const target = Buffer.from(hash, "hex");
-  return candidate.length === target.length && crypto.timingSafeEqual(candidate, target);
+  return candidate.length === target.length && crypto.timingSafeEqual(candidate, target) && stored != null;
 }
 
 function sign(payload: string) {
-  return crypto.createHmac("sha256", SECRET).update(payload).digest("hex");
+  return crypto.createHmac("sha256", secret()).update(payload).digest("hex");
 }
 
 /** Regras de sessão definidas em Configurações → Segurança. */
@@ -59,7 +80,13 @@ const CHALLENGE = "ml_webauthn";
 export async function storeChallenge(challenge: string, userId = 0) {
   const store = await cookies();
   const payload = `${challenge}.${userId}.${Date.now() + 5 * 60_000}`;
-  store.set(CHALLENGE, `${payload}.${sign(payload)}`, { httpOnly: true, sameSite: "strict", path: "/", maxAge: 300 });
+  store.set(CHALLENGE, `${payload}.${sign(payload)}`, {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 300,
+  });
 }
 
 export async function takeChallenge(userId = 0) {
@@ -99,7 +126,10 @@ export const getSessionUser = cache(async (): Promise<User | null> => {
   if (issued < epoch) return null;
   if (issued && issued + days * 86_400_000 < Date.now()) return null;
   const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
-  return user ?? null;
+  if (!user) return null;
+  // Mudar a palavra-passe termina as sessões abertas antes disso (noutros aparelhos)
+  if (user.passwordChangedAt && issued < user.passwordChangedAt.getTime()) return null;
+  return user;
 });
 
 /** Sem sessão válida: se havia cookie, a sessão expirou ou a conta foi removida. */
