@@ -45,20 +45,20 @@ export function Modal({
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       className={cn(
-        "m-auto w-[calc(100%-1.5rem)] overflow-hidden rounded-[26px] border border-line bg-white p-0 text-left text-zinc-900 shadow-[0_40px_100px_-30px_rgb(24_24_27/0.5)] backdrop:bg-zinc-950/35 backdrop:backdrop-blur-sm",
-        size === "lg" ? "max-w-2xl" : "max-w-xl"
+        "m-auto max-h-[calc(100dvh-1.5rem)] w-[calc(100%-1.5rem)] overflow-hidden rounded-[26px] border border-line bg-white p-0 text-left text-zinc-900 shadow-[0_40px_100px_-30px_rgb(24_24_27/0.5)] backdrop:bg-zinc-950/35 backdrop:backdrop-blur-sm",
+        size === "lg" ? "max-w-2xl xl:max-w-3xl" : "max-w-xl xl:max-w-2xl"
       )}
     >
       {open && (
-        <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
-          <header className="relative flex items-start gap-4 border-b border-line bg-zinc-50/70 px-6 py-5">
+        <div className="flex max-h-[calc(100dvh-1.5rem)] flex-col">
+          <header className="relative flex shrink-0 items-start gap-4 border-b border-line bg-zinc-50/70 px-6 py-5 short:items-center short:gap-3 short:py-3.5">
             {Icon && (
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-plum text-white shadow-[0_10px_24px_-10px_rgb(128_0_128/0.8)]">
-                <Icon size={19} />
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-plum short:h-9 short:w-9 short:rounded-xl text-white shadow-[0_10px_24px_-10px_rgb(128_0_128/0.8)]">
+                <Icon size={18} />
               </span>
             )}
-            <div className="min-w-0 flex-1 pt-0.5">
-              <h2 className="truncate font-display text-[1.45rem] leading-tight tracking-[-0.01em] text-zinc-950">{title}</h2>
+            <div className="min-w-0 flex-1 pt-0.5 short:pt-0">
+              <h2 className="truncate font-display text-[1.45rem] leading-tight short:text-[1.25rem] tracking-[-0.01em] text-zinc-950">{title}</h2>
               {description && <p className="mt-0.5 text-[13px] leading-snug text-zinc-500">{description}</p>}
             </div>
             <button
@@ -70,7 +70,7 @@ export function Modal({
               <X size={18} />
             </button>
           </header>
-          <div className="admin-scroll flex-1 overflow-y-auto px-6 pt-5">{children}</div>
+          <div className="admin-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-5 short:pt-4">{children}</div>
         </div>
       )}
     </dialog>
@@ -80,7 +80,7 @@ export function Modal({
 /** Rodapé do formulário, sempre visível no fundo da janela. */
 export function ModalFooter({ children, error }: { children: ReactNode; error?: string }) {
   return (
-    <div className="sticky bottom-0 -mx-6 mt-6 border-t border-line bg-white/95 px-6 py-4 backdrop-blur">
+    <div className="sticky bottom-0 z-20 -mx-6 mt-6 border-t border-line bg-white px-6 py-4 shadow-[0_-12px_24px_-16px_rgb(24_24_27/0.18)] short:mt-5 short:py-3">
       {error && <p className="mb-3 rounded-xl bg-rose-50 px-3.5 py-2.5 text-xs font-semibold text-rose-700">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-2">{children}</div>
     </div>
@@ -91,8 +91,8 @@ export function ModalFooter({ children, error }: { children: ReactNode; error?: 
 
 export function FormSection({ icon: Icon, title, children, aside }: { icon: LucideIcon; title: string; children: ReactNode; aside?: ReactNode }) {
   return (
-    <section className="mb-6 last:mb-0">
-      <div className="mb-3 flex items-center gap-2.5">
+    <section className="mb-6 last:mb-0 short:mb-5">
+      <div className="mb-3 flex items-center gap-2.5 short:mb-2.5">
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-plum/[0.08] text-plum">
           <Icon size={14} />
         </span>
@@ -100,7 +100,7 @@ export function FormSection({ icon: Icon, title, children, aside }: { icon: Luci
         <span className="h-px flex-1 bg-line" />
         {aside}
       </div>
-      <div className="space-y-4">{children}</div>
+      <div className="space-y-4 short:space-y-3">{children}</div>
     </section>
   );
 }
