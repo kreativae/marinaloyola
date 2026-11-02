@@ -36,6 +36,7 @@ import {
   type CourseFormResult,
 } from "@/lib/actions-courses";
 import { Modal } from "@/components/contacts-client";
+import { ImageInput } from "@/components/form-kit";
 import { cn } from "@/lib/utils";
 
 const labelCls = "mb-1.5 block text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500";
@@ -90,6 +91,7 @@ export type CourseData = {
 
 export function CourseEditButton({ course }: { course: CourseData }) {
   const [open, setOpen] = useState(false);
+  const [cover, setCover] = useState(course.cover ?? "");
   const { state, pending, onSubmit } = useSaveForm(updateCourse.bind(null, course.id), () => setOpen(false));
   return (
     <>
@@ -125,8 +127,8 @@ export function CourseEditButton({ course }: { course: CourseData }) {
             <input name="slug" defaultValue={course.slug} className="field font-mono !text-xs" />
           </div>
           <div>
-            <label className={labelCls}>Imagem de capa (URL)</label>
-            <input name="cover" defaultValue={course.cover ?? ""} placeholder="/img/… ou https://…" className="field" />
+            <label className={labelCls}>Imagem de capa</label>
+            <ImageInput name="cover" value={cover} onChange={setCover} />
           </div>
           <div>
             <label className={labelCls}>Link de compra Hotmart</label>

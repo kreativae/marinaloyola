@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, X, type LucideIcon } from "lucide-react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { Check, ImagePlus, Loader2, X, type LucideIcon } from "lucide-react";
+import { uploadSiteImage } from "@/lib/actions-site";
 import { cn } from "@/lib/utils";
 
 /**
@@ -158,6 +159,60 @@ export function MoneyInput({ name, defaultValue, value, onChange, required }: { 
         placeholder="0,00"
         className="field !h-12 !pl-10 font-display !text-xl tabular-nums tracking-tight"
       />
+    </div>
+  );
+}
+
+/**
+ * Imagem enviada do computador (arrastar ou escolher) ou colada como link; guarda o URL público.
+ * Com `name`, o URL segue no FormData do formulário.
+ */
+export function ImageInput({ value, onChange, name }: { value: string; onChange: (v: string) => void; name?: string }) {
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const upload = (file: File) => {
+    const fd = new FormData();
+    fd.set("file", file);
+    start(async () => {
+      setError(null);
+      const r = await uploadSiteImage(fd);
+      if (r.ok && r.url) onChange(r.url);
+      else setError(r.error ?? "Falha no envio.");
+    });
+  };
+  return (
+    <div
+      className="flex flex-wrap items-center gap-4 rounded-2xl border border-dashed border-zinc-300 bg-white p-3 transition-colors hover:border-plum/40"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file) upload(file);
+      }}
+    >
+      <div className="relative flex h-24 w-36 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-100">
+        {value ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={value} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <ImagePlus size={22} className="text-zinc-400" />
+        )}
+        {pending && (
+          <span className="absolute inset-0 flex items-center justify-center bg-white/70">
+            <Loader2 size={18} className="animate-spin text-plum" />
+          </span>
+        )}
+      </div>
+      <div className="min-w-0 flex-1 space-y-2">
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+        <button type="button" onClick={() => fileRef.current?.click()} disabled={pending} className="btn-ghost !px-4 !py-2 !text-xs">
+          <ImagePlus size={13} /> {value ? "Trocar imagem" : "Enviar imagem"}
+        </button>
+        <p className="text-[11.5px] text-zinc-400">Arraste uma imagem para aqui · JPG, PNG ou WEBP até 8 MB</p>
+        <input name={name} value={value} onChange={(e) => onChange(e.target.value)} className="field !py-1.5 !text-xs" placeholder="ou cole um link https://…" />
+        {error && <p className="text-xs font-semibold text-rose-600">{error}</p>}
+      </div>
     </div>
   );
 }

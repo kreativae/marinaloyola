@@ -11,7 +11,6 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  ImagePlus,
   Link2,
   Loader2,
   Monitor,
@@ -23,9 +22,9 @@ import {
   Smartphone,
   Trash2,
 } from "lucide-react";
-import { resetSitePage, saveSitePage, uploadSiteImage } from "@/lib/actions-site";
+import { resetSitePage, saveSitePage } from "@/lib/actions-site";
 import { SITE_ICONS, type FieldValue, type SiteField, type SitePageDef, type SitePageId, type SectionValues } from "@/lib/site-def";
-import { Field, IconInput } from "@/components/form-kit";
+import { Field, IconInput, ImageInput } from "@/components/form-kit";
 import { cn } from "@/lib/utils";
 
 export type EditorData = {
@@ -358,56 +357,6 @@ function FieldInput({ field: f, value, onChange }: { field: SiteField; value: Fi
     <Field label={f.label} hint={f.hint} className={wide ? "sm:col-span-2" : undefined}>
       {input}
     </Field>
-  );
-}
-
-function ImageInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const upload = (file: File) => {
-    const fd = new FormData();
-    fd.set("file", file);
-    start(async () => {
-      setError(null);
-      const r = await uploadSiteImage(fd);
-      if (r.ok && r.url) onChange(r.url);
-      else setError(r.error ?? "Falha no envio.");
-    });
-  };
-  return (
-    <div
-      className="flex flex-wrap items-center gap-4 rounded-2xl border border-dashed border-zinc-300 bg-white p-3 transition-colors hover:border-plum/40"
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => {
-        e.preventDefault();
-        const file = e.dataTransfer.files[0];
-        if (file) upload(file);
-      }}
-    >
-      <div className="relative flex h-24 w-36 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-100">
-        {value ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={value} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <ImagePlus size={22} className="text-zinc-400" />
-        )}
-        {pending && (
-          <span className="absolute inset-0 flex items-center justify-center bg-white/70">
-            <Loader2 size={18} className="animate-spin text-plum" />
-          </span>
-        )}
-      </div>
-      <div className="min-w-0 flex-1 space-y-2">
-        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
-        <button type="button" onClick={() => fileRef.current?.click()} disabled={pending} className="btn-ghost !px-4 !py-2 !text-xs">
-          <ImagePlus size={13} /> {value ? "Trocar foto" : "Enviar foto"}
-        </button>
-        <p className="text-[11.5px] text-zinc-400">Arraste uma imagem para aqui · JPG, PNG ou WEBP até 8 MB</p>
-        <input value={value} onChange={(e) => onChange(e.target.value)} className="field !py-1.5 !text-xs" placeholder="ou cole um link https://…" />
-        {error && <p className="text-xs font-semibold text-rose-600">{error}</p>}
-      </div>
-    </div>
   );
 }
 
