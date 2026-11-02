@@ -13,7 +13,8 @@
     "db:admin": "tsx scripts/create-admin.ts",
     "db:init": "tsx scripts/init.ts",
     "db:deploy": "drizzle-kit push && tsx scripts/init.ts",
-    "db:demo": "TZ=Europe/Lisbon tsx scripts/demo.ts"
+    "db:demo": "TZ=Europe/Lisbon tsx scripts/demo.ts",
+    "db:demo-novembro": "TZ=Europe/Lisbon tsx scripts/demo-novembro.ts"
   },
   "dependencies": {
     "@simplewebauthn/browser": "^14.0.0",
