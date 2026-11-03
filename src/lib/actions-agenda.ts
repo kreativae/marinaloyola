@@ -1,10 +1,12 @@
 "use server";
 
+import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { and, eq, gt, lt, ne } from "drizzle-orm";
+import { and, asc, eq, gt, gte, lt, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { agendaEvents, appointments, contacts, eventTypes } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
+import { isRepeatFreq, MAX_OCCURRENCES, occurrences, parseEmails, REMIND_OPTIONS, type RepeatRule } from "@/lib/agenda-def";
 import { addInteraction } from "@/lib/crm";
 import { bookingRescheduleEmail, getEmailConfig, sendEmail } from "@/lib/email";
 import { cityOf, countryOfTz, dualDateTime, flag, fmtTime, HOME_TZ } from "@/lib/timezones";
@@ -96,8 +98,9 @@ export async function notifyReschedule(id: number): Promise<{ ok: boolean; messa
   const { a } = row;
   const sent: string[] = [];
   const mail = await getEmailConfig();
+  let emailPreview = false;
   try {
-    await sendEmail(
+    const result = await sendEmail(
       bookingRescheduleEmail(
         {
           name: a.name,
@@ -115,7 +118,8 @@ export async function notifyReschedule(id: number): Promise<{ ok: boolean; messa
         mail.notifyEmail
       )
     );
-    sent.push("email");
+    if (result === "sent") sent.push("email");
+    else emailPreview = true;
   } catch (e) {
     console.error("[email] reagendamento falhou:", e);
   }
@@ -140,12 +144,17 @@ export async function notifyReschedule(id: number): Promise<{ ok: boolean; messa
   }
   return sent.length
     ? { ok: true, message: `${a.name.split(/\s+/)[0]} avisada por ${sent.join(" e ")}.` }
-    : { ok: false, message: "Não foi possível avisar a cliente." };
+    : {
+        ok: false,
+        message: emailPreview
+          ? "Não foi enviado: configure o Resend (email) ou o WhatsApp em Configurações."
+          : "Não foi possível avisar a cliente.",
+      };
 }
 
 /* --------------------------- EVENTOS INTERNOS --------------------------- */
 
-export type AgendaEventResult = { ok: boolean; error?: string; warning?: string; id?: number };
+export type AgendaEventResult = { ok: boolean; error?: string; warning?: string; id?: number; created?: number };
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -161,7 +170,11 @@ function refreshAgenda() {
   revalidatePath("/agendar");
 }
 
-/** Cria ou edita um compromisso. Com "bloquear marcações", esse período deixa de aparecer como livre em /agendar. */
+/**
+ * Cria ou edita um compromisso. Com "bloquear marcações", esse período deixa de aparecer como livre em /agendar.
+ * Com repetição, cada ocorrência fica guardada como um evento da mesma série. Ao editar uma ocorrência,
+ * scope="one" muda só essa; scope="future" refaz essa e as seguintes com as novas regras.
+ */
 export async function saveAgendaEvent(id: number | null, _prev: AgendaEventResult | null, fd: FormData): Promise<AgendaEventResult> {
   await requireAdmin();
   const str = (k: string) => String(fd.get(k) ?? "").trim();
@@ -188,39 +201,124 @@ export async function saveAgendaEvent(id: number | null, _prev: AgendaEventResul
   if (endAt <= startAt) return { ok: false, error: "O fim tem de ser depois do início." };
   if (endAt.getTime() - startAt.getTime() > 62 * 86_400_000) return { ok: false, error: "Um evento pode durar no máximo 2 meses." };
 
+  // Repetição
+  const freq = str("repeat");
+  let rule: RepeatRule | null = null;
+  if (isRepeatFreq(freq)) {
+    const ends = str("repeatEnd");
+    const until = ends === "until" ? str("repeatUntil") : "";
+    const count = ends === "count" ? Math.round(Number(str("repeatCount"))) : NaN;
+    if (ends === "until" && (!DAY_RE.test(until) || until < day)) return { ok: false, error: "A data de fim da repetição tem de ser depois do primeiro dia." };
+    if (ends === "count" && !(count >= 2 && count <= MAX_OCCURRENCES)) return { ok: false, error: `O número de vezes tem de estar entre 2 e ${MAX_OCCURRENCES}.` };
+    rule = { freq, until: until || null, count: Number.isFinite(count) ? count : null };
+  }
+
+  // Lembrete por email
+  const remindRaw = str("remindMin");
+  const remindMin = remindRaw && REMIND_OPTIONS.some((o) => o.value === remindRaw) ? Number(remindRaw) : null;
+  const extra = parseEmails(str("remindTo"));
+  if (remindMin !== null && extra.invalid.length) return { ok: false, error: `Email inválido: ${extra.invalid[0]}` };
+
   const color = /^#[0-9a-f]{6}$/i.test(str("color")) ? str("color") : "#0ea5e9";
   const values = {
     title: title.slice(0, 200),
     notes: str("notes").slice(0, 4000) || null,
     location: str("location").slice(0, 300) || null,
-    startAt,
-    endAt,
     allDay,
     blocksBooking: fd.get("blocksBooking") === "1",
     color,
+    remindMin,
+    remindTo: remindMin !== null && extra.emails.length ? extra.emails.join(", ") : null,
+    remindedAt: null,
   };
+
+  const [current] = id ? await db.select().from(agendaEvents).where(eq(agendaEvents.id, id)).limit(1) : [];
+  if (id && !current) return { ok: false, error: "Evento não encontrado." };
+  const dur = endAt.getTime() - startAt.getTime();
   let savedId = id;
-  if (id) await db.update(agendaEvents).set(values).where(eq(agendaEvents.id, id));
-  else [{ id: savedId }] = await db.insert(agendaEvents).values(values).returning({ id: agendaEvents.id });
+  let created = 1;
+
+  if (current?.seriesId && str("scope") !== "future") {
+    // Só esta ocorrência: a série mantém-se
+    await db.update(agendaEvents).set({ ...values, startAt, endAt }).where(eq(agendaEvents.id, current.id));
+  } else {
+    if (current?.seriesId) {
+      // Esta e as seguintes são refeitas; as anteriores ficam como estavam, a terminar na véspera
+      await db.delete(agendaEvents).where(and(eq(agendaEvents.seriesId, current.seriesId), gt(agendaEvents.startAt, current.startAt)));
+      const prevDay = new Date(current.startAt.getFullYear(), current.startAt.getMonth(), current.startAt.getDate() - 1);
+      const earlier = await db
+        .select({ id: agendaEvents.id, repeat: agendaEvents.repeat })
+        .from(agendaEvents)
+        .where(and(eq(agendaEvents.seriesId, current.seriesId), lt(agendaEvents.startAt, current.startAt)))
+        .limit(1);
+      if (earlier[0]?.repeat) {
+        const until = `${prevDay.getFullYear()}-${String(prevDay.getMonth() + 1).padStart(2, "0")}-${String(prevDay.getDate()).padStart(2, "0")}`;
+        await db
+          .update(agendaEvents)
+          .set({ repeat: { ...earlier[0].repeat, until, count: null } })
+          .where(and(eq(agendaEvents.seriesId, current.seriesId), lt(agendaEvents.startAt, current.startAt)));
+      }
+    }
+    const starts = rule ? occurrences(startAt, rule) : [startAt];
+    const seriesId = rule && starts.length > 1 ? crypto.randomUUID() : null;
+    const rows = starts.map((s) => ({
+      ...values,
+      startAt: s,
+      endAt: new Date(s.getTime() + dur),
+      seriesId,
+      repeat: seriesId ? rule : null,
+    }));
+    if (current) {
+      await db.update(agendaEvents).set(rows[0]).where(eq(agendaEvents.id, current.id));
+      if (rows.length > 1) await db.insert(agendaEvents).values(rows.slice(1));
+    } else {
+      [{ id: savedId }] = await db.insert(agendaEvents).values(rows).returning({ id: agendaEvents.id });
+    }
+    created = rows.length;
+  }
 
   // Aviso (sem impedir) quando já há sessões de clientes nesse período
-  const clashes = await db
-    .select({ name: appointments.name })
+  const saved = savedId
+    ? await db
+        .select({ startAt: agendaEvents.startAt, endAt: agendaEvents.endAt, seriesId: agendaEvents.seriesId })
+        .from(agendaEvents)
+        .where(eq(agendaEvents.id, savedId))
+        .limit(1)
+    : [];
+  const series = saved[0]?.seriesId
+    ? await db
+        .select({ startAt: agendaEvents.startAt, endAt: agendaEvents.endAt })
+        .from(agendaEvents)
+        .where(and(eq(agendaEvents.seriesId, saved[0].seriesId), gte(agendaEvents.startAt, saved[0].startAt)))
+        .orderBy(asc(agendaEvents.startAt))
+    : saved;
+  const first = series[0]?.startAt ?? startAt;
+  const last = series.at(-1)?.endAt ?? endAt;
+  const nearby = await db
+    .select({ name: appointments.name, startAt: appointments.startAt, endAt: appointments.endAt })
     .from(appointments)
-    .where(and(ne(appointments.status, "cancelled"), lt(appointments.startAt, endAt), gt(appointments.endAt, startAt)));
+    .where(and(ne(appointments.status, "cancelled"), lt(appointments.startAt, last), gt(appointments.endAt, first)));
+  const clashes = nearby.filter((c) => series.some((o) => c.startAt < o.endAt && c.endAt > o.startAt));
   refreshAgenda();
   return {
     ok: true,
     id: savedId ?? undefined,
+    created,
     warning: clashes.length
-      ? `Atenção: já tem ${clashes.length === 1 ? "1 sessão" : `${clashes.length} sessões`} marcada${clashes.length === 1 ? "" : "s"} neste período (${clashes.map((c) => c.name).join(", ")}).`
+      ? `Atenção: já tem ${clashes.length === 1 ? "1 sessão" : `${clashes.length} sessões`} marcada${clashes.length === 1 ? "" : "s"} ${created > 1 ? "nestes horários" : "neste período"} (${[...new Set(clashes.map((c) => c.name))].slice(0, 6).join(", ")}).`
       : undefined,
   };
 }
 
-export async function deleteAgendaEvent(id: number) {
+/** Apaga um compromisso; numa série, só esta ocorrência, esta e as seguintes, ou todas. */
+export async function deleteAgendaEvent(id: number, scope: "one" | "future" | "all" = "one") {
   await requireAdmin();
-  await db.delete(agendaEvents).where(eq(agendaEvents.id, id));
+  const [ev] = await db.select().from(agendaEvents).where(eq(agendaEvents.id, id)).limit(1);
+  if (!ev) return;
+  if (ev.seriesId && scope === "all") await db.delete(agendaEvents).where(eq(agendaEvents.seriesId, ev.seriesId));
+  else if (ev.seriesId && scope === "future")
+    await db.delete(agendaEvents).where(and(eq(agendaEvents.seriesId, ev.seriesId), gte(agendaEvents.startAt, ev.startAt)));
+  else await db.delete(agendaEvents).where(eq(agendaEvents.id, id));
   refreshAgenda();
 }
 
@@ -233,7 +331,7 @@ export async function moveAgendaEvent(id: number, day: string, startMin: number)
   const startAt = at(day);
   startAt.setMinutes(ev.allDay ? 0 : startMin);
   const endAt = new Date(startAt.getTime() + (ev.endAt.getTime() - ev.startAt.getTime()));
-  await db.update(agendaEvents).set({ startAt, endAt }).where(eq(agendaEvents.id, id));
+  await db.update(agendaEvents).set({ startAt, endAt, remindedAt: null }).where(eq(agendaEvents.id, id));
   refreshAgenda();
   return { ok: true };
 }

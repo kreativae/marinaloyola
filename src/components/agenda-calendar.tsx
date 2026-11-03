@@ -3,12 +3,13 @@
 import { startTransition, useActionState, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CalendarDays, CalendarPlus, Check, Clock, Loader2, Mail, MapPin, Move, PenLine, Phone, RefreshCw, Send, Trash2, Undo2, UserRound, Video, X } from "lucide-react";
+import { AlertTriangle, Bell, CalendarDays, CalendarPlus, Check, Clock, Loader2, Mail, MapPin, Move, PenLine, Phone, RefreshCw, Repeat, Send, Trash2, Undo2, UserRound, Video, X } from "lucide-react";
 import { setAppointmentStatus } from "@/lib/actions-admin";
 import { deleteAgendaEvent, moveAgendaEvent, notifyReschedule, rescheduleAppointment, saveAgendaEvent, type AgendaEventResult } from "@/lib/actions-agenda";
 import { syncGoogleCalendar } from "@/lib/actions-config";
 import { SelectAction, CopyButton } from "@/components/admin-client";
 import { Field, FormSection, IconInput, Modal, ModalFooter, PillGroup, ToggleRow } from "@/components/form-kit";
+import { ALL_DAY_REMIND_HOUR, MAX_OCCURRENCES, REMIND_OPTIONS, REPEAT_HORIZON_MONTHS, REPEAT_OPTIONS, repeatLabel, type RepeatFreq, type RepeatRule } from "@/lib/agenda-def";
 import { APPT_STATUS, cn } from "@/lib/utils";
 
 /**
@@ -156,7 +157,7 @@ function RescheduleToast({
   pending: boolean;
 }) {
   const [notifying, start] = useTransition();
-  const [notified, setNotified] = useState<string | null>(null);
+  const [notified, setNotified] = useState<{ ok: boolean; message: string } | null>(null);
   const [lastToast, setLastToast] = useState(toast);
   if (toast !== lastToast) {
     setLastToast(toast);
@@ -179,12 +180,12 @@ function RescheduleToast({
               {toast.clientLabel && <span className="text-zinc-500"> · {toast.clientLabel}</span>}
             </span>
             {notified ? (
-              <span className="text-xs font-semibold text-emerald-700">{notified}</span>
+              <span className={cn("text-xs font-semibold", notified.ok ? "text-emerald-700" : "text-rose-600")}>{notified.message}</span>
             ) : (
               <button
                 type="button"
                 disabled={notifying}
-                onClick={() => start(async () => setNotified((await notifyReschedule(toast.id)).message))}
+                onClick={() => start(async () => setNotified(await notifyReschedule(toast.id)))}
                 className="inline-flex items-center gap-1.5 rounded-full bg-plum px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-plum-ink disabled:opacity-60"
               >
                 {notifying ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Avisar cliente
@@ -783,6 +784,10 @@ export type AgendaEventDraft = {
   notes?: string | null;
   location?: string | null;
   color?: string;
+  seriesId?: string | null;
+  repeat?: RepeatRule | null;
+  remindMin?: number | null;
+  remindTo?: string | null;
 };
 
 const AGENDA_SAVED = "agenda:event-saved";
@@ -851,7 +856,26 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
   const [endDate, setEndDate] = useState(draft.endDate ?? draft.date);
   const [start, setStart] = useState(draft.start ?? "10:00");
   const [end, setEnd] = useState(draft.end ?? addMin(draft.start ?? "10:00", 60));
+  const inSeries = Boolean(draft.id && draft.seriesId);
+  const [scope, setScope] = useState<"one" | "future">("one");
+  const [repeat, setRepeat] = useState<string>(draft.repeat?.freq ?? "none");
+  const [repeatEnd, setRepeatEnd] = useState(draft.repeat?.count ? "count" : draft.repeat?.until ? "until" : "never");
+  const [remind, setRemind] = useState(draft.remindMin == null ? "" : String(draft.remindMin));
+  const [askDelete, setAskDelete] = useState(false);
   const [deleting, startDelete] = useTransition();
+  const repeatEditable = !inSeries || scope === "future";
+  const [dy, dm, dd] = date.split("-").map(Number);
+  const preview =
+    repeat !== "none" && dy
+      ? repeatLabel({ freq: repeat as RepeatFreq, until: null, count: null }, new Date(dy, (dm || 1) - 1, dd || 1))
+      : null;
+  const remove = (which: "one" | "future" | "all") =>
+    startDelete(async () => {
+      await deleteAgendaEvent(draft.id!, which);
+      announce({ id: draft.id!, deleted: true });
+      onClose();
+      router.refresh();
+    });
   const [state, run, pending] = useActionState(async (prev: AgendaEventResult | null, fd: FormData) => {
     const r = await saveAgendaEvent(draft.id ?? null, prev, fd);
     if (r.ok && r.id) {
@@ -870,6 +894,7 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
           notes: String(fd.get("notes") ?? "") || null,
           location: String(fd.get("location") ?? "") || null,
           color: String(fd.get("color") ?? "") || undefined,
+          remindMin: fd.get("remindMin") ? Number(fd.get("remindMin")) : null,
         },
       });
       if (!r.warning) onClose();
@@ -998,6 +1023,79 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
         <ToggleRow name="blocksBooking" label="Bloquear marcações neste horário" description="As clientes deixam de ver estas horas como livres na página de agendamento." defaultChecked={draft.blocks ?? true} />
       </FormSection>
 
+      <FormSection icon={Repeat} title="Repetir">
+        {inSeries && (
+          <Field label="Aplicar as alterações a">
+            <PillGroup
+              name="scope"
+              value={scope}
+              onChange={(v) => setScope(v as "one" | "future")}
+              options={[
+                { value: "one", label: "Só este evento" },
+                { value: "future", label: "Este e os seguintes" },
+              ]}
+              size="sm"
+            />
+          </Field>
+        )}
+        {repeatEditable ? (
+          <>
+            <PillGroup name="repeat" value={repeat} onChange={setRepeat} options={REPEAT_OPTIONS} size="sm" />
+            {repeat !== "none" && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Termina" hint={repeatEnd === "never" ? `Cria as repetições dos próximos ${repeat === "yearly" ? "5 anos" : `${REPEAT_HORIZON_MONTHS} meses`}.` : undefined}>
+                  <PillGroup
+                    name="repeatEnd"
+                    value={repeatEnd}
+                    onChange={setRepeatEnd}
+                    options={[
+                      { value: "never", label: "Sem fim" },
+                      { value: "until", label: "Numa data" },
+                      { value: "count", label: "Após N vezes" },
+                    ]}
+                    size="sm"
+                  />
+                </Field>
+                {repeatEnd === "until" && (
+                  <Field label="Último dia">
+                    <IconInput icon={CalendarDays}>
+                      <input type="date" name="repeatUntil" required min={date} defaultValue={draft.repeat?.until ?? ""} className="field" />
+                    </IconInput>
+                  </Field>
+                )}
+                {repeatEnd === "count" && (
+                  <Field label="Número de vezes">
+                    <input type="number" name="repeatCount" required min={2} max={MAX_OCCURRENCES} defaultValue={draft.repeat?.count ?? 10} className="field tabular-nums" />
+                  </Field>
+                )}
+              </div>
+            )}
+            {preview && <p className="text-xs text-zinc-500">{preview}, a começar em {new Date(dy, dm - 1, dd).toLocaleDateString("pt-PT", { day: "numeric", month: "long" })}.</p>}
+          </>
+        ) : (
+          <>
+            <input type="hidden" name="repeat" value={draft.repeat?.freq ?? "none"} />
+            <p className="text-xs text-zinc-500">
+              {repeatLabel(draft.repeat, new Date(dy, dm - 1, dd)) ?? "Faz parte de uma série"}. Para mudar a repetição, escolha &quot;Este e os seguintes&quot;.
+            </p>
+          </>
+        )}
+      </FormSection>
+
+      <FormSection icon={Bell} title="Lembrete por email">
+        <PillGroup name="remindMin" value={remind} onChange={setRemind} options={REMIND_OPTIONS} size="sm" />
+        {remind !== "" && (
+          <Field
+            label="Enviar também para"
+            hint={`Vai sempre para o email de avisos (Configurações → Email). Separe vários emails por vírgula.${allDay ? ` Nos eventos de dia inteiro, conta a partir das ${ALL_DAY_REMIND_HOUR}h.` : ""}`}
+          >
+            <IconInput icon={Mail}>
+              <input name="remindTo" defaultValue={draft.remindTo ?? ""} placeholder="opcional: outra@pessoa.com" className="field" />
+            </IconInput>
+          </Field>
+        )}
+      </FormSection>
+
       <FormSection icon={MapPin} title="Detalhes">
         <Field label="Local ou link">
           <IconInput icon={MapPin}>
@@ -1010,22 +1108,43 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
       </FormSection>
 
       <ModalFooter error={state?.error}>
-        {draft.id && (
+        {draft.id && askDelete && (
+          <div className="mr-auto flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-xs font-semibold text-zinc-600">Apagar:</span>
+            {(
+              [
+                ["one", "Só este"],
+                ["future", "Este e seguintes"],
+                ["all", "Todos"],
+              ] as const
+            ).map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                disabled={deleting}
+                onClick={() => remove(v)}
+                className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+              >
+                {label}
+              </button>
+            ))}
+            <button type="button" onClick={() => setAskDelete(false)} className="px-1 text-[11px] font-semibold text-zinc-500 hover:text-zinc-800">
+              Cancelar
+            </button>
+          </div>
+        )}
+        {draft.id && !askDelete && (
           <button
             type="button"
             disabled={deleting}
             onClick={() =>
-              confirm("Apagar este evento? O horário volta a ficar livre para marcações.") &&
-              startDelete(async () => {
-                await deleteAgendaEvent(draft.id!);
-                announce({ id: draft.id!, deleted: true });
-                onClose();
-                router.refresh();
-              })
+              inSeries
+                ? setAskDelete(true)
+                : confirm("Apagar este evento? O horário volta a ficar livre para marcações.") && remove("one")
             }
             className="btn-ghost mr-auto !px-4 !py-2.5 !text-xs hover:!border-rose-200 hover:!text-rose-600"
           >
-            <Trash2 size={13} /> Apagar
+            {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Apagar
           </button>
         )}
         <button type="button" onClick={onClose} className="btn-ghost !px-5 !py-2.5 !text-xs">

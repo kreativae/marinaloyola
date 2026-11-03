@@ -91,10 +91,12 @@ export const SERVICES: ServiceDef[] = [
         label: "Email que recebe os avisos",
         type: "email",
         placeholder: "Vazio = email de contacto público",
-        help: "Para onde vão os avisos de novos agendamentos. Também é o endereço de resposta das clientes.",
+        help: "Para onde vão os avisos à equipa (agendamentos, mensagens do site, vendas Hotmart). Também é o endereço de resposta das clientes.",
       },
       { key: "email_booking_client", label: "Enviar confirmação à cliente (com convite .ics)", type: "toggle", default: "1" },
       { key: "email_booking_admin", label: "Avisar a equipa de cada novo agendamento", type: "toggle", default: "1" },
+      { key: "email_lead_admin", label: "Avisar a equipa de mensagens do site e subscrições da newsletter", type: "toggle", default: "1" },
+      { key: "email_sale_admin", label: "Avisar a equipa de vendas e reembolsos da Hotmart", type: "toggle", default: "1" },
     ],
   },
   {

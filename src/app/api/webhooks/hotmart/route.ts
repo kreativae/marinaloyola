@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { payments } from "@/db/schema";
 import { addInteraction, findOrCreateContact, tagContact } from "@/lib/crm";
+import { notifyTeam, saleNotificationEmail } from "@/lib/email";
 import { getSettings, isOn, saveSettings } from "@/lib/settings";
 import { eur } from "@/lib/utils";
 import { safeEqual } from "@/lib/security";
@@ -118,6 +119,15 @@ export async function POST(req: Request) {
     "purchase",
     `Hotmart [${event || purchaseStatus}]: ${productName} — ${eur(amount)} → ${status}. Contacto importado/actualizado automaticamente.`
   );
+
+  // Aviso à equipa só quando muda de facto: a Hotmart repete eventos (approved → completed)
+  const isPaid = (st?: string) => st === "confirmed" || st === "completed";
+  const kind = isPaid(status) && !isPaid(existing?.status) ? "sale" : status === "refunded" && existing?.status !== "refunded" ? "refund" : null;
+  if (kind) {
+    await notifyTeam("saleAdmin", (to, appUrl) =>
+      saleNotificationEmail({ kind, name, email, product: productName, amount: eur(amount), reference, contactId: contact.id }, to, appUrl)
+    );
+  }
 
   await saveSettings({
     hotmart_last_event: JSON.stringify({

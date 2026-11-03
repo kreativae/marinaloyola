@@ -8,7 +8,7 @@ import { agendaEvents, appointments, availability, eventTypes, users } from "@/d
 import { createSession, destroySession, storePendingLogin, verifyPassword } from "@/lib/auth";
 import { addInteraction, findOrCreateContact, tagContact } from "@/lib/crm";
 import { getBusy } from "@/lib/calendar";
-import { bookingConfirmationEmail, bookingNotificationEmail, getEmailConfig, sendEmail } from "@/lib/email";
+import { bookingConfirmationEmail, bookingNotificationEmail, getEmailConfig, leadNotificationEmail, notifyTeam, sendEmail } from "@/lib/email";
 import { getSettings, isOn, readRaw } from "@/lib/settings";
 import { clearFailures, isLocked, registerFailure } from "@/lib/login-guard";
 import { allow } from "@/lib/rate-limit";
@@ -85,6 +85,9 @@ export async function submitLead(formData: FormData) {
     [subject ? `Assunto: ${subject}` : null, message || "Subscreveu a newsletter."]
       .filter(Boolean)
       .join(" — ")
+  );
+  await notifyTeam("leadAdmin", (to, appUrl) =>
+    leadNotificationEmail({ name, email, phone, subject, message, tag, contactId: contact.id, isNew: created }, to, appUrl)
   );
   if (created) revalidatePath("/admin/crm");
   redirect(redirectTo);
@@ -287,8 +290,10 @@ export async function createBooking(data: {
     mail.bookingClient ? sendEmail(bookingConfirmationEmail(booking, mail.notifyEmail)) : null,
     mail.bookingAdmin ? sendEmail(bookingNotificationEmail(booking, mail.notifyEmail)) : null,
   ]);
-  if (toClient.status === "fulfilled" && toClient.value) {
+  if (toClient.status === "fulfilled" && toClient.value === "sent") {
     await addInteraction(contact.id, "system", `Email de confirmação enviado para ${booking.email}.`);
+  } else if (toClient.status === "fulfilled" && toClient.value === "preview") {
+    await addInteraction(contact.id, "system", "Email de confirmação não enviado: o Resend não está configurado.");
   } else if (toClient.status === "rejected") {
     console.error("[email] confirmação falhou:", toClient.reason);
     await addInteraction(contact.id, "system", `Falha ao enviar email de confirmação para ${booking.email}.`);

@@ -28,6 +28,9 @@ export async function getEmailConfig() {
     "contact_email",
     "email_booking_client",
     "email_booking_admin",
+    "email_lead_admin",
+    "email_sale_admin",
+    "app_url",
   ]);
   return {
     apiKey: m.resend_api_key,
@@ -35,7 +38,27 @@ export async function getEmailConfig() {
     notifyEmail: m.notify_email || m.contact_email,
     bookingClient: isOn(m.email_booking_client),
     bookingAdmin: isOn(m.email_booking_admin),
+    leadAdmin: isOn(m.email_lead_admin),
+    saleAdmin: isOn(m.email_sale_admin),
+    appUrl: m.app_url.replace(/\/+$/, ""),
   };
+}
+
+/**
+ * Aviso para a equipa (novo lead, venda Hotmart…). Nunca lança: uma falha de email
+ * não pode estragar o formulário nem o webhook que o chamou.
+ */
+export async function notifyTeam(
+  flag: "leadAdmin" | "saleAdmin",
+  build: (to: string, appUrl: string) => Email
+) {
+  try {
+    const mail = await getEmailConfig();
+    if (!mail[flag] || !mail.notifyEmail) return;
+    await sendEmail(build(mail.notifyEmail, mail.appUrl));
+  } catch (e) {
+    console.error(`[email] aviso à equipa (${flag}) falhou:`, e);
+  }
 }
 
 /** Devolve "preview" quando não há chave e o email foi guardado em .emails/. */
@@ -264,6 +287,113 @@ function bookingIcs(b: BookingEmailData, organizer: string) {
     "END:VEVENT",
     "END:VCALENDAR",
   ].join("\r\n");
+}
+
+const button = (href: string, label: string) =>
+  `<a href="${escapeHtml(href)}" style="display:inline-block;background:#800080;color:#fff;text-decoration:none;padding:12px 24px;border-radius:999px;font-weight:bold;font-size:13px">${label}</a>`;
+
+export type LeadEmailData = {
+  name: string;
+  email: string;
+  phone?: string | null;
+  subject?: string;
+  message?: string;
+  tag: string;
+  contactId: number;
+  isNew: boolean;
+};
+
+export function leadNotificationEmail(l: LeadEmailData, to: string, appUrl: string): Email {
+  const newsletter = !l.message && !l.subject;
+  const title = newsletter ? "Nova subscrição da newsletter" : "Nova mensagem do site";
+  const link = `${appUrl}/admin/crm/${l.contactId}`;
+  const html = layout(
+    title,
+    `<h1 style="font-family:Georgia,serif;font-style:italic;font-weight:normal;font-size:26px;color:#18181b;margin:0 0 16px">${title}</h1>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:20px">
+${row("Nome", escapeHtml(l.name))}
+${row("Email", escapeHtml(l.email))}
+${l.phone ? row("Telefone", escapeHtml(l.phone)) : ""}
+${row("Origem", escapeHtml(l.tag))}
+${row("Contacto", l.isNew ? "Novo no CRM" : "Já existia no CRM")}
+${l.subject ? row("Assunto", escapeHtml(l.subject)) : ""}
+</table>
+${l.message ? `<div style="background:#f4f4f5;border-radius:12px;padding:16px;white-space:pre-wrap;color:#3f3f46;margin-bottom:20px">${escapeHtml(l.message)}</div>` : ""}
+${button(link, "Abrir no CRM")}
+<p style="margin:20px 0 0;font-size:13px;color:#71717a">Pode responder diretamente a este email para falar com ${escapeHtml(l.name.split(/\s+/)[0])}.</p>`
+  );
+  const text = `${title}: ${l.name} <${l.email}>${l.phone ? ` · ${l.phone}` : ""}
+Origem: ${l.tag}
+${l.subject ? `Assunto: ${l.subject}\n` : ""}${l.message ?? ""}
+
+${link}`;
+  return { to, subject: `${title}: ${l.name}`, html, text, replyTo: l.email };
+}
+
+export type SaleEmailData = {
+  kind: "sale" | "refund";
+  name: string;
+  email: string;
+  product: string;
+  amount: string;
+  reference: string | null;
+  contactId: number;
+};
+
+export function saleNotificationEmail(s: SaleEmailData, to: string, appUrl: string): Email {
+  const sale = s.kind === "sale";
+  const title = sale ? "Nova venda na Hotmart" : "Reembolso na Hotmart";
+  const html = layout(
+    title,
+    `<h1 style="font-family:Georgia,serif;font-style:italic;font-weight:normal;font-size:26px;color:#18181b;margin:0 0 16px">${title}</h1>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:20px">
+${row("Produto", escapeHtml(s.product))}
+${row("Valor", `<strong style="color:${sale ? "#047857" : "#be123c"}">${sale ? "" : "− "}${escapeHtml(s.amount)}</strong>`)}
+${row(sale ? "Comprador" : "Cliente", `${escapeHtml(s.name)} · ${escapeHtml(s.email)}`)}
+${s.reference ? row("Transação", escapeHtml(s.reference)) : ""}
+</table>
+${button(`${appUrl}/admin/crm/${s.contactId}`, "Abrir no CRM")}`
+  );
+  const text = `${title}: ${s.product} — ${s.amount}
+${s.name} <${s.email}>${s.reference ? `\nTransação: ${s.reference}` : ""}
+
+${appUrl}/admin/crm/${s.contactId}`;
+  return { to, subject: `${title}: ${s.product} — ${s.amount}`, html, text };
+}
+
+export type EventReminderData = {
+  title: string;
+  startAt: Date;
+  endAt: Date;
+  allDay: boolean;
+  location: string | null;
+  notes: string | null;
+  when: string; // "Daqui a 30 min", "Amanhã"…
+};
+
+export function eventReminderEmail(e: EventReminderData, to: string, appUrl: string): Email {
+  const lastDay = new Date(e.endAt.getTime() - (e.allDay ? 86_400_000 : 0));
+  const multi = fmtLongDate(lastDay) !== fmtLongDate(e.startAt);
+  const date = multi ? `${fmtLongDate(e.startAt)} a ${fmtLongDate(lastDay)}` : fmtLongDate(e.startAt);
+  const hour = e.allDay ? "Dia inteiro" : `${fmtTime(e.startAt)}–${fmtTime(e.endAt)} (Lisboa)`;
+  const link = /^https?:\/\//i.test(e.location ?? "") ? e.location! : null;
+  const html = layout(
+    "Lembrete",
+    `<p style="margin:0 0 6px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#800080;font-weight:bold">${escapeHtml(e.when)}</p>
+<h1 style="font-family:Georgia,serif;font-style:italic;font-weight:normal;font-size:28px;color:#18181b;margin:0 0 16px">${escapeHtml(e.title)}</h1>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:20px">
+${row("Data", date)}
+${row("Hora", hour)}
+${e.location ? row("Local", link ? `<a href="${escapeHtml(link)}" style="color:#800080">${escapeHtml(link)}</a>` : escapeHtml(e.location)) : ""}
+</table>
+${e.notes ? `<div style="background:#f4f4f5;border-radius:12px;padding:16px;white-space:pre-wrap;color:#3f3f46;margin-bottom:20px">${escapeHtml(e.notes)}</div>` : ""}
+${button(`${appUrl}/admin/agenda`, "Abrir a agenda")}`
+  );
+  const text = `${e.when}: ${e.title}
+${date} · ${hour}
+${e.location ?? ""}
+${e.notes ?? ""}`;
+  return { to, subject: `Lembrete: ${e.title} — ${e.allDay ? date : `${fmtTime(e.startAt)}, ${date}`}`, html, text };
 }
 
 export function testEmail(to: string): Email {
