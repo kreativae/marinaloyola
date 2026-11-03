@@ -16,11 +16,12 @@ import {
   StickyNote,
   Trash2,
 } from "lucide-react";
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   appointments,
   contacts,
+  courses,
   contactTags,
   deals,
   eventTypes,
@@ -36,6 +37,9 @@ import { addContactNote, deleteInteraction, setContactStatus, setPaymentStatus }
 import { EmptyState, PageHeader, Panel, StatCard } from "@/components/admin-ui";
 import { SelectAction } from "@/components/admin-client";
 import { ChannelChip, ContactFormButton, DeleteContactButton } from "@/components/contacts-client";
+import { AccountChip, ConvertToStudentButton } from "@/components/team-client";
+import { getSessionUser } from "@/lib/auth";
+import { accountForEmail } from "@/lib/students";
 import { listChannels } from "@/lib/channels";
 import { LocalTime } from "@/components/local-time";
 import { NewContactNoteButton } from "@/components/notes-client";
@@ -107,7 +111,12 @@ export default async function ContactDetailPage({
       .orderBy(desc(notes.pinned), desc(notes.updatedAt)),
     db.select({ waCount: count() }).from(whatsappMessages).where(eq(whatsappMessages.contactId, contactId)),
   ]);
-  const channelOptions = await listChannels();
+  const [channelOptions, me, account, courseRows] = await Promise.all([
+    listChannels(),
+    getSessionUser(),
+    accountForEmail(contact.email),
+    db.select({ id: courses.id, title: courses.title }).from(courses).orderBy(asc(courses.title)),
+  ]);
   const channel = channelOptions.find((c) => c.id === contact.channelId);
 
   const totalSpent = paymentRows
@@ -142,6 +151,15 @@ export default async function ContactDetailPage({
               </Link>
             )}
             {waCount > 0 && <DeleteConversationButton contactId={contact.id} name={contact.name} count={waCount} />}
+            {me?.role === "admin" ? (
+              <ConvertToStudentButton
+                contact={{ contactId: contact.id, name: contact.name, email: contact.email, phone: contact.phone }}
+                courses={courseRows}
+                account={account}
+              />
+            ) : (
+              account && <AccountChip role={account.role} />
+            )}
             <SelectAction
               value={contact.status}
               options={STATUS_OPTIONS}

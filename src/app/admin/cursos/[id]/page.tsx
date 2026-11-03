@@ -307,9 +307,8 @@ export default async function AdminCourseDetailPage({
                 <UserPlus size={14} /> Dar acesso ao curso
               </button>
               <p className="text-[11px] leading-relaxed text-zinc-500">
-                Se o email ainda não existir, é criada uma conta com a password provisória{" "}
-                <span className="font-semibold text-zinc-500">aluno123</span> e enviadas as
-                instruções de primeiro acesso.
+                Se o email ainda não existir, é criada uma conta com uma palavra-passe aleatória, enviada à aluna
+                no email de boas-vindas (precisa do Resend). Também pode criar a conta em Configurações → Equipa.
               </p>
             </form>
             {enrolledRows.length === 0 ? (

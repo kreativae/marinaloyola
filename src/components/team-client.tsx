@@ -3,15 +3,18 @@
 import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { GraduationCap, KeyRound, Loader2, Mail, Pencil, Plus, Search, ShieldCheck, ShieldOff, Smartphone, Tag, Trash2, User, UserPlus, Users } from "lucide-react";
-import { Field, FormSection, IconInput, Modal, ModalFooter, PillGroup } from "@/components/form-kit";
-import { createTag, deleteTag, deleteUser, saveUser, setUserPassword, updateTag, type TeamResult } from "@/lib/actions-team";
+import { BookOpen, Check, Copy, Contact, GraduationCap, KeyRound, Loader2, Mail, Pencil, Phone, Plus, Search, Send, ShieldCheck, ShieldOff, Smartphone, Tag, Trash2, User, UserPlus, Users, X } from "lucide-react";
+import { Field, FormSection, IconInput, Modal, ModalFooter, PillGroup, ToggleRow } from "@/components/form-kit";
+import { createTag, deleteTag, deleteUser, saveUser, searchContactsForAccount, setUserPassword, updateTag, type TeamResult } from "@/lib/actions-team";
 import { resetUserTwoFactor } from "@/lib/actions-2fa";
 import { cn, num } from "@/lib/utils";
 
 /* ------------------------------ UTILIZADORES ----------------------------- */
 
 export type TeamUser = { id: number; name: string; email: string; role: string; createdAt: string; twoFactor?: boolean };
+export type CourseOption = { id: number; title: string };
+/** Dados de um contacto do CRM para pré-preencher a conta nova. */
+export type AccountPrefill = { contactId: number; name: string; email: string | null; phone: string | null };
 
 const ROLES: Record<string, { label: string; className: string; icon: typeof Users; hint: string }> = {
   admin: { label: "Super Admin", className: "bg-plum/20 text-plum border-plum/40", icon: ShieldCheck, hint: "Acesso total, incluindo contas e configurações." },
@@ -27,7 +30,7 @@ const initials = (n: string) =>
     .map((p) => p[0]!.toUpperCase())
     .join("");
 
-export function UserManager({ users, meId, canManage }: { users: TeamUser[]; meId: number; canManage: boolean }) {
+export function UserManager({ users, meId, canManage, courses = [] }: { users: TeamUser[]; meId: number; canManage: boolean; courses?: CourseOption[] }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [role, setRole] = useState("all");
@@ -202,6 +205,7 @@ export function UserManager({ users, meId, canManage }: { users: TeamUser[]; meI
             key={editing === "new" ? "new" : editing.id}
             user={editing === "new" ? null : editing}
             isMe={editing !== "new" && editing.id === meId}
+            courses={courses}
             onDone={() => {
               setEditing(null);
               router.refresh();
@@ -217,26 +221,66 @@ export function UserManager({ users, meId, canManage }: { users: TeamUser[]; meI
   );
 }
 
-function UserForm({ user, isMe, onDone }: { user: TeamUser | null; isMe: boolean; onDone: () => void }) {
+function UserForm({
+  user,
+  isMe,
+  onDone,
+  courses = [],
+  prefill,
+  defaultRole,
+}: {
+  user: TeamUser | null;
+  isMe: boolean;
+  onDone: () => void;
+  courses?: CourseOption[];
+  prefill?: AccountPrefill;
+  defaultRole?: string;
+}) {
   const [state, action, pending] = useActionState<TeamResult | null, FormData>(saveUser.bind(null, user?.id ?? null), null);
-  const [role, setRole] = useState(user?.role ?? "staff");
+  const [role, setRole] = useState(user?.role ?? defaultRole ?? "staff");
+  const [from, setFrom] = useState<AccountPrefill | null>(prefill ?? null);
+  const [name, setName] = useState(user?.name ?? prefill?.name ?? "");
+  const [email, setEmail] = useState(user?.email ?? prefill?.email ?? "");
+  const [phone, setPhone] = useState(prefill?.phone ?? "");
+  const created = !user && state?.ok;
   useEffect(() => {
-    if (state?.ok) onDone();
-  }, [state, onDone]);
+    if (state?.ok && user) onDone();
+  }, [state, onDone, user]);
+
+  if (created) return <AccountCreated result={state} email={email} onDone={onDone} />;
+
+  const pick = (c: AccountPrefill) => {
+    setFrom(c);
+    setName(c.name);
+    setEmail(c.email ?? "");
+    setPhone(c.phone ?? "");
+    setRole("student");
+  };
 
   return (
     <form action={action}>
+      {!user && !prefill && <ContactPicker selected={from} onPick={pick} onClear={() => setFrom(null)} />}
+      {from && <input type="hidden" name="contactId" value={from.contactId} />}
       <FormSection icon={User} title="Dados">
         <Field label="Nome" required>
           <IconInput icon={User}>
-            <input name="name" required defaultValue={user?.name} className="field" data-autofocus />
+            <input name="name" required value={name} onChange={(e) => setName(e.target.value)} className="field" data-autofocus />
           </IconInput>
         </Field>
-        <Field label="Email" required hint="É com este email que a pessoa entra na plataforma.">
-          <IconInput icon={Mail}>
-            <input name="email" type="email" required defaultValue={user?.email} className="field" />
-          </IconInput>
-        </Field>
+        <div className={cn("grid gap-4", !user && "sm:grid-cols-2")}>
+          <Field label="Email" required hint="É com este email que a pessoa entra na plataforma.">
+            <IconInput icon={Mail}>
+              <input name="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="field" />
+            </IconInput>
+          </Field>
+          {!user && (
+            <Field label="Telefone">
+              <IconInput icon={Phone}>
+                <input name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+351 …" className="field" />
+              </IconInput>
+            </Field>
+          )}
+        </div>
       </FormSection>
       <FormSection icon={ShieldCheck} title="Perfil de acesso">
         {isMe && user?.role === "admin" ? (
@@ -256,13 +300,32 @@ function UserForm({ user, isMe, onDone }: { user: TeamUser | null; isMe: boolean
           </>
         )}
       </FormSection>
+      {!user && role === "student" && courses.length > 0 && (
+        <FormSection icon={BookOpen} title="Acesso aos cursos">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {courses.map((c) => (
+              <label key={c.id} className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm text-zinc-700 transition-colors has-[:checked]:border-plum has-[:checked]:bg-plum/[0.04]">
+                <input type="checkbox" name="courseId" value={c.id} className="h-4 w-4 accent-plum" />
+                <span className="min-w-0 truncate">{c.title}</span>
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-zinc-500">Opcional: também pode dar acesso mais tarde, na página de cada curso.</p>
+        </FormSection>
+      )}
       {!user && (
-        <FormSection icon={KeyRound} title="Palavra-passe">
-          <Field label="Palavra-passe inicial" required hint="Mínimo 8 caracteres. Envie-a à pessoa por um canal seguro.">
+        <FormSection icon={KeyRound} title="Acesso">
+          <Field label="Palavra-passe inicial" hint="Deixe vazio para gerar uma automaticamente (mínimo 8 caracteres se a escrever).">
             <IconInput icon={KeyRound}>
-              <input name="password" type="password" minLength={8} required autoComplete="new-password" className="field" />
+              <input name="password" type="password" minLength={8} autoComplete="new-password" placeholder="Gerar automaticamente" className="field" />
             </IconInput>
           </Field>
+          <ToggleRow
+            name="sendWelcome"
+            label="Enviar email de boas-vindas com os dados de acesso"
+            description="Link para entrar, email e palavra-passe provisória. Precisa do Resend configurado."
+            defaultChecked
+          />
         </FormSection>
       )}
       <ModalFooter error={state && !state.ok ? state.error : undefined}>
@@ -274,6 +337,177 @@ function UserForm({ user, isMe, onDone }: { user: TeamUser | null; isMe: boolean
         </button>
       </ModalFooter>
     </form>
+  );
+}
+
+type ContactHit = Awaited<ReturnType<typeof searchContactsForAccount>>[number];
+
+/** Procura um contacto do CRM para trazer o nome, o email e o telefone. */
+function ContactPicker({ selected, onPick, onClear }: { selected: AccountPrefill | null; onPick: (c: AccountPrefill) => void; onClear: () => void }) {
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState<ContactHit[]>([]);
+  const [searching, start] = useTransition();
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) return;
+    const t = setTimeout(() => start(async () => setHits(await searchContactsForAccount(term))), 250);
+    return () => clearTimeout(t);
+  }, [q]);
+  const shown = q.trim().length < 2 ? [] : hits;
+
+  if (selected) {
+    return (
+      <div className="mb-6 flex items-center gap-3 rounded-2xl border border-plum/25 bg-plum/[0.04] px-4 py-3">
+        <Contact size={16} className="shrink-0 text-plum" />
+        <p className="min-w-0 flex-1 text-sm text-zinc-700">
+          Dados de <b className="text-zinc-900">{selected.name}</b>, dos contactos. A conta fica ligada à ficha.
+        </p>
+        <button type="button" onClick={onClear} className="rounded-full p-1 text-zinc-400 hover:bg-white hover:text-zinc-700" aria-label="Não usar este contacto">
+          <X size={15} />
+        </button>
+      </div>
+    );
+  }
+  return (
+    <FormSection icon={Contact} title="Importar de um contacto">
+      <div className="relative">
+        <IconInput icon={Search} suffix={searching ? <Loader2 size={14} className="animate-spin" /> : undefined}>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Procurar lead ou contacto por nome, email ou telefone" className="field" />
+        </IconInput>
+        {shown.length > 0 && (
+          <ul className="absolute inset-x-0 top-full z-30 mt-1.5 max-h-64 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-[0_18px_40px_-16px_rgba(24,24,27,0.35)]">
+            {shown.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  disabled={c.hasAccount || !c.email}
+                  onClick={() => {
+                    onPick({ contactId: c.id, name: c.name, email: c.email, phone: c.phone });
+                    setQ("");
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-plum/10 text-[11px] font-bold text-plum">{initials(c.name)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-zinc-900">{c.name}</span>
+                    <span className="block truncate text-xs text-zinc-500">{c.email ?? "sem email"}{c.phone ? ` · ${c.phone}` : ""}</span>
+                  </span>
+                  {c.hasAccount ? <span className="chip shrink-0 border-zinc-200 bg-zinc-100 text-zinc-500">Já tem conta</span> : !c.email ? <span className="chip shrink-0 border-zinc-200 bg-zinc-100 text-zinc-500">Sem email</span> : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {q.trim().length >= 2 && !searching && hits.length === 0 && <p className="mt-2 text-xs text-zinc-500">Nenhum contacto encontrado.</p>}
+      </div>
+      <p className="text-xs text-zinc-500">Opcional: traz o nome, o email e o telefone, e liga a conta à ficha do contacto.</p>
+    </FormSection>
+  );
+}
+
+/** Confirmação depois de criar a conta: palavra-passe gerada (só aparece aqui) e estado do email. */
+function AccountCreated({ result, email, onDone }: { result: TeamResult; email: string; onDone: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const welcome =
+    result.welcome === "sent"
+      ? { ok: true, text: `Email de boas-vindas enviado para ${email}.` }
+      : result.welcome === "preview"
+        ? { ok: false, text: "O email de boas-vindas não foi enviado: o Resend não está configurado. Envie os dados de acesso por outro canal." }
+        : result.welcome === "failed"
+          ? { ok: false, text: "O email de boas-vindas falhou. Envie os dados de acesso por outro canal." }
+          : null;
+  return (
+    <div className="pb-6">
+      <div className="flex items-start gap-3 rounded-2xl bg-emerald-50 px-4 py-3.5 text-sm text-emerald-900">
+        <Check size={18} className="mt-0.5 shrink-0 text-emerald-600" />
+        <p>
+          Conta de <b>{result.name}</b> criada. Entra com <b>{email}</b>.
+        </p>
+      </div>
+      {result.password && (
+        <div className="mt-4 rounded-2xl border border-zinc-200 p-4">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">Palavra-passe provisória</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <code className="rounded-lg bg-zinc-100 px-3 py-2 font-mono text-base tracking-wide text-zinc-900">{result.password}</code>
+            <button
+              type="button"
+              onClick={async () => {
+                await navigator.clipboard.writeText(result.password!);
+                setCopied(true);
+              }}
+              className="btn-ghost !px-4 !py-2 !text-xs"
+            >
+              {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? "Copiada" : "Copiar"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-zinc-500">Só aparece agora. A pessoa pode trocá-la em Minha conta.</p>
+        </div>
+      )}
+      {welcome && (
+        <p className={cn("mt-4 flex items-start gap-2 text-xs font-medium", welcome.ok ? "text-emerald-700" : "text-amber-700")}>
+          <Send size={13} className="mt-0.5 shrink-0" /> {welcome.text}
+        </p>
+      )}
+      <div className="mt-5 flex justify-end">
+        <button type="button" onClick={onDone} className="btn-primary !px-5 !py-2.5 !text-xs">
+          Concluir
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Etiqueta da ficha do contacto quando já há conta com o mesmo email. */
+export function AccountChip({ role }: { role: string }) {
+  return (
+    <Link
+      href="/admin/config?s=equipa#utilizadores"
+      className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-semibold text-emerald-700"
+      title="Já existe uma conta na plataforma com este email"
+    >
+      <GraduationCap size={14} /> {role === "student" ? "Já é aluna" : "Já tem conta"}
+    </Link>
+  );
+}
+
+/** Ficha do contacto: "Criar conta de aluna" com os dados do contacto já preenchidos. */
+export function ConvertToStudentButton({
+  contact,
+  courses,
+  account,
+}: {
+  contact: AccountPrefill;
+  courses: CourseOption[];
+  /** Conta que já existe com o email do contacto (a janela continua aberta ao mostrar a palavra-passe). */
+  account?: { role: string } | null;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      {account ? (
+        <AccountChip role={account.role} />
+      ) : (
+        <button type="button" onClick={() => setOpen(true)} className="btn-ghost !px-5 !py-2.5 !text-xs">
+          <GraduationCap size={14} /> Converter em aluna
+        </button>
+      )}
+      <Modal open={open} onClose={() => setOpen(false)} title="Criar conta de aluna" description={`A partir do contacto ${contact.name}`} icon={GraduationCap}>
+        {open && (
+          <UserForm
+            user={null}
+            isMe={false}
+            courses={courses}
+            prefill={contact}
+            defaultRole="student"
+            onDone={() => {
+              setOpen(false);
+              router.refresh();
+            }}
+          />
+        )}
+      </Modal>
+    </>
   );
 }
 

@@ -21,8 +21,9 @@ import {
   posts,
   users,
 } from "@/db/schema";
-import { hashPassword, requireAdmin, requireUser } from "@/lib/auth";
+import { requireAdmin, requireUser } from "@/lib/auth";
 import { addInteraction, tagContact } from "@/lib/crm";
+import { createAccount, enrollInCourses } from "@/lib/students";
 import { eur } from "@/lib/utils";
 
 const CONTACT_STATUSES = ["lead", "qualified", "negotiating", "client", "inactive", "lost"] as const;
@@ -229,19 +230,11 @@ export async function enrollStudent(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const courseId = Number(formData.get("courseId"));
   if (!email || !courseId) return;
-  let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (!user) {
-    [user] = await db
-      .insert(users)
-      .values({
-        name: name || email.split("@")[0],
-        email,
-        passwordHash: hashPassword("aluno123"),
-        role: "student",
-      })
-      .returning();
-  }
-  await db.insert(enrollments).values({ userId: user.id, courseId }).onConflictDoNothing();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+  const [user] = await db.select().from(users).where(sql`lower(${users.email}) = ${email}`).limit(1);
+  if (user) await enrollInCourses(user.id, [courseId]);
+  // Conta nova: palavra-passe aleatória, enviada no email de boas-vindas (antes era sempre "aluno123")
+  else await createAccount({ name: name || email.split("@")[0], email, role: "student", courseIds: [courseId], sendWelcome: true });
   refresh(`/admin/cursos/${courseId}`);
 }
 

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { asc, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { channels, contacts, contactTags, passkeys, payments, tags, users } from "@/db/schema";
+import { channels, contacts, contactTags, courses, passkeys, payments, tags, users } from "@/db/schema";
 import { PageHeader, Panel } from "@/components/admin-ui";
 import { CopyButton } from "@/components/admin-client";
 import { RegenerateFeedButton, ServiceForm } from "@/components/config-client";
@@ -388,7 +388,7 @@ async function ServiceExtras({ id }: { id: ServiceId }) {
 }
 
 async function TeamTab() {
-  const [me, tagRows, allUsers, channelRows] = await Promise.all([
+  const [me, tagRows, allUsers, channelRows, courseRows] = await Promise.all([
     getSessionUser(),
     db
       .select({ id: tags.id, name: tags.name, color: tags.color, count: count(contactTags.contactId) })
@@ -406,6 +406,7 @@ async function TeamTab() {
       .leftJoin(contacts, eq(contacts.channelId, channels.id))
       .groupBy(channels.id)
       .orderBy(asc(channels.name)),
+    db.select({ id: courses.id, title: courses.title }).from(courses).orderBy(asc(courses.title)),
   ]);
   const canManage = me?.role === "admin";
   return (
@@ -416,6 +417,7 @@ async function TeamTab() {
             users={allUsers.map(({ totpEnabledAt, ...u }) => ({ ...u, createdAt: u.createdAt.toISOString(), twoFactor: !!totpEnabledAt }))}
             meId={me?.id ?? 0}
             canManage={canManage}
+            courses={courseRows}
           />
           <p className="mt-4 text-[11px] leading-relaxed text-zinc-500">
             Contas de alunas também são criadas automaticamente ao dar acesso a um curso ou por compra via Hotmart.

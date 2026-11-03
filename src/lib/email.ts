@@ -396,6 +396,38 @@ ${e.notes ?? ""}`;
   return { to, subject: `Lembrete: ${e.title} — ${e.allDay ? date : `${fmtTime(e.startAt)}, ${date}`}`, html, text };
 }
 
+export type WelcomeEmailData = { name: string; email: string; password: string; role: string; courses: string[] };
+
+/** Dados de acesso de uma conta nova (palavra-passe provisória, para trocar em Minha conta). */
+export function welcomeEmail(w: WelcomeEmailData, appUrl: string, replyTo: string): Email {
+  const first = w.name.trim().split(/\s+/)[0];
+  const student = w.role === "student";
+  const area = student ? "a sua área de aluna" : "o backoffice";
+  const html = layout(
+    "Bem-vinda",
+    `<h1 style="font-family:Georgia,serif;font-style:italic;font-weight:normal;font-size:28px;color:#18181b;margin:0 0 16px">Bem-vinda, ${escapeHtml(first)}.</h1>
+<p style="margin:0 0 20px">A sua conta na plataforma Marina Loyola está pronta. Estes são os dados para entrar em ${area}:</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:20px">
+${row("Email", escapeHtml(w.email))}
+${row("Palavra-passe", `<span style="font-family:Menlo,Consolas,monospace;font-size:15px;color:#18181b">${escapeHtml(w.password)}</span>`)}
+${w.courses.length ? row(w.courses.length === 1 ? "Curso" : "Cursos", escapeHtml(w.courses.join(", "))) : ""}
+</table>
+${button(`${appUrl}/login`, "Entrar na plataforma")}
+<p style="margin:24px 0 0;font-size:13px;color:#71717a">Por segurança, troque a palavra-passe no primeiro acesso em <b>Minha conta</b>. Alguma dúvida? Basta responder a este email.</p>`
+  );
+  const text = `Bem-vinda, ${first}.
+
+A sua conta na plataforma Marina Loyola está pronta.
+Email: ${w.email}
+Palavra-passe: ${w.password}
+${w.courses.length ? `Cursos: ${w.courses.join(", ")}\n` : ""}
+Entrar: ${appUrl}/login
+
+Por segurança, troque a palavra-passe no primeiro acesso em Minha conta.
+— Marina Loyola`;
+  return { to: w.email, subject: student ? "O seu acesso à área de aluna — Marina Loyola" : "O seu acesso à plataforma — Marina Loyola", html, text, replyTo };
+}
+
 export function testEmail(to: string): Email {
   const html = layout(
     "Email de teste",
