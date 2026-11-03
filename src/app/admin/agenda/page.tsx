@@ -22,6 +22,7 @@ import { CopyToWeekdays, DayHoursRow, type DayHours } from "@/components/availab
 import { EmptyState, PageHeader, Panel } from "@/components/admin-ui";
 import { CopyButton, SelectAction } from "@/components/admin-client";
 import { CalendarSync, MonthCalendar, NewAgendaEventButton, WeekCalendar, type CalEvent } from "@/components/agenda-calendar";
+import { remindLabel, repeatLabel, type RepeatRule } from "@/lib/agenda-def";
 import { calendarStatus, getBusy } from "@/lib/calendar";
 import { appUrl } from "@/lib/settings";
 import { cityOf, countryOfTz, dayIn, flag, fmtTime, HOME_TZ } from "@/lib/timezones";
@@ -517,7 +518,14 @@ async function CalendarSection({
         id: ev.id,
         kind: "event" as const,
         title: ev.title,
-        subtitle: [ev.blocksBooking ? "Bloqueia marcações" : "Não bloqueia marcações", ev.location].filter(Boolean).join(" · "),
+        subtitle: [
+          ev.blocksBooking ? "Bloqueia marcações" : "Não bloqueia marcações",
+          repeatLabel(ev.repeat as RepeatRule | null, ev.startAt),
+          ev.remindMin != null ? `Lembrete: ${remindLabel(ev.remindMin)}` : null,
+          ev.location,
+        ]
+          .filter(Boolean)
+          .join(" · "),
         ...seg,
         timeLabel: ev.allDay ? "Dia inteiro" : `${hm(ev.startAt)}–${hm(ev.endAt)}`,
         dateLabel: dateLabel(ev.startAt),
@@ -535,6 +543,10 @@ async function CalendarSection({
           notes: ev.notes,
           location: ev.location,
           color: ev.color,
+          seriesId: ev.seriesId,
+          repeat: ev.repeat as RepeatRule | null,
+          remindMin: ev.remindMin,
+          remindTo: ev.remindTo,
         },
       }));
     }),

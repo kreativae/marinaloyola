@@ -333,6 +333,13 @@ export const agendaEvents = pgTable("agenda_events", {
   allDay: boolean("all_day").notNull().default(false),
   blocksBooking: boolean("blocks_booking").notNull().default(true),
   color: text("color").notNull().default("#0ea5e9"),
+  // Repetições: cada ocorrência é uma linha; as da mesma série partilham o seriesId
+  seriesId: text("series_id"),
+  repeat: jsonb("repeat").$type<{ freq: string; until: string | null; count: number | null }>(),
+  // Lembrete por email: minutos antes do início (null = sem lembrete)
+  remindMin: integer("remind_min"),
+  remindTo: text("remind_to"),
+  remindedAt: timestamp("reminded_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
