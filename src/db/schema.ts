@@ -70,6 +70,13 @@ export const users = pgTable("users", {
   phone: text("phone"),
   lastLoginAt: timestamp("last_login_at"),
   passwordChangedAt: timestamp("password_changed_at"),
+  /** Verificação em dois passos (app autenticadora): segredo cifrado, ativa quando há data. */
+  totpSecret: text("totp_secret"),
+  totpEnabledAt: timestamp("totp_enabled_at"),
+  /** Último intervalo de 30 s aceite: o mesmo código não serve duas vezes. */
+  totpLastStep: integer("totp_last_step"),
+  /** Códigos de recuperação (sha256), cada um só serve uma vez. */
+  totpRecovery: jsonb("totp_recovery").$type<string[]>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

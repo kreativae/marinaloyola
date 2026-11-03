@@ -1,9 +1,10 @@
-import { CalendarClock, Fingerprint, Hash, KeyRound, LogIn, ShieldCheck } from "lucide-react";
+import { CalendarClock, Fingerprint, Hash, KeyRound, LogIn, ShieldCheck, Smartphone } from "lucide-react";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { passkeys, type User } from "@/db/schema";
 import { Panel } from "@/components/admin-ui";
 import { PasskeyManager, PasswordChangeForm, ProfileForm } from "@/components/account-client";
+import { TwoFactorManager } from "@/components/two-factor-client";
 import { passkeyLoginEnabled } from "@/lib/actions-account";
 import { fmtDateTime } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ export async function AccountView({ user }: { user: User }) {
     { icon: LogIn, label: "Última entrada", value: user.lastLoginAt ? fmtDateTime(user.lastLoginAt) : "—" },
     { icon: KeyRound, label: "Palavra-passe alterada", value: user.passwordChangedAt ? fmtDateTime(user.passwordChangedAt) : "Nunca" },
     { icon: Fingerprint, label: "Face ID", value: keys.length ? `Ativo em ${keys.length} aparelho${keys.length > 1 ? "s" : ""}` : "Não ativado" },
+    { icon: Smartphone, label: "Dois passos", value: user.totpEnabledAt ? "Ativa" : "Não ativada" },
     { icon: Hash, label: "N.º da conta", value: `#${user.id}` },
   ];
 
@@ -40,6 +42,9 @@ export async function AccountView({ user }: { user: User }) {
               lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
             }))}
           />
+        </Panel>
+        <Panel title="Verificação em dois passos" description="Um código do telemóvel além da palavra-passe.">
+          <TwoFactorManager enabledAt={user.totpEnabledAt?.toISOString() ?? null} recoveryLeft={user.totpRecovery?.length ?? 0} />
         </Panel>
         <Panel>
           <ProfileForm name={user.name} email={user.email} phone={user.phone ?? ""} />

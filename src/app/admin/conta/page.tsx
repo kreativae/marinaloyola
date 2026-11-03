@@ -10,7 +10,7 @@ export default async function MinhaContaPage() {
   const user = await requireAdmin();
   return (
     <>
-      <PageHeader title="Minha conta" subtitle="Os seus dados, palavra-passe e entrada com Face ID." />
+      <PageHeader title="Minha conta" subtitle="Os seus dados, palavra-passe, Face ID e verificação em dois passos." />
       <AccountView user={user} />
     </>
   );

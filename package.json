@@ -14,7 +14,8 @@
     "db:init": "tsx scripts/init.ts",
     "db:deploy": "drizzle-kit push && tsx scripts/init.ts",
     "db:demo": "TZ=Europe/Lisbon tsx scripts/demo.ts",
-    "db:demo-novembro": "TZ=Europe/Lisbon tsx scripts/demo-novembro.ts"
+    "db:demo-novembro": "TZ=Europe/Lisbon tsx scripts/demo-novembro.ts",
+    "db:2fa-off": "tsx scripts/desligar-2fa.ts"
   },
   "dependencies": {
     "@simplewebauthn/browser": "^14.0.0",
@@ -25,6 +26,7 @@
     "lucide-react": "^1.64.0",
     "next": "16.4.3",
     "pg": "8.20.0",
+    "qrcode": "^1.5.4",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "tsx": "^4.23.15"
@@ -33,6 +35,7 @@
     "@tailwindcss/postcss": "4.1.17",
     "@types/node": "22.19.15",
     "@types/pg": "8.18.0",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.4",

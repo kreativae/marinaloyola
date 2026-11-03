@@ -50,6 +50,11 @@ function sign(payload: string) {
   return crypto.createHmac("sha256", secret()).update(payload).digest("hex");
 }
 
+/** Chave de 32 bytes derivada do AUTH_SECRET para um fim específico (ex: cifrar o segredo do 2FA). */
+export function deriveKey(purpose: string) {
+  return crypto.createHmac("sha256", secret()).update(`key:${purpose}`).digest();
+}
+
 /** Regras de sessão definidas em Configurações → Segurança. */
 async function sessionRules() {
   const raw = await readRaw(["session_days", "session_epoch"]);
@@ -101,6 +106,39 @@ export async function takeChallenge(userId = 0) {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   if (Number(uid) !== userId || Number(exp) < Date.now()) return null;
   return challenge;
+}
+
+/**
+ * Palavra-passe certa, falta o código do 2FA: cookie assinado de 5 minutos com a conta e o instante,
+ * que só /login/verificar aceita. Sem ele não há sessão.
+ */
+const PENDING = "ml_2fa";
+
+export async function storePendingLogin(userId: number) {
+  const store = await cookies();
+  const payload = `${userId}.${Date.now() + 5 * 60_000}`;
+  store.set(PENDING, `${payload}.${sign(`2fa:${payload}`)}`, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 300,
+  });
+}
+
+/** Conta à espera do código (ou null se expirou); `consume` apaga o cookie. */
+export async function readPendingLogin(consume = false) {
+  const store = await cookies();
+  const raw = store.get(PENDING)?.value;
+  if (consume) store.delete(PENDING);
+  if (!raw) return null;
+  const [uid, exp, sig] = raw.split(".");
+  const a = Buffer.from(sign(`2fa:${uid}.${exp}`));
+  const b = Buffer.from(sig ?? "");
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  if (Number(exp) < Date.now()) return null;
+  const id = Number(uid);
+  return Number.isInteger(id) ? id : null;
 }
 
 export async function destroySession() {

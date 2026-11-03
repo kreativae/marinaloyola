@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { and, eq, gt, gte, lt, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { agendaEvents, appointments, availability, eventTypes, users } from "@/db/schema";
-import { createSession, destroySession, verifyPassword } from "@/lib/auth";
+import { createSession, destroySession, storePendingLogin, verifyPassword } from "@/lib/auth";
 import { addInteraction, findOrCreateContact, tagContact } from "@/lib/crm";
 import { getBusy } from "@/lib/calendar";
 import { bookingConfirmationEmail, bookingNotificationEmail, getEmailConfig, sendEmail } from "@/lib/email";
@@ -33,6 +33,11 @@ export async function login(formData: FormData) {
     redirect(guard && isLocked(email) ? "/login?erro=bloqueado" : "/login?erro=1");
   }
   clearFailures(email);
+  // Com verificação em dois passos, a sessão só é criada depois do código da app
+  if (user.totpEnabledAt) {
+    await storePendingLogin(user.id);
+    redirect("/login/verificar");
+  }
   await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
   await createSession(user.id);
   redirect(user.role === "student" ? "/aluno" : "/admin");

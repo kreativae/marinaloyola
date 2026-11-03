@@ -3,14 +3,15 @@
 import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { GraduationCap, KeyRound, Loader2, Mail, Pencil, Plus, Search, ShieldCheck, Tag, Trash2, User, UserPlus, Users } from "lucide-react";
+import { GraduationCap, KeyRound, Loader2, Mail, Pencil, Plus, Search, ShieldCheck, ShieldOff, Smartphone, Tag, Trash2, User, UserPlus, Users } from "lucide-react";
 import { Field, FormSection, IconInput, Modal, ModalFooter, PillGroup } from "@/components/form-kit";
 import { createTag, deleteTag, deleteUser, saveUser, setUserPassword, updateTag, type TeamResult } from "@/lib/actions-team";
+import { resetUserTwoFactor } from "@/lib/actions-2fa";
 import { cn, num } from "@/lib/utils";
 
 /* ------------------------------ UTILIZADORES ----------------------------- */
 
-export type TeamUser = { id: number; name: string; email: string; role: string; createdAt: string };
+export type TeamUser = { id: number; name: string; email: string; role: string; createdAt: string; twoFactor?: boolean };
 
 const ROLES: Record<string, { label: string; className: string; icon: typeof Users; hint: string }> = {
   admin: { label: "Super Admin", className: "bg-plum/20 text-plum border-plum/40", icon: ShieldCheck, hint: "Acesso total, incluindo contas e configurações." },
@@ -53,6 +54,16 @@ export function UserManager({ users, meId, canManage }: { users: TeamUser[]; meI
       setError(null);
       const r = await deleteUser(u.id);
       if (!r.ok) setError(r.error ?? "Não foi possível apagar.");
+      router.refresh();
+    });
+  };
+
+  const resetTwoFactor = (u: TeamUser) => {
+    if (!confirm(`Desligar a verificação em dois passos de “${u.name}”? Volta a entrar só com a palavra-passe até a ativar outra vez.`)) return;
+    start(async () => {
+      setError(null);
+      const r = await resetUserTwoFactor(u.id);
+      if (!r.ok) setError(r.error ?? "Não foi possível desligar.");
       router.refresh();
     });
   };
@@ -118,8 +129,15 @@ export function UserManager({ users, meId, canManage }: { users: TeamUser[]; meI
                   </td>
                   <td className="admin-td hidden text-zinc-500 sm:table-cell">{u.email}</td>
                   <td className="admin-td">
-                    <span className={`chip ${r?.className ?? ""}`}>
-                      <Icon size={11} /> {r?.label ?? u.role}
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className={`chip ${r?.className ?? ""}`}>
+                        <Icon size={11} /> {r?.label ?? u.role}
+                      </span>
+                      {u.twoFactor && (
+                        <span className="chip border-emerald-500/30 bg-emerald-500/10 text-emerald-700" title="Verificação em dois passos ativa">
+                          <Smartphone size={11} /> 2 passos
+                        </span>
+                      )}
                     </span>
                   </td>
                   <td className="admin-td hidden text-xs text-zinc-500 md:table-cell">{new Date(u.createdAt).toLocaleDateString("pt-PT")}</td>
@@ -132,6 +150,18 @@ export function UserManager({ users, meId, canManage }: { users: TeamUser[]; meI
                         <button type="button" onClick={() => setPwFor(u)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-plum" aria-label={`Trocar a palavra-passe de ${u.name}`} title="Trocar palavra-passe">
                           <KeyRound size={14} />
                         </button>
+                        {u.twoFactor && u.id !== meId && (
+                          <button
+                            type="button"
+                            disabled={pending}
+                            onClick={() => resetTwoFactor(u)}
+                            className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-amber-600"
+                            aria-label={`Desligar a verificação em dois passos de ${u.name}`}
+                            title="Desligar verificação em dois passos (perdeu o telemóvel)"
+                          >
+                            <ShieldOff size={14} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           disabled={pending || u.id === meId}

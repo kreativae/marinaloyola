@@ -397,7 +397,7 @@ async function TeamTab() {
       .groupBy(tags.id)
       .orderBy(asc(tags.name)),
     db
-      .select({ id: users.id, name: users.name, email: users.email, role: users.role, createdAt: users.createdAt })
+      .select({ id: users.id, name: users.name, email: users.email, role: users.role, createdAt: users.createdAt, totpEnabledAt: users.totpEnabledAt })
       .from(users)
       .orderBy(asc(sql`case ${users.role} when 'admin' then 0 when 'staff' then 1 else 2 end`), desc(users.createdAt)),
     db
@@ -413,7 +413,7 @@ async function TeamTab() {
       <div id="utilizadores" className="scroll-mt-6">
         <Panel title={`Utilizadores da plataforma (${allUsers.length})`}>
           <UserManager
-            users={allUsers.map((u) => ({ ...u, createdAt: u.createdAt.toISOString() }))}
+            users={allUsers.map(({ totpEnabledAt, ...u }) => ({ ...u, createdAt: u.createdAt.toISOString(), twoFactor: !!totpEnabledAt }))}
             meId={me?.id ?? 0}
             canManage={canManage}
           />
