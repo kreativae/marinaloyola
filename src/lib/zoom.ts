@@ -73,6 +73,22 @@ export async function testZoom(c: ZoomConfig) {
 }
 
 /**
+ * Cria uma reunião na conta Zoom e devolve o link de entrada (lança se a API falhar).
+ * `recurring`: reunião sem hora fixa (tipo 3), cujo link serve para todas as repetições de um evento.
+ */
+export async function createZoomMeeting(c: ZoomConfig, topic: string, startAt: Date, durationMin: number, recurring = false) {
+  const m = await zoomApi<{ join_url: string }>(c, "POST", "/users/me/meetings", {
+    topic: topic.slice(0, 200),
+    type: recurring ? 3 : 2,
+    ...(recurring ? {} : { start_time: startAt.toISOString().replace(/\.\d{3}Z$/, "Z") }),
+    duration: durationMin,
+    timezone: "Europe/Lisbon",
+    settings: { join_before_host: false, waiting_room: true },
+  });
+  return m.join_url;
+}
+
+/**
  * Link para um novo agendamento. Nunca lança: se a API falhar, usa a sala fixa (se houver)
  * e devolve o erro para ficar registado no histórico do contacto.
  */
@@ -81,15 +97,7 @@ export async function meetingLinkFor(topic: string, startAt: Date, durationMin: 
   if (c.mode === "off") return { url: null, source: "off" as const };
   if (c.mode === "api" && hasApiCredentials(c)) {
     try {
-      const m = await zoomApi<{ join_url: string }>(c, "POST", "/users/me/meetings", {
-        topic,
-        type: 2,
-        start_time: startAt.toISOString().replace(/\.\d{3}Z$/, "Z"),
-        duration: durationMin,
-        timezone: "Europe/Lisbon",
-        settings: { join_before_host: false, waiting_room: true },
-      });
-      return { url: m.join_url, source: "api" as const };
+      return { url: await createZoomMeeting(c, topic, startAt, durationMin), source: "api" as const };
     } catch (e) {
       return { url: c.fixedUrl || null, source: "fixed" as const, error: e instanceof Error ? e.message : String(e) };
     }

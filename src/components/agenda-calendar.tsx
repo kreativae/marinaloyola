@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Bell, CalendarDays, CalendarPlus, Check, Clock, Loader2, Mail, MapPin, Move, PenLine, Phone, RefreshCw, Repeat, Send, Trash2, Undo2, UserRound, Video, X } from "lucide-react";
 import { setAppointmentStatus } from "@/lib/actions-admin";
-import { deleteAgendaEvent, moveAgendaEvent, notifyReschedule, rescheduleAppointment, saveAgendaEvent, type AgendaEventResult } from "@/lib/actions-agenda";
+import { createEventZoomLink, deleteAgendaEvent, moveAgendaEvent, notifyReschedule, rescheduleAppointment, saveAgendaEvent, type AgendaEventResult } from "@/lib/actions-agenda";
 import { syncGoogleCalendar } from "@/lib/actions-config";
 import { SelectAction, CopyButton } from "@/components/admin-client";
 import { Field, FormSection, IconInput, Modal, ModalFooter, PillGroup, ToggleRow } from "@/components/form-kit";
@@ -862,6 +862,26 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
   const [repeatEnd, setRepeatEnd] = useState(draft.repeat?.count ? "count" : draft.repeat?.until ? "until" : "never");
   const [remind, setRemind] = useState(draft.remindMin == null ? "" : String(draft.remindMin));
   const [askDelete, setAskDelete] = useState(false);
+  const [location, setLocation] = useState(draft.location ?? "");
+  const [zoomMsg, setZoomMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [zooming, startZoom] = useTransition();
+  const titleRef = useRef<HTMLInputElement>(null);
+  const makeZoom = () =>
+    startZoom(async () => {
+      setZoomMsg(null);
+      const r = await createEventZoomLink({
+        title: titleRef.current?.value ?? "",
+        date,
+        start: allDay ? undefined : start,
+        end: allDay ? undefined : end,
+        allDay,
+        recurring: repeatEditable ? repeat !== "none" : Boolean(draft.seriesId),
+      });
+      if (r.ok) {
+        setLocation(r.url);
+        setZoomMsg(r.note ? { ok: true, text: r.note } : null);
+      } else setZoomMsg({ ok: false, text: r.error });
+    });
   const [deleting, startDelete] = useTransition();
   const repeatEditable = !inSeries || scope === "future";
   const [dy, dm, dd] = date.split("-").map(Number);
@@ -932,7 +952,7 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
     >
       <FormSection icon={PenLine} title="O quê">
         <Field label="Título" required>
-          <input name="title" required data-autofocus defaultValue={draft.title} placeholder="Ex.: Reunião com fornecedor, consulta médica, viagem…" className="field !text-base" />
+          <input ref={titleRef} name="title" required data-autofocus defaultValue={draft.title} placeholder="Ex.: Reunião com fornecedor, consulta médica, viagem…" className="field !text-base" />
         </Field>
         <Field label="Cor">
           <PillGroup name="color" defaultValue={draft.color ?? EVENT_COLORS[0].value} options={EVENT_COLORS.map((c) => ({ value: c.value, label: c.label, color: c.value }))} size="sm" />
@@ -1098,9 +1118,22 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
 
       <FormSection icon={MapPin} title="Detalhes">
         <Field label="Local ou link">
-          <IconInput icon={MapPin}>
-            <input name="location" defaultValue={draft.location ?? ""} placeholder="Morada, sala ou link da videochamada" className="field" />
-          </IconInput>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="min-w-0 flex-1">
+              <IconInput icon={MapPin}>
+                <input name="location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Morada, sala ou link da videochamada" className="field" />
+              </IconInput>
+            </div>
+            <button
+              type="button"
+              onClick={makeZoom}
+              disabled={zooming}
+              className="btn-ghost shrink-0 justify-center !px-4 !py-2.5 !text-xs disabled:opacity-60"
+            >
+              {zooming ? <Loader2 size={14} className="animate-spin" /> : <Video size={14} />} {location.includes("zoom.us") ? "Gerar outro link Zoom" : "Gerar link Zoom"}
+            </button>
+          </div>
+          {zoomMsg && <p className={cn("mt-1.5 text-xs font-medium", zoomMsg.ok ? "text-emerald-700" : "text-rose-600")}>{zoomMsg.text}</p>}
         </Field>
         <Field label="Notas">
           <textarea name="notes" rows={3} defaultValue={draft.notes ?? ""} className="field resize-y" />

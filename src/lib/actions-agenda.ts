@@ -11,6 +11,7 @@ import { addInteraction } from "@/lib/crm";
 import { bookingRescheduleEmail, getEmailConfig, sendEmail } from "@/lib/email";
 import { cityOf, countryOfTz, dualDateTime, flag, fmtTime, HOME_TZ } from "@/lib/timezones";
 import { sendWhatsappToContact } from "@/lib/whatsapp";
+import { createZoomMeeting, getZoomConfig, hasApiCredentials } from "@/lib/zoom";
 
 const fmt = (d: Date) =>
   new Intl.DateTimeFormat("pt-PT", {
@@ -308,6 +309,39 @@ export async function saveAgendaEvent(id: number | null, _prev: AgendaEventResul
       ? `Atenção: já tem ${clashes.length === 1 ? "1 sessão" : `${clashes.length} sessões`} marcada${clashes.length === 1 ? "" : "s"} ${created > 1 ? "nestes horários" : "neste período"} (${[...new Set(clashes.map((c) => c.name))].slice(0, 6).join(", ")}).`
       : undefined,
   };
+}
+
+/**
+ * Botão "Gerar link Zoom" do formulário de evento. Com a API do Zoom ligada cria uma reunião nova
+ * (sem hora fixa quando o evento se repete); senão usa a sala fixa de Configurações → Zoom.
+ */
+export async function createEventZoomLink(input: {
+  title: string;
+  date: string;
+  start?: string;
+  end?: string;
+  allDay: boolean;
+  recurring: boolean;
+}): Promise<{ ok: true; url: string; note?: string } | { ok: false; error: string }> {
+  await requireAdmin();
+  if (!DAY_RE.test(input.date)) return { ok: false, error: "Escolha primeiro o dia do evento." };
+  const c = await getZoomConfig();
+  const fixed = c.fixedUrl ? { ok: true as const, url: c.fixedUrl, note: "Sala fixa do Zoom (Configurações → Zoom)." } : null;
+  if (c.mode !== "api" || !hasApiCredentials(c)) {
+    return fixed ?? { ok: false, error: "Ligue o Zoom em Configurações → Zoom (API ou sala fixa) para gerar links." };
+  }
+  const start = input.allDay || !TIME_RE.test(input.start ?? "") ? at(input.date, "09:00") : at(input.date, input.start);
+  const endMin = TIME_RE.test(input.end ?? "") ? Number(input.end!.slice(0, 2)) * 60 + Number(input.end!.slice(3, 5)) : 0;
+  const startMin = start.getHours() * 60 + start.getMinutes();
+  const duration = input.allDay ? 60 : Math.max(15, Math.min(24 * 60, endMin - startMin || 60));
+  try {
+    const url = await createZoomMeeting(c, input.title.trim() || "Reunião — Marina Loyola", start, duration, input.recurring);
+    return { ok: true, url, note: input.recurring ? "Reunião Zoom criada, com o mesmo link para todas as repetições." : "Reunião Zoom criada." };
+  } catch (e) {
+    console.error("[zoom] link de evento falhou:", e);
+    const msg = e instanceof Error ? e.message : "erro desconhecido";
+    return fixed ? { ...fixed, note: `A API do Zoom falhou (${msg}); foi usada a sala fixa.` } : { ok: false, error: `O Zoom recusou: ${msg}` };
+  }
 }
 
 /** Apaga um compromisso; numa série, só esta ocorrência, esta e as seguintes, ou todas. */
