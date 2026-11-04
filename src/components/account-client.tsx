@@ -415,7 +415,7 @@ export function SecurityForm({
           <ToggleRow
             name="passkey_login"
             label="Permitir entrar com Face ID"
-            description="Equipa e alunas ativam o Face ID / Touch ID em “Minha conta”. Desligar bloqueia de imediato esta forma de entrar."
+            description="Equipa e estudantes ativam o Face ID / Touch ID em “Minha conta”. Desligar bloqueia de imediato esta forma de entrar."
             defaultChecked={passkeyLogin}
           />
           <ToggleRow

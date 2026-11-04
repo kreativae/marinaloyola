@@ -340,6 +340,9 @@ export const agendaEvents = pgTable("agenda_events", {
   remindMin: integer("remind_min"),
   remindTo: text("remind_to"),
   remindedAt: timestamp("reminded_at"),
+  // Contacto ligado ao evento e se recebe o convite e os lembretes por email
+  contactId: integer("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+  emailContact: boolean("email_contact").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -387,7 +390,7 @@ export const lessons = pgTable("lessons", {
 
 /**
  * Ficheiros complementares de um curso (ou de uma aula), guardados em disco fora de /public
- * e servidos só a alunas inscritas.
+ * e servidos só a estudantes inscritas.
  */
 export const courseFiles = pgTable("course_files", {
   id: serial("id").primaryKey(),
@@ -419,7 +422,7 @@ export const quizQuestions = pgTable("quiz_questions", {
 });
 
 /**
- * Tentativa de uma aluna: guarda as questões sorteadas e a ordem baralhada das opções,
+ * Tentativa de uma estudante: guarda as questões sorteadas e a ordem baralhada das opções,
  * para a correcção ser feita no servidor (as respostas certas nunca vão para o browser).
  */
 export const quizAttempts = pgTable("quiz_attempts", {

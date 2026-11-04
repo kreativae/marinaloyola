@@ -1,6 +1,6 @@
-import { and, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { agendaEvents } from "@/db/schema";
+import { agendaEvents, contacts } from "@/db/schema";
 import { ALL_DAY_REMIND_HOUR } from "@/lib/agenda-def";
 import { eventReminderEmail, getEmailConfig, sendEmail } from "@/lib/email";
 
@@ -42,11 +42,15 @@ export async function sendDueReminders() {
 
   const mail = await getEmailConfig();
   for (const ev of claimed) {
-    const to = [mail.notifyEmail, ...(ev.remindTo ?? "").split(/,\s*/)].filter(Boolean);
+    const [contact] =
+      ev.emailContact && ev.contactId
+        ? await db.select({ email: contacts.email }).from(contacts).where(eq(contacts.id, ev.contactId)).limit(1)
+        : [];
+    const to = [mail.notifyEmail, ...(ev.remindTo ?? "").split(/,\s*/), contact?.email ?? ""].filter(Boolean);
     const data = { ...ev, when: whenLabel(ev.startAt, ev.allDay) };
     for (const addr of new Set(to)) {
       try {
-        await sendEmail(eventReminderEmail(data, addr, mail.appUrl));
+        await sendEmail(eventReminderEmail(data, addr, mail.appUrl, addr === mail.notifyEmail));
       } catch (e) {
         console.error(`[lembrete] "${ev.title}" para ${addr} falhou:`, e);
       }

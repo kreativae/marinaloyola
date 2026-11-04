@@ -5,8 +5,8 @@ import { quizAttempts, quizQuestions, type QuizAttempt, type QuizQuestion } from
 /**
  * Quizzes com banco de questões:
  *  - cada tentativa sorteia N questões do banco da aula;
- *  - o sorteio é equilibrado: primeiro as questões que a aluna ainda não viu e, entre essas,
- *    as menos usadas por todas as alunas — assim duas alunas seguidas recebem conjuntos diferentes;
+ *  - o sorteio é equilibrado: primeiro as questões que a estudante ainda não viu e, entre essas,
+ *    as menos usadas por todas as estudantes — assim duas estudantes seguidas recebem conjuntos diferentes;
  *  - a ordem das opções é baralhada por tentativa;
  *  - a correcção é feita no servidor: as respostas certas nunca são enviadas para o browser.
  */
@@ -118,7 +118,7 @@ export async function attemptView(attempt: QuizAttempt) {
   return { questions, results: attempt.submittedAt ? results : null };
 }
 
-/** Corrige a tentativa. `answers`: qid → índice mostrado à aluna. */
+/** Corrige a tentativa. `answers`: qid → índice mostrado à estudante. */
 export async function gradeAttempt(attempt: QuizAttempt, answers: Record<string, number>, minScore: number) {
   const rows = await db.select().from(quizQuestions).where(eq(quizQuestions.lessonId, attempt.lessonId));
   const byId = new Map(rows.map((q) => [q.id, q]));

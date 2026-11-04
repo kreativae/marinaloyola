@@ -7,6 +7,7 @@ import { AlertTriangle, Bell, CalendarDays, CalendarPlus, Check, Clock, Loader2,
 import { setAppointmentStatus } from "@/lib/actions-admin";
 import { createEventZoomLink, deleteAgendaEvent, moveAgendaEvent, notifyReschedule, rescheduleAppointment, saveAgendaEvent, type AgendaEventResult } from "@/lib/actions-agenda";
 import { syncGoogleCalendar } from "@/lib/actions-config";
+import { quickSearchContacts } from "@/lib/actions-contacts";
 import { SelectAction, CopyButton } from "@/components/admin-client";
 import { Field, FormSection, IconInput, Modal, ModalFooter, PillGroup, ToggleRow } from "@/components/form-kit";
 import { ALL_DAY_REMIND_HOUR, MAX_OCCURRENCES, REMIND_OPTIONS, REPEAT_HORIZON_MONTHS, REPEAT_OPTIONS, repeatLabel, type RepeatFreq, type RepeatRule } from "@/lib/agenda-def";
@@ -649,7 +650,7 @@ function EventModal({ event: e, onClose }: { event: CalEvent | null; onClose: ()
           </div>
           {e.clientLabel && (
             <p className="-mt-2 rounded-lg bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800">
-              Para a cliente: {e.clientLabel}
+              No fuso de quem marcou: {e.clientLabel}
             </p>
           )}
           {e.kind === "busy" ? (
@@ -788,6 +789,10 @@ export type AgendaEventDraft = {
   repeat?: RepeatRule | null;
   remindMin?: number | null;
   remindTo?: string | null;
+  contactId?: number | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  emailContact?: boolean;
 };
 
 const AGENDA_SAVED = "agenda:event-saved";
@@ -862,6 +867,11 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
   const [repeatEnd, setRepeatEnd] = useState(draft.repeat?.count ? "count" : draft.repeat?.until ? "until" : "never");
   const [remind, setRemind] = useState(draft.remindMin == null ? "" : String(draft.remindMin));
   const [askDelete, setAskDelete] = useState(false);
+  const [linked, setLinked] = useState(Boolean(draft.contactId));
+  const [contact, setContact] = useState<EventContact | null>(
+    draft.contactId ? { id: draft.contactId, name: draft.contactName ?? "Contacto", email: draft.contactEmail ?? null } : null
+  );
+  const [mailContact, setMailContact] = useState(Boolean(draft.emailContact));
   const [location, setLocation] = useState(draft.location ?? "");
   const [zoomMsg, setZoomMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [zooming, startZoom] = useTransition();
@@ -915,22 +925,27 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
           location: String(fd.get("location") ?? "") || null,
           color: String(fd.get("color") ?? "") || undefined,
           remindMin: fd.get("remindMin") ? Number(fd.get("remindMin")) : null,
+          contactId: linked ? contact?.id : null,
+          contactName: linked ? contact?.name : null,
+          contactEmail: linked ? contact?.email : null,
+          emailContact: linked && mailContact,
         },
       });
-      if (!r.warning) onClose();
+      if (!r.warning && !r.notice) onClose();
       router.refresh();
     }
     return r;
   }, null);
 
-  if (state?.ok && state.warning) {
+  if (state?.ok && (state.warning || state.notice)) {
     return (
       <div className="pb-6">
         <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-500" />
           <div>
             <p className="font-semibold">Evento guardado.</p>
-            <p className="mt-1">{state.warning} Essas sessões mantêm-se; mude-as na agenda se for preciso.</p>
+            {state.warning && <p className="mt-1">{state.warning} Essas sessões mantêm-se; mude-as na agenda se for preciso.</p>}
+            {state.notice && <p className="mt-1">{state.notice}</p>}
           </div>
         </div>
         <div className="mt-5 flex justify-end">
@@ -963,7 +978,7 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
         icon={Clock}
         title="Quando"
         aside={
-          <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-zinc-600">
+          <label className="relative flex cursor-pointer items-center gap-2 text-xs font-semibold text-zinc-600">
             <input type="checkbox" name="allDay" value="1" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} className="peer sr-only" />
             <span className="relative h-4 w-7 rounded-full bg-zinc-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-3 after:w-3 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-plum peer-checked:after:translate-x-3" />
             Dia inteiro
@@ -1040,7 +1055,7 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
             <input type="hidden" name="endDate" value={date} />
           </div>
         )}
-        <ToggleRow name="blocksBooking" label="Bloquear marcações neste horário" description="As clientes deixam de ver estas horas como livres na página de agendamento." defaultChecked={draft.blocks ?? true} />
+        <ToggleRow name="blocksBooking" label="Bloquear marcações neste horário" description="Estas horas deixam de aparecer como livres na página de agendamento." defaultChecked={draft.blocks ?? true} />
       </FormSection>
 
       <FormSection icon={Repeat} title="Repetir">
@@ -1098,6 +1113,23 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
             <p className="text-xs text-zinc-500">
               {repeatLabel(draft.repeat, new Date(dy, dm - 1, dd)) ?? "Faz parte de uma série"}. Para mudar a repetição, escolha &quot;Este e os seguintes&quot;.
             </p>
+          </>
+        )}
+      </FormSection>
+
+      <FormSection icon={UserRound} title="Contacto">
+        <ToggleRow name="linkContact" label="Vincular a um contacto" description="O evento fica registado no histórico da ficha." checked={linked} onChange={setLinked} />
+        {linked && (
+          <>
+            <EventContactPicker selected={contact} onChange={setContact} />
+            <ToggleRow
+              name="emailContact"
+              label="Enviar email ao contacto"
+              description="Convite com título, data, hora, local e ficheiro de calendário, e também os lembretes. As notas nunca são enviadas."
+              checked={mailContact}
+              onChange={setMailContact}
+            />
+            {mailContact && contact && !contact.email && <p className="text-xs font-medium text-rose-600">Este contacto não tem email. Adicione-o na ficha ou desligue o envio.</p>}
           </>
         )}
       </FormSection>
@@ -1188,6 +1220,65 @@ function AgendaEventForm({ draft, onClose }: { draft: AgendaEventDraft; onClose:
         </button>
       </ModalFooter>
     </form>
+  );
+}
+
+type EventContact = { id: number; name: string; email: string | null };
+
+/** Procura o contacto a vincular ao evento (nome, email ou telefone). */
+function EventContactPicker({ selected, onChange }: { selected: EventContact | null; onChange: (c: EventContact | null) => void }) {
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState<EventContact[]>([]);
+  const [searching, start] = useTransition();
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) return;
+    const t = setTimeout(() => start(async () => setHits(await quickSearchContacts(term))), 250);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  if (selected) {
+    return (
+      <div className="flex items-center gap-3 rounded-2xl border border-plum/25 bg-plum/[0.04] px-4 py-3">
+        <input type="hidden" name="contactId" value={selected.id} />
+        <UserRound size={16} className="shrink-0 text-plum" />
+        <p className="min-w-0 flex-1 truncate text-sm text-zinc-700">
+          <b className="text-zinc-900">{selected.name}</b>
+          {selected.email ? ` · ${selected.email}` : " · sem email"}
+        </p>
+        <button type="button" onClick={() => onChange(null)} className="rounded-full p-1 text-zinc-400 hover:bg-white hover:text-zinc-700" aria-label="Trocar de contacto">
+          <X size={15} />
+        </button>
+      </div>
+    );
+  }
+  const shown = q.trim().length < 2 ? [] : hits;
+  return (
+    <div className="relative">
+      <IconInput icon={UserRound}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Procurar por nome, email ou telefone" className="field" />
+      </IconInput>
+      {shown.length > 0 && (
+        <ul className="absolute inset-x-0 top-full z-30 mt-1.5 max-h-56 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-[0_18px_40px_-16px_rgba(24,24,27,0.35)]">
+          {shown.map((c) => (
+            <li key={c.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange({ id: c.id, name: c.name, email: c.email });
+                  setQ("");
+                }}
+                className="block w-full rounded-xl px-3 py-2 text-left transition-colors hover:bg-zinc-50"
+              >
+                <span className="block truncate text-sm font-semibold text-zinc-900">{c.name}</span>
+                <span className="block truncate text-xs text-zinc-500">{c.email ?? "sem email"}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {q.trim().length >= 2 && !searching && hits.length === 0 && <p className="mt-2 text-xs text-zinc-500">Nenhum contacto encontrado.</p>}
+    </div>
   );
 }
 

@@ -110,7 +110,7 @@ const fmtTime = (d: Date, tz = HOME_TZ) =>
   new Intl.DateTimeFormat("pt-PT", { timeZone: tz, hour: "2-digit", minute: "2-digit" }).format(d);
 
 /** Data e hora no fuso da cliente, com a referência de Lisboa quando é diferente. */
-function clientWhen(b: BookingEmailData) {
+function clientWhen(b: Pick<BookingEmailData, "startAt" | "timezone">) {
   const tz = isValidTz(b.timezone) ? b.timezone : HOME_TZ;
   const date = fmtLongDate(b.startAt, tz);
   const time = fmtTime(b.startAt, tz);
@@ -252,7 +252,7 @@ ${row("Email", escapeHtml(b.email))}
 ${b.phone ? row("Telefone", escapeHtml(b.phone)) : ""}
 ${row("Sessão", escapeHtml(b.eventName))}
 ${row("Quando", `${date}, ${time} (Lisboa)`)}
-${b.timezone && b.timezone !== HOME_TZ ? row("Para a cliente", escapeHtml(`${fmtLongDate(b.startAt, b.timezone)}, ${fmtTime(b.startAt, b.timezone)} (${cityOf(b.timezone)})`)) : ""}
+${b.timezone && b.timezone !== HOME_TZ ? row("No fuso de quem marcou", escapeHtml(`${fmtLongDate(b.startAt, b.timezone)}, ${fmtTime(b.startAt, b.timezone)} (${cityOf(b.timezone)})`)) : ""}
 ${b.meetingUrl ? row("Link", `<a href="${escapeHtml(b.meetingUrl)}" style="color:#800080">${escapeHtml(b.meetingUrl)}</a>`) : ""}
 </table>
 ${b.notes ? `<div style="background:#f4f4f5;border-radius:12px;padding:16px;white-space:pre-wrap;color:#3f3f46">${escapeHtml(b.notes)}</div>` : ""}`
@@ -371,7 +371,8 @@ export type EventReminderData = {
   when: string; // "Daqui a 30 min", "Amanhã"…
 };
 
-export function eventReminderEmail(e: EventReminderData, to: string, appUrl: string): Email {
+/** `team`: notas e link da agenda só para a equipa; quem é de fora recebe apenas o essencial. */
+export function eventReminderEmail(e: EventReminderData, to: string, appUrl: string, team = true): Email {
   const lastDay = new Date(e.endAt.getTime() - (e.allDay ? 86_400_000 : 0));
   const multi = fmtLongDate(lastDay) !== fmtLongDate(e.startAt);
   const date = multi ? `${fmtLongDate(e.startAt)} a ${fmtLongDate(lastDay)}` : fmtLongDate(e.startAt);
@@ -386,14 +387,99 @@ ${row("Data", date)}
 ${row("Hora", hour)}
 ${e.location ? row("Local", link ? `<a href="${escapeHtml(link)}" style="color:#800080">${escapeHtml(link)}</a>` : escapeHtml(e.location)) : ""}
 </table>
-${e.notes ? `<div style="background:#f4f4f5;border-radius:12px;padding:16px;white-space:pre-wrap;color:#3f3f46;margin-bottom:20px">${escapeHtml(e.notes)}</div>` : ""}
-${button(`${appUrl}/admin/agenda`, "Abrir a agenda")}`
+${team && e.notes ? `<div style="background:#f4f4f5;border-radius:12px;padding:16px;white-space:pre-wrap;color:#3f3f46;margin-bottom:20px">${escapeHtml(e.notes)}</div>` : ""}
+${team ? button(`${appUrl}/admin/agenda`, "Abrir a agenda") : ""}`
   );
   const text = `${e.when}: ${e.title}
 ${date} · ${hour}
 ${e.location ?? ""}
-${e.notes ?? ""}`;
+${team ? (e.notes ?? "") : ""}`;
   return { to, subject: `Lembrete: ${e.title} — ${e.allDay ? date : `${fmtTime(e.startAt)}, ${date}`}`, html, text };
+}
+
+export type EventInviteData = {
+  uid: string;
+  title: string;
+  startAt: Date;
+  endAt: Date;
+  allDay: boolean;
+  location: string | null;
+  name: string;
+  email: string;
+  timezone?: string | null;
+  updated: boolean;
+  repeat?: string | null; // "Semanal (terça)"
+  rrule?: string | null;
+};
+
+/** Convite de um evento da agenda para o contacto ligado (as notas internas nunca vão). */
+export function eventInviteEmail(e: EventInviteData, replyTo: string): Email {
+  const first = e.name.trim().split(/\s+/)[0];
+  const lastDay = new Date(e.endAt.getTime() - (e.allDay ? 86_400_000 : 0));
+  const when = clientWhen({ startAt: e.startAt, timezone: e.timezone ?? HOME_TZ });
+  const date = !e.allDay
+    ? when.date
+    : fmtLongDate(lastDay) !== fmtLongDate(e.startAt)
+      ? `${fmtLongDate(e.startAt)} a ${fmtLongDate(lastDay)}`
+      : fmtLongDate(e.startAt);
+  const hour = e.allDay ? "Dia inteiro" : when.hour;
+  const link = /^https?:\/\//i.test(e.location ?? "") ? e.location! : null;
+  const title = e.updated ? "Evento atualizado" : "Convite";
+  const html = layout(
+    title,
+    `<h1 style="font-family:Georgia,serif;font-style:italic;font-weight:normal;font-size:28px;color:#18181b;margin:0 0 16px">Olá, ${escapeHtml(first)}.</h1>
+<p style="margin:0 0 20px">${e.updated ? "Os detalhes deste evento foram atualizados:" : "Tem um novo evento na agenda com Marina Loyola:"}</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:24px">
+${row("Evento", escapeHtml(e.title))}
+${row("Data", escapeHtml(date))}
+${row("Hora", escapeHtml(hour))}
+${e.repeat ? row("Repete", escapeHtml(e.repeat)) : ""}
+${e.location && !link ? row("Local", escapeHtml(e.location)) : ""}
+</table>
+${link ? button(link, "Entrar na reunião") : ""}
+<p style="margin:24px 0 0;font-size:13px;color:#71717a">O convite de calendário vai em anexo. Alguma dúvida? Basta responder a este email.</p>`
+  );
+  const text = `Olá, ${first}.
+
+${e.updated ? "Evento atualizado" : "Novo evento"}: ${e.title}
+Data: ${date}
+Hora: ${hour}
+${e.repeat ? `Repete: ${e.repeat}\n` : ""}${e.location ? `Local: ${e.location}\n` : ""}
+Alguma dúvida? Basta responder a este email.
+— Marina Loyola`;
+  return {
+    to: e.email,
+    subject: `${e.updated ? "Atualizado" : "Convite"}: ${e.title} — ${date}`,
+    html,
+    text,
+    replyTo,
+    attachments: [{ filename: "evento.ics", content: eventIcs(e, replyTo), contentType: "text/calendar; method=REQUEST" }],
+  };
+}
+
+function eventIcs(e: EventInviteData, organizer: string) {
+  const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const day = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: HOME_TZ }).format(d).replace(/-/g, "");
+  const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Marina Loyola//Agenda//PT",
+    "METHOD:REQUEST",
+    "BEGIN:VEVENT",
+    `UID:${e.uid}@marinaloyola.com`,
+    `SEQUENCE:${Math.floor(Date.now() / 1000)}`,
+    `DTSTAMP:${stamp(new Date())}`,
+    e.allDay ? `DTSTART;VALUE=DATE:${day(e.startAt)}` : `DTSTART:${stamp(e.startAt)}`,
+    e.allDay ? `DTEND;VALUE=DATE:${day(e.endAt)}` : `DTEND:${stamp(e.endAt)}`,
+    ...(e.rrule ? [`RRULE:${e.rrule}`] : []),
+    `SUMMARY:${esc(e.title)}`,
+    ...(e.location ? [`LOCATION:${esc(e.location)}`] : []),
+    `ORGANIZER;CN=Marina Loyola:mailto:${organizer}`,
+    `ATTENDEE;CN=${esc(e.name)};RSVP=TRUE:mailto:${e.email}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
 }
 
 export type WelcomeEmailData = { name: string; email: string; password: string; role: string; courses: string[] };
@@ -402,10 +488,10 @@ export type WelcomeEmailData = { name: string; email: string; password: string; 
 export function welcomeEmail(w: WelcomeEmailData, appUrl: string, replyTo: string): Email {
   const first = w.name.trim().split(/\s+/)[0];
   const student = w.role === "student";
-  const area = student ? "a sua área de aluna" : "o backoffice";
+  const area = student ? "a sua área de estudante" : "o backoffice";
   const html = layout(
-    "Bem-vinda",
-    `<h1 style="font-family:Georgia,serif;font-style:italic;font-weight:normal;font-size:28px;color:#18181b;margin:0 0 16px">Bem-vinda, ${escapeHtml(first)}.</h1>
+    "Boas-vindas",
+    `<h1 style="font-family:Georgia,serif;font-style:italic;font-weight:normal;font-size:28px;color:#18181b;margin:0 0 16px">Olá, ${escapeHtml(first)}.</h1>
 <p style="margin:0 0 20px">A sua conta na plataforma Marina Loyola está pronta. Estes são os dados para entrar em ${area}:</p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin-bottom:20px">
 ${row("Email", escapeHtml(w.email))}
@@ -415,7 +501,7 @@ ${w.courses.length ? row(w.courses.length === 1 ? "Curso" : "Cursos", escapeHtml
 ${button(`${appUrl}/login`, "Entrar na plataforma")}
 <p style="margin:24px 0 0;font-size:13px;color:#71717a">Por segurança, troque a palavra-passe no primeiro acesso em <b>Minha conta</b>. Alguma dúvida? Basta responder a este email.</p>`
   );
-  const text = `Bem-vinda, ${first}.
+  const text = `Olá, ${first}.
 
 A sua conta na plataforma Marina Loyola está pronta.
 Email: ${w.email}
@@ -425,7 +511,7 @@ Entrar: ${appUrl}/login
 
 Por segurança, troque a palavra-passe no primeiro acesso em Minha conta.
 — Marina Loyola`;
-  return { to: w.email, subject: student ? "O seu acesso à área de aluna — Marina Loyola" : "O seu acesso à plataforma — Marina Loyola", html, text, replyTo };
+  return { to: w.email, subject: student ? "O seu acesso à área de estudante — Marina Loyola" : "O seu acesso à plataforma — Marina Loyola", html, text, replyTo };
 }
 
 export function testEmail(to: string): Email {

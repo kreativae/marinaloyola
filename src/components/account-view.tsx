@@ -8,9 +8,9 @@ import { TwoFactorManager } from "@/components/two-factor-client";
 import { passkeyLoginEnabled } from "@/lib/actions-account";
 import { fmtDateTime } from "@/lib/utils";
 
-const ROLE_LABEL: Record<string, string> = { admin: "Super Admin", staff: "Equipa", student: "Aluna" };
+const ROLE_LABEL: Record<string, string> = { admin: "Super Admin", staff: "Equipa", student: "Estudante" };
 
-/** Página "Minha conta" partilhada entre o backoffice e a área de aluna. */
+/** Página "Minha conta" partilhada entre o backoffice e a área de estudante. */
 export async function AccountView({ user }: { user: User }) {
   const [keys, enabled] = await Promise.all([
     db.select().from(passkeys).where(eq(passkeys.userId, user.id)).orderBy(desc(passkeys.createdAt)),

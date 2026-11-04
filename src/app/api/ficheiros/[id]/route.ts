@@ -8,7 +8,7 @@ import { fileHeaders } from "@/lib/security";
 
 export const dynamic = "force-dynamic";
 
-/** Download de um anexo de curso: equipa ou aluna inscrita no curso. */
+/** Download de um anexo de curso: equipa ou estudante inscrita no curso. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
   if (!user) return new Response("Não autenticado", { status: 401 });

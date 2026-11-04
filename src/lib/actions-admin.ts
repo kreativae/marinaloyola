@@ -241,7 +241,7 @@ export async function enrollStudent(formData: FormData) {
 export async function completeLesson(lessonId: number) {
   const user = await requireUser();
   if (user.role === "student") {
-    // Só aulas de cursos em que a aluna está inscrita
+    // Só aulas de cursos em que a estudante está inscrita
     const [ok] = await db
       .select({ id: lessons.id })
       .from(lessons)

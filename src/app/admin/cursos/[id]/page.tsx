@@ -270,7 +270,7 @@ export default async function AdminCourseDetailPage({
 
           <Panel title={`Ficheiros complementares (${fileRows.length})`}>
             <p className="mb-4 text-xs leading-relaxed text-zinc-500">
-              Templates, PDFs, ficheiros Figma… As alunas inscritas descarregam-nos na página da aula ou na secção
+              Templates, PDFs, ficheiros Figma… Quem tem inscrição descarrega-os na página da aula ou na secção
               “Materiais do curso”. Os ficheiros não ficam públicos.
             </p>
             <UploadFiles courseId={course.id} lessons={allLessons} />
@@ -296,23 +296,23 @@ export default async function AdminCourseDetailPage({
           </Panel>
         </div>
 
-        {/* Alunas */}
+        {/* Estudantes */}
         <div className="space-y-6">
-          <Panel title={`Alunas inscritas (${enrolledRows.length})`}>
+          <Panel title={`Estudantes (${enrolledRows.length})`}>
             <form action={enrollStudent} className="mb-5 grid gap-2.5">
               <input type="hidden" name="courseId" value={course.id} />
-              <input name="email" type="email" required placeholder="Email da aluna *" className="field" />
+              <input name="email" type="email" required placeholder="Email do estudante *" className="field" />
               <input name="name" placeholder="Nome (para novas contas)" className="field" />
               <button type="submit" className="btn-primary !py-2.5 !text-xs">
                 <UserPlus size={14} /> Dar acesso ao curso
               </button>
               <p className="text-[11px] leading-relaxed text-zinc-500">
-                Se o email ainda não existir, é criada uma conta com uma palavra-passe aleatória, enviada à aluna
-                no email de boas-vindas (precisa do Resend). Também pode criar a conta em Configurações → Equipa.
+                Se o email ainda não existir, é criada uma conta com uma palavra-passe aleatória, enviada por email
+                de boas-vindas (precisa do Resend). Também pode criar a conta em Configurações → Equipa.
               </p>
             </form>
             {enrolledRows.length === 0 ? (
-              <EmptyState text="Sem alunas inscritas." />
+              <EmptyState text="Ainda sem estudantes." />
             ) : (
               <ul className="space-y-3">
                 {enrolledRows.map(({ enrollment, userName, userEmail }) => {
@@ -339,7 +339,7 @@ export default async function AdminCourseDetailPage({
                         <ProgressBar pct={pct} />
                       </div>
                       <p className="mt-2 text-[11px] text-zinc-500">
-                        {done}/{totalLessons} aulas · inscrita em {fmtDate(enrollment.createdAt)}
+                        {done}/{totalLessons} aulas · inscrição em {fmtDate(enrollment.createdAt)}
                       </p>
                     </li>
                   );

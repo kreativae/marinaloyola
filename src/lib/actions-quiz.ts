@@ -42,7 +42,7 @@ export async function startQuiz(lessonId: number): Promise<{ error?: string }> {
           .where(and(eq(enrollments.userId, user.id), eq(enrollments.courseId, courseId)))
           .limit(1)
       : [];
-    if (!enrolled) return { error: "Não está inscrita neste curso." };
+    if (!enrolled) return { error: "Não tem inscrição neste curso." };
   }
   try {
     await startAttempt(user.id, lesson);

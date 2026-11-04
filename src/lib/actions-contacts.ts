@@ -431,7 +431,7 @@ export async function getContactSummary(id: number): Promise<ContactSummary | nu
     c.email ? db.select({ id: users.id }).from(users).where(eq(users.email, c.email)).limit(1) : Promise.resolve([]),
   ]);
 
-  // Cursos da aluna com a mesma conta de email
+  // Cursos da estudante com a mesma conta de email
   let courseRows: ContactSummary["courses"] = [];
   if (account) {
     const res = await db.execute(sql`

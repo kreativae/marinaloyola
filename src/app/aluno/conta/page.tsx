@@ -10,7 +10,7 @@ export default async function AlunaContaPage() {
   const user = await requireUser();
   return (
     <>
-      <PageHeader eyebrow="Área de aluna" title="Minha conta" subtitle="Os seus dados, palavra-passe e entrada com Face ID." />
+      <PageHeader eyebrow="Área de estudante" title="Minha conta" subtitle="Os seus dados, palavra-passe e entrada com Face ID." />
       <AccountView user={user} />
     </>
   );

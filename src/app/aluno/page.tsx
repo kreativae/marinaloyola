@@ -36,7 +36,7 @@ export default async function AlunoDashboard() {
     <>
       <div className="mb-10">
         <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-plum">
-          Área de aluna
+          Área de estudante
         </p>
         <h1 className="mt-3 font-display text-4xl font-medium tracking-tight text-zinc-950 lg:text-5xl">
           Olá, <span className="italic text-plum">{user.name.split(" ")[0]}.</span>

@@ -59,6 +59,19 @@ export function repeatLabel(rule: RepeatRule | null | undefined, start?: Date) {
   return base + end;
 }
 
+/** Regra iCal do convite: COUNT é o número real de ocorrências criadas. */
+export function repeatRRule(rule: RepeatRule, count: number) {
+  const base: Record<RepeatFreq, string> = {
+    daily: "FREQ=DAILY",
+    weekdays: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+    weekly: "FREQ=WEEKLY",
+    biweekly: "FREQ=WEEKLY;INTERVAL=2",
+    monthly: "FREQ=MONTHLY",
+    yearly: "FREQ=YEARLY",
+  };
+  return `${base[rule.freq]};COUNT=${count}`;
+}
+
 export function remindLabel(min: number | null | undefined) {
   if (min == null) return null;
   return REMIND_OPTIONS.find((o) => o.value === String(min))?.label ?? `${min} min antes`;

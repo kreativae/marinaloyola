@@ -16,7 +16,7 @@ type Stats = { course_id: number; modules: number; lessons: number; students: nu
 export default async function AdminCoursesPage() {
   const [list, statRows] = await Promise.all([
     db.select().from(courses).orderBy(asc(courses.createdAt)),
-    // Por curso: módulos, aulas, alunas, conclusão média, alunas que terminaram e receita confirmada
+    // Por curso: módulos, aulas, estudantes, conclusão média, estudantes que terminaram e receita confirmada
     // (pagamentos cujo produto contém o título do curso, ou vice-versa: "Curso X" ↔ "X")
     db.execute(sql`
       WITH lc AS (
@@ -53,14 +53,14 @@ export default async function AdminCoursesPage() {
     <>
       <PageHeader
         title="Cursos & LMS"
-        subtitle="Cursos, módulos e aulas, acessos das alunas e o progresso de cada turma."
+        subtitle="Cursos, módulos e aulas, acessos dos estudantes e o progresso de cada turma."
         actions={<NewCourseButton />}
       />
 
       <div className="stagger mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Cursos" value={num(list.length)} hint={`${published} publicado(s) · ${list.length - published} rascunho(s)`} icon={<BookOpen size={17} />} />
-        <StatCard label="Alunas inscritas" value={num(totalStudents)} hint="inscrições em todos os cursos" icon={<Users size={17} />} accent />
-        <StatCard label="Conclusão média" value={`${avgCompletion}%`} hint={`${num(totalFinished)} aluna(s) concluíram`} icon={<Trophy size={17} />} />
+        <StatCard label="Estudantes" value={num(totalStudents)} hint="inscrições em todos os cursos" icon={<Users size={17} />} accent />
+        <StatCard label="Conclusão média" value={`${avgCompletion}%`} hint={`${num(totalFinished)} estudante(s) concluíram`} icon={<Trophy size={17} />} />
         <StatCard label="Receita dos cursos" value={eur(totalRevenue)} hint="pagamentos confirmados" icon={<TrendingUp size={17} />} />
       </div>
 
@@ -103,7 +103,7 @@ export default async function AdminCoursesPage() {
                     {[
                       [Layers, st?.modules ?? 0, "módulos"],
                       [BookOpen, st?.lessons ?? 0, "aulas"],
-                      [Users, st?.students ?? 0, "alunas"],
+                      [Users, st?.students ?? 0, "estudantes"],
                     ].map(([Icon, n, label]) => {
                       const I = Icon as typeof Layers;
                       return (

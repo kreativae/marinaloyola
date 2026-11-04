@@ -245,7 +245,7 @@ export function ModuleActions({
         disabled={pending}
         onClick={() => {
           const msg = lessonCount
-            ? `Apagar o módulo “${title}” e as suas ${lessonCount} aula(s)? O progresso das alunas nestas aulas e os anexos também são apagados.`
+            ? `Apagar o módulo “${title}” e as suas ${lessonCount} aula(s)? O progresso dos estudantes nestas aulas e os anexos também são apagados.`
             : `Apagar o módulo “${title}”?`;
           if (confirm(msg)) start(() => deleteModule(id));
         }}
@@ -305,7 +305,7 @@ export function LessonActions({
           type="button"
           disabled={pending}
           onClick={() =>
-            confirm(`Apagar a aula “${lesson.title}”? O progresso das alunas nesta aula e os anexos da aula também são apagados.`) &&
+            confirm(`Apagar a aula “${lesson.title}”? O progresso dos estudantes nesta aula e os anexos da aula também são apagados.`) &&
             start(() => deleteLesson(lesson.id))
           }
           className={cn(iconBtn, "hover:bg-rose-50 hover:text-rose-600")}
@@ -503,7 +503,7 @@ export function FileRow({ file, lessons }: { file: FileData; lessons: { id: numb
           start(() => moveCourseFile(file.id, v));
         }}
         className="field !w-auto max-w-[180px] !py-1.5 !text-xs"
-        title="Onde aparece para as alunas"
+        title="Onde aparece para os estudantes"
       >
         <option value="">Curso (geral)</option>
         {lessons.map((l) => (

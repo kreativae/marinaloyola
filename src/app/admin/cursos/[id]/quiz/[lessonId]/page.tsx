@@ -85,12 +85,12 @@ export default async function QuizEditorPage({
         <ArrowLeft size={15} /> Voltar ao curso
       </Link>
 
-      <PageHeader title={lesson.title} subtitle={`Quiz · ${found.moduleTitle} · banco de questões e resultados das alunas`} />
+      <PageHeader title={lesson.title} subtitle={`Quiz · ${found.moduleTitle} · banco de questões e resultados`} />
 
       <div className="stagger mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Questões no banco" value={num(active)} hint={questions.length > active ? `${questions.length - active} desactivada(s)` : undefined} icon={<ListChecks size={17} />} />
-        <StatCard label="Sorteadas por aluna" value={active ? `${draw} de ${active}` : "—"} icon={<Shuffle size={17} />} accent />
-        <StatCard label="Tentativas" value={num(attempts.length)} hint={`${students} aluna(s)`} icon={<Users size={17} />} />
+        <StatCard label="Sorteadas por estudante" value={active ? `${draw} de ${active}` : "—"} icon={<Shuffle size={17} />} accent />
+        <StatCard label="Tentativas" value={num(attempts.length)} hint={`${students} estudante(s)`} icon={<Users size={17} />} />
         <StatCard
           label="Aprovação"
           value={attempts.length ? `${Math.round((passed / attempts.length) * 100)}%` : "—"}
@@ -139,7 +139,7 @@ export default async function QuizEditorPage({
             />
           </Panel>
 
-          <Panel title={`Resultados das alunas (${attempts.length})`}>
+          <Panel title={`Resultados (${attempts.length})`}>
             {attempts.length === 0 ? (
               <EmptyState text="Nenhuma tentativa entregue ainda." />
             ) : (

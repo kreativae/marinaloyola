@@ -411,7 +411,7 @@ export const SITE_DEFAULTS = {
       cta2Href: "/mentoria",
       stats: [
         { value: "12+", label: "anos de estúdio" },
-        { value: "400+", label: "alunas mentoradas" },
+        { value: "400+", label: "estudantes" },
         { value: "97%", label: "de satisfação" },
       ],
       image: "/img/marina-hero.jpg",
@@ -447,7 +447,7 @@ export const SITE_DEFAULTS = {
           icon: "monitor",
           n: "03",
           title: "Cursos online",
-          desc: "Programas gravados para fazer ao seu ritmo, com módulos, materiais de apoio, quizzes e certificado de conclusão na área de aluna.",
+          desc: "Programas gravados para fazer ao seu ritmo, com módulos, materiais de apoio, quizzes e certificado de conclusão na área de estudante.",
           cta: "Explorar cursos",
           href: "/cursos",
         },
@@ -494,7 +494,7 @@ export const SITE_DEFAULTS = {
         "3 módulos · 9 aulas em vídeo",
         "Materiais, templates e exercícios",
         "Quiz por módulo e certificado de conclusão",
-        "Acesso imediato na área de aluna após a compra",
+        "Acesso imediato na área de estudante após a compra",
       ],
       ctaLabel: "Ver cursos e inscrições",
       ctaHref: "/cursos",
@@ -544,7 +544,7 @@ export const SITE_DEFAULTS = {
         { year: "2013", title: "O começo", text: "Licenciatura em Design de Comunicação e os primeiros projetos de identidade visual para marcas locais." },
         { year: "2016", title: "Estúdio próprio", text: "Nasce o estúdio Marina Loyola. Primeiros clientes internacionais e a especialização em branding premium." },
         { year: "2019", title: "A viragem para o ensino", text: "Primeira turma de mentoria. Percebo que ensinar designers a valorizar o seu trabalho é a minha missão." },
-        { year: "2022", title: "Workshops e cursos", text: "Lançamento dos programas online. Mais de 400 alunas passam pelos cursos e mentorias." },
+        { year: "2022", title: "Workshops e cursos", text: "Lançamento dos programas online. Mais de 400 estudantes passam pelos cursos e mentorias." },
         { year: "2026", title: "A plataforma", text: "Tudo reunido num só ecossistema: cursos, mentoria, comunidade e acompanhamento personalizado." },
       ],
     },
@@ -554,7 +554,7 @@ export const SITE_DEFAULTS = {
       items: [
         { icon: "gem", title: "Elegância acima do ruído", text: "Menos, mas impecável. O bom design é silencioso e impossível de ignorar ao mesmo tempo." },
         { icon: "ruler", title: "Método antes do talento", text: "Intuição treina-se. Processos claros libertam a criatividade em vez de a prender." },
-        { icon: "handshake", title: "Generosidade radical", text: "Ensino tudo o que sei, sem reservas. O sucesso das minhas alunas é o meu portfólio." },
+        { icon: "handshake", title: "Generosidade radical", text: "Ensino tudo o que sei, sem reservas. O sucesso de quem aprende comigo é o meu portfólio." },
         { icon: "award", title: "Excelência discreta", text: "Premium não é arrogância. É consistência, detalhe e respeito pelo ofício." },
       ],
     },
@@ -637,9 +637,9 @@ export const SITE_DEFAULTS = {
     hero: {
       kicker: "Formação",
       title: "Cursos & *workshops.*",
-      text: "Programas desenhados ao milímetro para designers que querem subir de nível — com materiais, exercícios, quizzes e certificado, na sua área de aluna.",
+      text: "Programas desenhados ao milímetro para designers que querem subir de nível — com materiais, exercícios, quizzes e certificado, na sua área de estudante.",
     },
-    list: { priceLabel: "Investimento", button: "Inscrever na Hotmart", note: "Pagamento seguro · acesso imediato à área de aluna" },
+    list: { priceLabel: "Investimento", button: "Inscrever na Hotmart", note: "Pagamento seguro · acesso imediato à área de estudante" },
     guarantee: {
       title: "Garantia incondicional de 7 dias",
       text: "Todos os cursos têm garantia total via Hotmart. Se não for para si, devolvemos o investimento — sem perguntas, sem letras pequenas.",
@@ -739,10 +739,10 @@ export const SITE_DEFAULTS = {
         },
         {
           t: "4. Propriedade intelectual",
-          p: "Todos os conteúdos, materiais, vídeos, textos e templates disponibilizados são propriedade de Marina Loyola e destinam-se a uso pessoal da aluna, sendo expressamente proibida a sua partilha, revenda ou reprodução.",
+          p: "Todos os conteúdos, materiais, vídeos, textos e templates disponibilizados são propriedade de Marina Loyola e destinam-se a uso pessoal de cada estudante, sendo expressamente proibida a sua partilha, revenda ou reprodução.",
         },
         {
-          t: "5. Acesso à área de aluna",
+          t: "5. Acesso à área de estudante",
           p: "As credenciais de acesso são pessoais e intransmissíveis. A partilha de acessos poderá resultar na suspensão da conta sem direito a reembolso.",
         },
         {

@@ -5,7 +5,7 @@ import { num } from "@/lib/utils";
 
 /**
  * Ficheiros guardados em ./uploads/<pasta> (fora de /public), com nome aleatório:
- *  - cursos: servidos por /api/ficheiros/[id], que verifica a inscrição da aluna;
+ *  - cursos: servidos por /api/ficheiros/[id], que verifica a inscrição da estudante;
  *  - comprovativos: recibos de pagamentos e despesas, só para a equipa;
  *  - site: imagens do site público, servidas sem sessão por /api/imagens/[nome];
  *  - whatsapp: fotos, áudios e documentos das conversas, só para a equipa.

@@ -250,7 +250,7 @@ export function PillGroup({
           <label
             key={o.value}
             className={cn(
-              "inline-flex cursor-pointer select-none items-center gap-1.5 rounded-full border font-semibold transition-all duration-200",
+              "relative inline-flex cursor-pointer select-none items-center gap-1.5 rounded-full border font-semibold transition-all duration-200",
               size === "sm" ? "px-2.5 py-1 text-[11px]" : "px-3.5 py-2 text-xs",
               on
                 ? o.className ?? (o.color ? "text-white shadow-sm" : "border-plum bg-plum text-white shadow-[0_6px_14px_-8px_rgb(128_0_128/0.8)]")
@@ -285,10 +285,31 @@ export function PillGroup({
 }
 
 /** Interruptor com texto, para opções sim/não. */
-export function ToggleRow({ name, label, description, defaultChecked }: { name: string; label: string; description?: string; defaultChecked?: boolean }) {
+export function ToggleRow({
+  name,
+  label,
+  description,
+  defaultChecked,
+  checked,
+  onChange,
+}: {
+  name: string;
+  label: string;
+  description?: string;
+  defaultChecked?: boolean;
+  checked?: boolean;
+  onChange?: (v: boolean) => void;
+}) {
   return (
-    <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-line px-4 py-3 transition-colors hover:bg-zinc-50/60">
-      <input type="checkbox" name={name} value="1" defaultChecked={defaultChecked} className="peer sr-only" />
+    <label className="relative flex cursor-pointer items-center gap-3 rounded-2xl border border-line px-4 py-3 transition-colors hover:bg-zinc-50/60">
+      <input
+        type="checkbox"
+        name={name}
+        value="1"
+        {...(checked === undefined ? { defaultChecked } : { checked })}
+        onChange={(e) => onChange?.(e.target.checked)}
+        className="peer sr-only"
+      />
       <span className="relative h-5 w-9 shrink-0 rounded-full bg-zinc-300 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-plum peer-checked:after:translate-x-4" />
       <span className="min-w-0">
         <span className="block text-sm font-semibold text-zinc-800">{label}</span>

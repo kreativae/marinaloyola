@@ -53,7 +53,7 @@ const TONE: Record<ServiceStatus["tone"], string> = {
 const ROLES: Record<string, { label: string; className: string }> = {
   admin: { label: "Super Admin", className: "bg-plum/20 text-plum border-plum/40" },
   staff: { label: "Equipa", className: "bg-sky-500/10 text-sky-700 border-sky-500/30" },
-  student: { label: "Aluna", className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30" },
+  student: { label: "Estudante", className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30" },
 };
 
 export default async function ConfigPage({ searchParams }: { searchParams: Promise<{ s?: string }> }) {
@@ -420,7 +420,7 @@ async function TeamTab() {
             courses={courseRows}
           />
           <p className="mt-4 text-[11px] leading-relaxed text-zinc-500">
-            Contas de alunas também são criadas automaticamente ao dar acesso a um curso ou por compra via Hotmart.
+            Contas de estudantes também são criadas automaticamente ao dar acesso a um curso ou por compra via Hotmart.
           </p>
         </Panel>
       </div>

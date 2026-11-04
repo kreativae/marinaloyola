@@ -19,7 +19,7 @@ export type AccountPrefill = { contactId: number; name: string; email: string | 
 const ROLES: Record<string, { label: string; className: string; icon: typeof Users; hint: string }> = {
   admin: { label: "Super Admin", className: "bg-plum/20 text-plum border-plum/40", icon: ShieldCheck, hint: "Acesso total, incluindo contas e configurações." },
   staff: { label: "Equipa", className: "bg-sky-500/10 text-sky-700 border-sky-500/30", icon: Users, hint: "Usa o backoffice, sem gerir contas." },
-  student: { label: "Aluna", className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30", icon: GraduationCap, hint: "Só a área de aluna e os cursos em que está inscrita." },
+  student: { label: "Estudante", className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30", icon: GraduationCap, hint: "Só a área de estudante e os cursos com inscrição." },
 };
 
 const initials = (n: string) =>
@@ -197,7 +197,7 @@ export function UserManager({ users, meId, canManage, courses = [] }: { users: T
         open={editing !== null}
         onClose={() => setEditing(null)}
         title={editing === "new" ? "Novo utilizador" : "Editar utilizador"}
-        description={editing === "new" ? "Crie uma conta para a equipa ou para uma aluna." : editing ? editing.email : undefined}
+        description={editing === "new" ? "Crie uma conta para a equipa ou para estudantes." : editing ? editing.email : undefined}
         icon={editing === "new" ? UserPlus : Pencil}
       >
         {editing !== null && (
@@ -465,12 +465,12 @@ export function AccountChip({ role }: { role: string }) {
       className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-semibold text-emerald-700"
       title="Já existe uma conta na plataforma com este email"
     >
-      <GraduationCap size={14} /> {role === "student" ? "Já é aluna" : "Já tem conta"}
+      <GraduationCap size={14} /> {role === "student" ? "Já é estudante" : "Já tem conta"}
     </Link>
   );
 }
 
-/** Ficha do contacto: "Criar conta de aluna" com os dados do contacto já preenchidos. */
+/** Ficha do contacto: "Criar conta de estudante" com os dados do contacto já preenchidos. */
 export function ConvertToStudentButton({
   contact,
   courses,
@@ -489,10 +489,10 @@ export function ConvertToStudentButton({
         <AccountChip role={account.role} />
       ) : (
         <button type="button" onClick={() => setOpen(true)} className="btn-ghost !px-5 !py-2.5 !text-xs">
-          <GraduationCap size={14} /> Converter em aluna
+          <GraduationCap size={14} /> Converter em estudante
         </button>
       )}
-      <Modal open={open} onClose={() => setOpen(false)} title="Criar conta de aluna" description={`A partir do contacto ${contact.name}`} icon={GraduationCap}>
+      <Modal open={open} onClose={() => setOpen(false)} title="Criar conta de estudante" description={`A partir do contacto ${contact.name}`} icon={GraduationCap}>
         {open && (
           <UserForm
             user={null}

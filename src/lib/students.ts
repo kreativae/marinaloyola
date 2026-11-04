@@ -7,7 +7,7 @@ import { addInteraction, tagContact } from "@/lib/crm";
 import { getEmailConfig, sendEmail, welcomeEmail } from "@/lib/email";
 
 /**
- * Criação de contas (sobretudo de alunas): palavra-passe aleatória, inscrição nos cursos,
+ * Criação de contas (sobretudo de estudantes): palavra-passe aleatória, inscrição nos cursos,
  * ligação ao contacto do CRM e email de boas-vindas com os dados de acesso.
  */
 
@@ -20,15 +20,15 @@ export function newPassword() {
 
 export type WelcomeStatus = "sent" | "preview" | "failed" | "off";
 
-/** Liga a conta ao contacto (pelo id ou pelo email): tag "Aluna" e registo no histórico. */
+/** Liga a conta ao contacto (pelo id ou pelo email): tag "Estudante" e registo no histórico. */
 async function linkContact(user: { name: string; email: string; role: string }, contactId: number | null, courseNames: string[]) {
   const [contact] = contactId
     ? await db.select().from(contacts).where(eq(contacts.id, contactId)).limit(1)
     : await db.select().from(contacts).where(sql`lower(${contacts.email}) = ${user.email}`).limit(1);
   if (!contact) return;
   if (!contact.email) await db.update(contacts).set({ email: user.email }).where(eq(contacts.id, contact.id));
-  if (user.role === "student") await tagContact(contact.id, "Aluna", "#10b981");
-  const who = user.role === "student" ? "aluna" : user.role === "staff" ? "equipa" : "Super Admin";
+  if (user.role === "student") await tagContact(contact.id, "Estudante", "#10b981");
+  const who = user.role === "student" ? "estudante" : user.role === "staff" ? "equipa" : "Super Admin";
   await addInteraction(
     contact.id,
     "system",

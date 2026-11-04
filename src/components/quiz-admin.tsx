@@ -270,7 +270,7 @@ export function QuizSettingsForm({
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <div>
-          <label className={labelCls}>Questões por aluna</label>
+          <label className={labelCls}>Questões por estudante</label>
           <input
             name="quizDraw"
             type="number"
@@ -294,11 +294,11 @@ export function QuizSettingsForm({
         {poolSize === 0
           ? "Adicione questões ao banco para activar o quiz."
           : n >= poolSize
-            ? `Todas as alunas respondem às ${poolSize} questões (em ordem e opções baralhadas). Para variar entre alunas, sorteie menos questões do que as do banco.`
-            : `Cada aluna recebe ${n} de ${poolSize} questões. O sorteio dá prioridade às questões menos usadas, por isso alunas diferentes recebem conjuntos diferentes, e numa nova tentativa a aluna vê primeiro questões que ainda não viu.`}
+            ? `Todos os estudantes respondem às ${poolSize} questões (em ordem e opções baralhadas). Para variar entre estudantes, sorteie menos questões do que as do banco.`
+            : `Cada estudante recebe ${n} de ${poolSize} questões. O sorteio dá prioridade às questões menos usadas, por isso estudantes diferentes recebem conjuntos diferentes, e numa nova tentativa aparecem primeiro questões que ainda não viu.`}
       </p>
       <div>
-        <label className={labelCls}>Instruções para a aluna</label>
+        <label className={labelCls}>Instruções para o estudante</label>
         <textarea name="content" rows={2} defaultValue={content ?? ""} className="field resize-y" placeholder="Opcional" />
       </div>
       <div className="flex flex-wrap items-center gap-3">

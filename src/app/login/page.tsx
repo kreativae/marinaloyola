@@ -8,7 +8,7 @@ import { Mascot } from "@/components/status-screen";
 
 export const metadata: Metadata = {
   title: "Entrar",
-  description: "Acesso à plataforma Marina Loyola — administração e área de aluna.",
+  description: "Acesso à plataforma Marina Loyola — administração e área de estudante.",
 };
 
 export default async function LoginPage({
@@ -34,7 +34,7 @@ export default async function LoginPage({
         {expired && <Mascot mood="sleepy" className="mx-auto -mb-6 mt-4 h-40 w-44" />}
 
         <div className="mt-10 rounded-3xl border border-zinc-200 bg-zinc-50 p-8 backdrop-blur lg:p-10">
-          <h1 className="font-display text-2xl italic">{expired ? "A sua sessão terminou." : "Bem-vinda de volta."}</h1>
+          <h1 className="font-display text-2xl italic">{expired ? "A sua sessão terminou." : "Olá de novo."}</h1>
           <p className="mt-1 text-sm text-zinc-500">
             {expired
               ? "Por segurança, precisa de entrar outra vez para continuar onde estava."
@@ -103,7 +103,7 @@ export default async function LoginPage({
                 <span className="text-plum">Admin:</span> marina@marinaloyola.com · marina123
               </p>
               <p>
-                <span className="text-plum">Aluna:</span> sofia@email.com · aluno123
+                <span className="text-plum">Estudante:</span> sofia@email.com · aluno123
               </p>
             </div>
           </div>
@@ -112,7 +112,7 @@ export default async function LoginPage({
 
         <p className="mt-8 flex items-center justify-center gap-2 text-center text-xs text-zinc-500">
           <Sparkles size={13} className="text-plum" />
-          Área de aluna e administração num só acesso.
+          Área de estudante e administração num só acesso.
         </p>
       </div>
     </section>

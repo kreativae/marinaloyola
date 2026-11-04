@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { and, asc, desc, eq, gt, gte, lt, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { agendaEvents, appointments, availability, eventTypes } from "@/db/schema";
+import { agendaEvents, appointments, availability, contacts, eventTypes } from "@/db/schema";
 import { createEventType, setAppointmentStatus, toggleEventType } from "@/lib/actions-admin";
 import { CopyToWeekdays, DayHoursRow, type DayHours } from "@/components/availability-editor";
 import { EmptyState, PageHeader, Panel } from "@/components/admin-ui";
@@ -347,7 +347,7 @@ async function AvailabilityView({ avail }: { avail: (typeof availability.$inferS
         </div>
       </Panel>
 
-      <Panel title="Tipos de sessão" description="O que as clientes podem marcar">
+      <Panel title="Tipos de sessão" description="O que se pode marcar">
         <ul className="stagger space-y-2.5">
           {types.map((t) => (
             <li
@@ -465,8 +465,9 @@ async function CalendarSection({
       .orderBy(asc(appointments.startAt)),
     getBusy(),
     db
-      .select()
+      .select({ ev: agendaEvents, contactName: contacts.name, contactEmail: contacts.email })
       .from(agendaEvents)
+      .leftJoin(contacts, eq(contacts.id, agendaEvents.contactId))
       .where(and(lt(agendaEvents.startAt, to), gt(agendaEvents.endAt, from)))
       .orderBy(asc(agendaEvents.startAt)),
   ]);
@@ -512,7 +513,7 @@ async function CalendarSection({
       }))
     ),
     // Compromissos criados no backoffice
-    ...own.flatMap((ev) => {
+    ...own.flatMap(({ ev, contactName, contactEmail }) => {
       const lastDay = new Date(ev.endAt.getTime() - (ev.allDay ? 86_400_000 : 0));
       return segments(ev.startAt, ev.endAt).map((seg) => ({
         id: ev.id,
@@ -520,6 +521,7 @@ async function CalendarSection({
         title: ev.title,
         subtitle: [
           ev.blocksBooking ? "Bloqueia marcações" : "Não bloqueia marcações",
+          contactName ? `Com ${contactName}` : null,
           repeatLabel(ev.repeat as RepeatRule | null, ev.startAt),
           ev.remindMin != null ? `Lembrete: ${remindLabel(ev.remindMin)}` : null,
           ev.location,
@@ -547,6 +549,10 @@ async function CalendarSection({
           repeat: ev.repeat as RepeatRule | null,
           remindMin: ev.remindMin,
           remindTo: ev.remindTo,
+          contactId: ev.contactId,
+          contactName,
+          contactEmail,
+          emailContact: ev.emailContact,
         },
       }));
     }),

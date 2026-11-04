@@ -19,7 +19,7 @@ export default async function AlunoLayout({ children }: { children: ReactNode })
               Marina Loyola
             </span>
             <span className="hidden items-center gap-1 text-[10px] font-bold uppercase tracking-[0.28em] text-plum sm:flex">
-              <GraduationCap size={13} /> Área de aluna
+              <GraduationCap size={13} /> Área de estudante
             </span>
           </Link>
           <div className="flex items-center gap-4">

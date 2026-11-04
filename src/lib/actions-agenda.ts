@@ -6,9 +6,9 @@ import { and, asc, eq, gt, gte, lt, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { agendaEvents, appointments, contacts, eventTypes } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
-import { isRepeatFreq, MAX_OCCURRENCES, occurrences, parseEmails, REMIND_OPTIONS, type RepeatRule } from "@/lib/agenda-def";
+import { isRepeatFreq, MAX_OCCURRENCES, occurrences, parseEmails, REMIND_OPTIONS, repeatLabel, repeatRRule, type RepeatRule } from "@/lib/agenda-def";
 import { addInteraction } from "@/lib/crm";
-import { bookingRescheduleEmail, getEmailConfig, sendEmail } from "@/lib/email";
+import { bookingRescheduleEmail, eventInviteEmail, getEmailConfig, sendEmail } from "@/lib/email";
 import { cityOf, countryOfTz, dualDateTime, flag, fmtTime, HOME_TZ } from "@/lib/timezones";
 import { sendWhatsappToContact } from "@/lib/whatsapp";
 import { createZoomMeeting, getZoomConfig, hasApiCredentials } from "@/lib/zoom";
@@ -141,21 +141,21 @@ export async function notifyReschedule(id: number): Promise<{ ok: boolean; messa
     }
   }
   if (a.contactId && sent.length) {
-    await addInteraction(a.contactId, "system", `Cliente avisada do reagendamento por ${sent.join(" e ")}.`);
+    await addInteraction(a.contactId, "system", `Aviso de reagendamento enviado por ${sent.join(" e ")}.`);
   }
   return sent.length
-    ? { ok: true, message: `${a.name.split(/\s+/)[0]} avisada por ${sent.join(" e ")}.` }
+    ? { ok: true, message: `Aviso enviado a ${a.name.split(/\s+/)[0]} por ${sent.join(" e ")}.` }
     : {
         ok: false,
         message: emailPreview
           ? "Não foi enviado: configure o Resend (email) ou o WhatsApp em Configurações."
-          : "Não foi possível avisar a cliente.",
+          : "Não foi possível enviar o aviso.",
       };
 }
 
 /* --------------------------- EVENTOS INTERNOS --------------------------- */
 
-export type AgendaEventResult = { ok: boolean; error?: string; warning?: string; id?: number; created?: number };
+export type AgendaEventResult = { ok: boolean; error?: string; warning?: string; notice?: string; id?: number; created?: number };
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -169,6 +169,59 @@ function refreshAgenda() {
   revalidatePath("/admin/agenda");
   revalidatePath("/admin");
   revalidatePath("/agendar");
+}
+
+/** Regista o evento na ficha e envia o convite; devolve um aviso quando o email não saiu. */
+async function tellContact(
+  contact: typeof contacts.$inferSelect,
+  before: typeof agendaEvents.$inferSelect | undefined,
+  ev: { title: string; startAt: Date; endAt: Date; allDay: boolean; location: string | null; emailContact: boolean },
+  id: number | null,
+  created: number,
+  series: { id: string; rule: RepeatRule } | null
+) {
+  const first = contact.name.split(/\s+/)[0];
+  const linkedNow = before?.contactId !== contact.id;
+  if (linkedNow) {
+    await addInteraction(contact.id, "system", `Evento "${ev.title}" vinculado para ${fmt(ev.startAt)}${created > 1 ? ` (${created} ocorrências)` : ""}.`);
+  }
+  if (!ev.emailContact) return undefined;
+  const changed =
+    linkedNow ||
+    !before?.emailContact ||
+    before.title !== ev.title ||
+    before.location !== ev.location ||
+    before.startAt.getTime() !== ev.startAt.getTime() ||
+    before.endAt.getTime() !== ev.endAt.getTime();
+  if (!changed) return undefined;
+  try {
+    const mail = await getEmailConfig();
+    const result = await sendEmail(
+      eventInviteEmail(
+        {
+          ...ev,
+          uid: series ? `serie-${series.id}` : `evento-${id}`,
+          name: contact.name,
+          email: contact.email!,
+          timezone: contact.timezone,
+          updated: !linkedNow && Boolean(before?.emailContact),
+          repeat: series ? repeatLabel(series.rule, ev.startAt) : null,
+          rrule: series ? repeatRRule(series.rule, created) : null,
+        },
+        mail.notifyEmail
+      )
+    );
+    if (result === "sent") {
+      await addInteraction(contact.id, "system", `Convite do evento "${ev.title}" enviado para ${contact.email}.`);
+      return undefined;
+    }
+    await addInteraction(contact.id, "system", `Convite do evento "${ev.title}" não enviado: o Resend não está configurado.`);
+    return `O email para ${first} não foi enviado: o Resend não está configurado.`;
+  } catch (e) {
+    console.error("[email] convite do evento falhou:", e);
+    await addInteraction(contact.id, "system", `Falha ao enviar o convite do evento "${ev.title}" para ${contact.email}.`);
+    return `O email para ${first} falhou. Avise por outro canal.`;
+  }
 }
 
 /**
@@ -220,6 +273,14 @@ export async function saveAgendaEvent(id: number | null, _prev: AgendaEventResul
   const extra = parseEmails(str("remindTo"));
   if (remindMin !== null && extra.invalid.length) return { ok: false, error: `Email inválido: ${extra.invalid[0]}` };
 
+  // Contacto ligado e email para o contacto
+  const contactId = fd.get("linkContact") === "1" ? Number(str("contactId")) || null : null;
+  if (fd.get("linkContact") === "1" && !contactId) return { ok: false, error: "Escolha o contacto a vincular." };
+  const [contact] = contactId ? await db.select().from(contacts).where(eq(contacts.id, contactId)).limit(1) : [];
+  if (contactId && !contact) return { ok: false, error: "Contacto não encontrado." };
+  const emailContact = Boolean(contact) && fd.get("emailContact") === "1";
+  if (emailContact && !contact.email) return { ok: false, error: "Este contacto não tem email. Adicione-o na ficha ou desligue o envio." };
+
   const color = /^#[0-9a-f]{6}$/i.test(str("color")) ? str("color") : "#0ea5e9";
   const values = {
     title: title.slice(0, 200),
@@ -231,6 +292,8 @@ export async function saveAgendaEvent(id: number | null, _prev: AgendaEventResul
     remindMin,
     remindTo: remindMin !== null && extra.emails.length ? extra.emails.join(", ") : null,
     remindedAt: null,
+    contactId,
+    emailContact,
   };
 
   const [current] = id ? await db.select().from(agendaEvents).where(eq(agendaEvents.id, id)).limit(1) : [];
@@ -238,6 +301,7 @@ export async function saveAgendaEvent(id: number | null, _prev: AgendaEventResul
   const dur = endAt.getTime() - startAt.getTime();
   let savedId = id;
   let created = 1;
+  let series: { id: string; rule: RepeatRule } | null = null;
 
   if (current?.seriesId && str("scope") !== "future") {
     // Só esta ocorrência: a série mantém-se
@@ -276,7 +340,11 @@ export async function saveAgendaEvent(id: number | null, _prev: AgendaEventResul
       [{ id: savedId }] = await db.insert(agendaEvents).values(rows).returning({ id: agendaEvents.id });
     }
     created = rows.length;
+    if (seriesId && rule) series = { id: seriesId, rule };
   }
+
+  // Histórico do contacto e convite (ao editar, só se algo que o contacto vê mudou)
+  const notice = contact ? await tellContact(contact, current, { ...values, startAt, endAt }, savedId, created, series) : undefined;
 
   // Aviso (sem impedir) quando já há sessões de clientes nesse período
   const saved = savedId
@@ -286,25 +354,26 @@ export async function saveAgendaEvent(id: number | null, _prev: AgendaEventResul
         .where(eq(agendaEvents.id, savedId))
         .limit(1)
     : [];
-  const series = saved[0]?.seriesId
+  const occurrencesSaved = saved[0]?.seriesId
     ? await db
         .select({ startAt: agendaEvents.startAt, endAt: agendaEvents.endAt })
         .from(agendaEvents)
         .where(and(eq(agendaEvents.seriesId, saved[0].seriesId), gte(agendaEvents.startAt, saved[0].startAt)))
         .orderBy(asc(agendaEvents.startAt))
     : saved;
-  const first = series[0]?.startAt ?? startAt;
-  const last = series.at(-1)?.endAt ?? endAt;
+  const first = occurrencesSaved[0]?.startAt ?? startAt;
+  const last = occurrencesSaved.at(-1)?.endAt ?? endAt;
   const nearby = await db
     .select({ name: appointments.name, startAt: appointments.startAt, endAt: appointments.endAt })
     .from(appointments)
     .where(and(ne(appointments.status, "cancelled"), lt(appointments.startAt, last), gt(appointments.endAt, first)));
-  const clashes = nearby.filter((c) => series.some((o) => c.startAt < o.endAt && c.endAt > o.startAt));
+  const clashes = nearby.filter((c) => occurrencesSaved.some((o) => c.startAt < o.endAt && c.endAt > o.startAt));
   refreshAgenda();
   return {
     ok: true,
     id: savedId ?? undefined,
     created,
+    notice,
     warning: clashes.length
       ? `Atenção: já tem ${clashes.length === 1 ? "1 sessão" : `${clashes.length} sessões`} marcada${clashes.length === 1 ? "" : "s"} ${created > 1 ? "nestes horários" : "neste período"} (${[...new Set(clashes.map((c) => c.name))].slice(0, 6).join(", ")}).`
       : undefined,
