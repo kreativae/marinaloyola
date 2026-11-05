@@ -170,7 +170,7 @@ export const SERVICES: ServiceDef[] = [
         label: "Account ID",
         type: "text",
         env: "ZOOM_ACCOUNT_ID",
-        help: "marketplace.zoom.us → Develop → Build App → Server-to-Server OAuth. Scope: meeting:write:meeting:admin.",
+        help: "marketplace.zoom.us → Develop → Build App → Server-to-Server OAuth. Scopes: meeting:write:meeting:admin e meeting:update:meeting:admin.",
         showIf: { key: "zoom_mode", values: ["api"] },
       },
       { key: "zoom_client_id", label: "Client ID", type: "text", env: "ZOOM_CLIENT_ID", showIf: { key: "zoom_mode", values: ["api"] } },

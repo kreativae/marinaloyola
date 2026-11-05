@@ -11,7 +11,7 @@ import { addInteraction } from "@/lib/crm";
 import { bookingRescheduleEmail, eventInviteEmail, getEmailConfig, sendEmail } from "@/lib/email";
 import { cityOf, countryOfTz, dualDateTime, flag, fmtTime, HOME_TZ } from "@/lib/timezones";
 import { sendWhatsappToContact } from "@/lib/whatsapp";
-import { createZoomMeeting, getZoomConfig, hasApiCredentials } from "@/lib/zoom";
+import { createZoomMeeting, getZoomConfig, hasApiCredentials, rescheduleZoomMeeting } from "@/lib/zoom";
 
 const fmt = (d: Date) =>
   new Intl.DateTimeFormat("pt-PT", {
@@ -37,6 +37,7 @@ export async function rescheduleAppointment(
   from?: { day: string; startMin: number };
   label?: string;
   clientLabel?: string | null;
+  warning?: string;
 }> {
   await requireAdmin();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isInteger(startMin) || startMin < 0 || startMin >= 1440) {
@@ -68,6 +69,12 @@ export async function rescheduleAppointment(
   if (appt.contactId) {
     await addInteraction(appt.contactId, "booking", `Sessão reagendada de ${fmt(appt.startAt)} para ${fmt(startAt)}.`);
   }
+  // A sessão já mudou: uma falha no Zoom fica registada, não desfaz o reagendamento
+  const zoom = await rescheduleZoomMeeting(appt.meetingUrl, startAt, Math.round((endAt.getTime() - startAt.getTime()) / 60000));
+  if (zoom.status === "failed") {
+    console.error("[zoom] reagendamento falhou:", zoom.error);
+    if (appt.contactId) await addInteraction(appt.contactId, "system", `Não foi possível atualizar a hora no Zoom: ${zoom.error}`);
+  }
   revalidatePath("/admin/agenda");
   revalidatePath("/admin");
   const old = appt.startAt;
@@ -78,6 +85,7 @@ export async function rescheduleAppointment(
       startMin: old.getHours() * 60 + old.getMinutes(),
     },
     label: fmt(startAt),
+    warning: zoom.status === "failed" ? "A hora no Zoom não foi atualizada; o link continua a funcionar." : undefined,
     // Hora para a cliente, quando está noutro fuso
     clientLabel:
       appt.timezone !== HOME_TZ && fmtTime(startAt, appt.timezone) !== fmtTime(startAt, HOME_TZ)

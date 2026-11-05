@@ -89,6 +89,27 @@ export async function createZoomMeeting(c: ZoomConfig, topic: string, startAt: D
 }
 
 /**
+ * Muda a hora da reunião quando uma sessão é reagendada; o link continua o mesmo.
+ * Só mexe em reuniões criadas pela API: a sala fixa não tem hora. Nunca lança.
+ */
+export async function rescheduleZoomMeeting(url: string | null, startAt: Date, durationMin: number) {
+  const id = url?.match(/zoom\.us\/j\/(\d+)/)?.[1];
+  if (!id) return { status: "skipped" as const };
+  const c = await getZoomConfig();
+  if (c.mode !== "api" || !hasApiCredentials(c) || c.fixedUrl.includes(`/j/${id}`)) return { status: "skipped" as const };
+  try {
+    await zoomApi(c, "PATCH", `/meetings/${id}`, {
+      start_time: startAt.toISOString().replace(/\.\d{3}Z$/, "Z"),
+      duration: durationMin,
+      timezone: "Europe/Lisbon",
+    });
+    return { status: "updated" as const };
+  } catch (e) {
+    return { status: "failed" as const, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
  * Link para um novo agendamento. Nunca lança: se a API falhar, usa a sala fixa (se houver)
  * e devolve o erro para ficar registado no histórico do contacto.
  */

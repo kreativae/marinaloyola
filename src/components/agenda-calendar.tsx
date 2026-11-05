@@ -62,7 +62,7 @@ const tinted = (e: CalEvent) => e.kind === "appt" || e.kind === "event";
 /* ---------------------------- ARRASTAR E SOLTAR --------------------------- */
 
 type Toast =
-  | { kind: "moved"; id: number; label: string; clientLabel?: string | null; from: { day: string; startMin: number } }
+  | { kind: "moved"; id: number; label: string; clientLabel?: string | null; warning?: string; from: { day: string; startMin: number } }
   | { kind: "info" | "error"; message: string };
 
 /**
@@ -137,7 +137,7 @@ function useReschedule(events: CalEvent[]) {
       setToast(
         undo || !r.from
           ? { kind: "info", message: "Alteração desfeita." }
-          : { kind: "moved", id: e.id, label: r.label ?? "", clientLabel: r.clientLabel, from: r.from }
+          : { kind: "moved", id: e.id, label: r.label ?? "", clientLabel: r.clientLabel, warning: r.warning, from: r.from }
       );
       router.refresh();
     });
@@ -179,6 +179,7 @@ function RescheduleToast({
             <span className="text-zinc-800">
               Sessão movida para <b>{toast.label}</b>
               {toast.clientLabel && <span className="text-zinc-500"> · {toast.clientLabel}</span>}
+              {toast.warning && <span className="block text-xs font-medium text-amber-700">{toast.warning}</span>}
             </span>
             {notified ? (
               <span className={cn("text-xs font-semibold", notified.ok ? "text-emerald-700" : "text-rose-600")}>{notified.message}</span>
