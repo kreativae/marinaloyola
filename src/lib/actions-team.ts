@@ -9,7 +9,7 @@ import { createAccount, type WelcomeStatus } from "@/lib/students";
 
 export type TeamResult = { ok: boolean; error?: string; password?: string | null; welcome?: WelcomeStatus; name?: string };
 
-const ROLES = ["admin", "staff", "student"] as const;
+const ROLES = ["admin", "manager", "staff", "student"] as const;
 type Role = (typeof ROLES)[number];
 
 /** Só a Super Admin gere contas (a equipa vê o backoffice, mas não mexe em acessos). */

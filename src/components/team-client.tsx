@@ -18,6 +18,7 @@ export type AccountPrefill = { contactId: number; name: string; email: string | 
 
 const ROLES: Record<string, { label: string; className: string; icon: typeof Users; hint: string }> = {
   admin: { label: "Super Admin", className: "bg-plum/20 text-plum border-plum/40", icon: ShieldCheck, hint: "Acesso total, incluindo contas e configurações." },
+  manager: { label: "Admin", className: "bg-amber-500/10 text-amber-700 border-amber-500/30", icon: ShieldCheck, hint: "Mesmos acessos da Equipa: usa o backoffice, sem gerir contas." },
   staff: { label: "Equipa", className: "bg-sky-500/10 text-sky-700 border-sky-500/30", icon: Users, hint: "Usa o backoffice, sem gerir contas." },
   student: { label: "Estudante", className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30", icon: GraduationCap, hint: "Só a área de estudante e os cursos com inscrição." },
 };
@@ -79,7 +80,7 @@ export function UserManager({ users, meId, canManage, courses = [] }: { users: T
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Procurar por nome ou email" className="field !pl-10" />
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {(["all", "admin", "staff", "student"] as const).map((r) => (
+          {(canManage ? (["all", "admin", "manager", "staff", "student"] as const) : (["all", "manager", "staff", "student"] as const)).map((r) => (
             <button
               key={r}
               type="button"
@@ -191,7 +192,7 @@ export function UserManager({ users, meId, canManage, courses = [] }: { users: T
           </tbody>
         </table>
       </div>
-      {!canManage && <p className="text-[11px] text-zinc-500">Só a Super Admin pode criar, editar ou apagar contas.</p>}
+      {!canManage && <p className="text-[11px] text-zinc-500">As contas são criadas e geridas pelo suporte da plataforma.</p>}
 
       <Modal
         open={editing !== null}

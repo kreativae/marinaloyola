@@ -52,6 +52,7 @@ const TONE: Record<ServiceStatus["tone"], string> = {
 
 const ROLES: Record<string, { label: string; className: string }> = {
   admin: { label: "Super Admin", className: "bg-plum/20 text-plum border-plum/40" },
+  manager: { label: "Admin", className: "bg-amber-500/10 text-amber-700 border-amber-500/30" },
   staff: { label: "Equipa", className: "bg-sky-500/10 text-sky-700 border-sky-500/30" },
   student: { label: "Estudante", className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30" },
 };
@@ -388,7 +389,7 @@ async function ServiceExtras({ id }: { id: ServiceId }) {
 }
 
 async function TeamTab() {
-  const [me, tagRows, allUsers, channelRows, courseRows] = await Promise.all([
+  const [me, tagRows, userRows, channelRows, courseRows] = await Promise.all([
     getSessionUser(),
     db
       .select({ id: tags.id, name: tags.name, color: tags.color, count: count(contactTags.contactId) })
@@ -399,7 +400,7 @@ async function TeamTab() {
     db
       .select({ id: users.id, name: users.name, email: users.email, role: users.role, createdAt: users.createdAt, totpEnabledAt: users.totpEnabledAt })
       .from(users)
-      .orderBy(asc(sql`case ${users.role} when 'admin' then 0 when 'staff' then 1 else 2 end`), desc(users.createdAt)),
+      .orderBy(asc(sql`case ${users.role} when 'admin' then 0 when 'manager' then 1 when 'staff' then 2 else 3 end`), desc(users.createdAt)),
     db
       .select({ id: channels.id, name: channels.name, color: channels.color, count: count(contacts.id) })
       .from(channels)
@@ -409,6 +410,8 @@ async function TeamTab() {
     db.select({ id: courses.id, title: courses.title }).from(courses).orderBy(asc(courses.title)),
   ]);
   const canManage = me?.role === "admin";
+  // A conta de Super Admin só é visível para quem a tem (nem chega ao browser dos outros perfis)
+  const allUsers = canManage ? userRows : userRows.filter((u) => u.role !== "admin");
   return (
     <div className="space-y-6">
       <div id="utilizadores" className="scroll-mt-6">
@@ -449,11 +452,11 @@ async function TeamTab() {
 }
 
 async function SecurityTab() {
-  const [me, raw, keyRows, recent, h] = await Promise.all([
+  const [me, raw, allKeys, allRecent, h] = await Promise.all([
     getSessionUser(),
     readRaw(["session_days", "login_lockout", "passkey_login", "session_epoch"]),
     db
-      .select({ key: passkeys, owner: users.name })
+      .select({ key: passkeys, owner: users.name, ownerRole: users.role })
       .from(passkeys)
       .innerJoin(users, eq(users.id, passkeys.userId))
       .orderBy(asc(users.name), desc(passkeys.createdAt)),
@@ -466,6 +469,8 @@ async function SecurityTab() {
     headers(),
   ]);
   const canManage = me?.role === "admin";
+  const keyRows = canManage ? allKeys : allKeys.filter((k) => k.ownerRole !== "admin");
+  const recent = canManage ? allRecent : allRecent.filter((u) => u.role !== "admin");
   const days = Number(raw.session_days);
   const host = (h.get("x-forwarded-host") ?? h.get("host") ?? "").split(",")[0].trim();
   const hostname = host.split(":")[0];
@@ -514,7 +519,7 @@ async function SecurityTab() {
           lockout={raw.login_lockout !== "0"}
           passkeyLogin={raw.passkey_login !== "0"}
         />
-        {!canManage && <p className="mt-4 text-[11px] text-zinc-500">Só a Super Admin pode alterar estas definições.</p>}
+        {!canManage && <p className="mt-4 text-[11px] text-zinc-500">Estas definições são geridas pelo suporte da plataforma.</p>}
       </Panel>
 
       <div id="face-id" className="scroll-mt-6">
@@ -563,7 +568,7 @@ async function SecurityTab() {
             todas as pessoas terão de entrar outra vez, em todos os aparelhos.
             {epoch > 0 && <> Última vez: {fmtDateTime(new Date(epoch))}.</>}
           </p>
-          {canManage ? <RevokeSessionsButton /> : <p className="text-[11px] text-zinc-500">Só a Super Admin pode fazer isto.</p>}
+          {canManage ? <RevokeSessionsButton /> : <p className="text-[11px] text-zinc-500">Para terminar todas as sessões, fale com o suporte da plataforma.</p>}
         </Panel>
       </div>
     </div>

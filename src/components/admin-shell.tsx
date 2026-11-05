@@ -294,7 +294,7 @@ function SidebarContent({
           {!collapsed && (
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-zinc-950">{user.name}</p>
-              <p className="truncate text-[11px] text-zinc-500">{user.role === "admin" ? "Super Admin" : "Equipa"} · Minha conta</p>
+              <p className="truncate text-[11px] text-zinc-500">{user.role === "admin" ? "Super Admin" : user.role === "manager" ? "Admin" : "Equipa"} · Minha conta</p>
             </div>
           )}
           </Link>

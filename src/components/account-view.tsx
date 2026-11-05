@@ -8,7 +8,7 @@ import { TwoFactorManager } from "@/components/two-factor-client";
 import { passkeyLoginEnabled } from "@/lib/actions-account";
 import { fmtDateTime } from "@/lib/utils";
 
-const ROLE_LABEL: Record<string, string> = { admin: "Super Admin", staff: "Equipa", student: "Estudante" };
+const ROLE_LABEL: Record<string, string> = { admin: "Super Admin", manager: "Admin", staff: "Equipa", student: "Estudante" };
 
 /** Página "Minha conta" partilhada entre o backoffice e a área de estudante. */
 export async function AccountView({ user }: { user: User }) {

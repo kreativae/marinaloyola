@@ -28,7 +28,7 @@ async function linkContact(user: { name: string; email: string; role: string }, 
   if (!contact) return;
   if (!contact.email) await db.update(contacts).set({ email: user.email }).where(eq(contacts.id, contact.id));
   if (user.role === "student") await tagContact(contact.id, "Estudante", "#10b981");
-  const who = user.role === "student" ? "estudante" : user.role === "staff" ? "equipa" : "Super Admin";
+  const who = { student: "estudante", staff: "equipa", manager: "Admin" }[user.role] ?? "administração";
   await addInteraction(
     contact.id,
     "system",
@@ -47,7 +47,7 @@ export async function enrollInCourses(userId: number, courseIds: number[]) {
 export async function createAccount(input: {
   name: string;
   email: string;
-  role: "admin" | "staff" | "student";
+  role: "admin" | "manager" | "staff" | "student";
   phone?: string | null;
   password?: string;
   contactId?: number | null;

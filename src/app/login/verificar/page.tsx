@@ -47,7 +47,7 @@ export default async function VerificarPage({ searchParams }: { searchParams: Pr
             <summary className="cursor-pointer font-semibold text-zinc-600 hover:text-plum">Não tem o telemóvel consigo?</summary>
             <p className="mt-2 leading-relaxed">
               Escreva no campo acima um dos códigos de recuperação que guardou quando ativou a verificação (formato
-              <span className="font-mono"> abcde-12345</span>). Cada código só serve uma vez. Sem eles, peça à Super Admin
+              <span className="font-mono"> abcde-12345</span>). Cada código só serve uma vez. Sem eles, peça ao suporte da plataforma
               para desligar a verificação na sua conta.
             </p>
           </details>

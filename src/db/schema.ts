@@ -14,7 +14,7 @@ import {
 
 /* ------------------------------- ENUMS ---------------------------------- */
 
-export const roleEnum = pgEnum("role", ["admin", "staff", "student"]);
+export const roleEnum = pgEnum("role", ["admin", "manager", "staff", "student"]);
 export const leadSourceEnum = pgEnum("lead_source", [
   "whatsapp",
   "hotmart",
