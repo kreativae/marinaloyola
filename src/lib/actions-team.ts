@@ -42,8 +42,15 @@ function refresh() {
 
 /* ------------------------------ UTILIZADORES ----------------------------- */
 
+/** O Admin só pode criar contas de estudante a partir de um contacto; o resto é da Super Admin. */
+async function requireAccountAccess(id: number | null, fd: FormData) {
+  const me = await getSessionUser();
+  if (me?.role === "manager" && id === null && str(fd, "role") === "student" && Number(str(fd, "contactId")) > 0) return me;
+  return requireSuperAdmin();
+}
+
 export async function saveUser(id: number | null, _prev: TeamResult | null, fd: FormData): Promise<TeamResult> {
-  const me = await requireSuperAdmin();
+  const me = await requireAccountAccess(id, fd);
   const name = str(fd, "name").slice(0, 120);
   const email = str(fd, "email").toLowerCase();
   const role = str(fd, "role") as Role;

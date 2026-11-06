@@ -229,6 +229,7 @@ function UserForm({
   courses = [],
   prefill,
   defaultRole,
+  lockRole,
 }: {
   user: TeamUser | null;
   isMe: boolean;
@@ -236,6 +237,8 @@ function UserForm({
   courses?: CourseOption[];
   prefill?: AccountPrefill;
   defaultRole?: string;
+  /** Só pode criar o perfil de defaultRole (o Admin a converter um contacto). */
+  lockRole?: boolean;
 }) {
   const [state, action, pending] = useActionState<TeamResult | null, FormData>(saveUser.bind(null, user?.id ?? null), null);
   const [role, setRole] = useState(user?.role ?? defaultRole ?? "staff");
@@ -283,24 +286,28 @@ function UserForm({
           )}
         </div>
       </FormSection>
-      <FormSection icon={ShieldCheck} title="Perfil de acesso">
-        {isMe && user?.role === "admin" ? (
-          <>
-            <input type="hidden" name="role" value="admin" />
-            <p className="text-xs text-zinc-500">É a sua conta: o perfil de Super Admin mantém-se.</p>
-          </>
-        ) : (
-          <>
-            <PillGroup
-              name="role"
-              value={role}
-              onChange={setRole}
-              options={Object.entries(ROLES).map(([value, r]) => ({ value, label: r.label, icon: r.icon }))}
-            />
-            <p className="text-xs text-zinc-500">{ROLES[role]?.hint}</p>
-          </>
-        )}
-      </FormSection>
+      {lockRole ? (
+        <input type="hidden" name="role" value={role} />
+      ) : (
+        <FormSection icon={ShieldCheck} title="Perfil de acesso">
+          {isMe && user?.role === "admin" ? (
+            <>
+              <input type="hidden" name="role" value="admin" />
+              <p className="text-xs text-zinc-500">É a sua conta: o perfil de Super Admin mantém-se.</p>
+            </>
+          ) : (
+            <>
+              <PillGroup
+                name="role"
+                value={role}
+                onChange={setRole}
+                options={Object.entries(ROLES).map(([value, r]) => ({ value, label: r.label, icon: r.icon }))}
+              />
+              <p className="text-xs text-zinc-500">{ROLES[role]?.hint}</p>
+            </>
+          )}
+        </FormSection>
+      )}
       {!user && role === "student" && courses.length > 0 && (
         <FormSection icon={BookOpen} title="Acesso aos cursos">
           <div className="grid gap-2 sm:grid-cols-2">
@@ -476,9 +483,11 @@ export function ConvertToStudentButton({
   contact,
   courses,
   account,
+  lockRole,
 }: {
   contact: AccountPrefill;
   courses: CourseOption[];
+  lockRole?: boolean;
   /** Conta que já existe com o email do contacto (a janela continua aberta ao mostrar a palavra-passe). */
   account?: { role: string } | null;
 }) {
@@ -501,6 +510,7 @@ export function ConvertToStudentButton({
             courses={courses}
             prefill={contact}
             defaultRole="student"
+            lockRole={lockRole}
             onDone={() => {
               setOpen(false);
               router.refresh();

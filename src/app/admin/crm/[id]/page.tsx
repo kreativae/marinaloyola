@@ -164,11 +164,12 @@ export default async function ContactDetailPage({
               </Link>
             )}
             {waCount > 0 && <DeleteConversationButton contactId={contact.id} name={contact.name} count={waCount} />}
-            {me?.role === "admin" ? (
+            {me?.role === "admin" || me?.role === "manager" ? (
               <ConvertToStudentButton
                 contact={{ contactId: contact.id, name: contact.name, email: contact.email, phone: contact.phone }}
                 courses={courseRows}
                 account={account}
+                lockRole={me.role === "manager"}
               />
             ) : (
               account && <AccountChip role={account.role} />
