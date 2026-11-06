@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { contacts, deals, pipelineStages } from "@/db/schema";
+import { contacts, deals, pipelineStages, settings } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { addInteraction } from "@/lib/crm";
+import { getPipelines, PIPELINES_KEY, type Pipeline } from "@/lib/pipelines";
 import { eur } from "@/lib/utils";
 
 export type DealResult = { ok: boolean; error?: string };
@@ -96,4 +97,83 @@ export async function deleteDeal(id: number) {
     await addInteraction(deal.contactId, "system", `Negócio apagado: "${deal.title}".`);
     refresh(deal.contactId);
   }
+}
+
+/* ------------------------- PIPELINES E ETAPAS ------------------------- */
+
+export type StageInput = { id: number | null; name: string; color: string; removed: boolean; moveTo: number | null };
+export type PipelineResult = { ok: boolean; error?: string; id?: string };
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** A estrutura do pipeline é gerida pela Super Admin e pelo Admin; a Equipa só trabalha nos negócios. */
+async function canManagePipelines() {
+  const me = await requireAdmin();
+  return me.role === "admin" || me.role === "manager";
+}
+
+const writePipelines = (tx: Tx, list: Pipeline[]) => {
+  const value = JSON.stringify(list);
+  return tx.insert(settings).values({ key: PIPELINES_KEY, value }).onConflictDoUpdate({ target: settings.key, set: { value } });
+};
+
+/** Cria (id null) ou atualiza um pipeline: nome, etapas, ordem, e etapas apagadas com os negócios movidos. */
+export async function savePipelineAction(id: string | null, name: string, stages: StageInput[]): Promise<PipelineResult> {
+  if (!(await canManagePipelines())) return { ok: false, error: "Sem permissão." };
+  const label = name.trim().slice(0, 60);
+  const kept = stages.filter((s) => !s.removed).map((s) => ({ ...s, name: s.name.trim().slice(0, 60) }));
+  const removed = stages.filter((s) => s.removed && s.id !== null);
+  if (!label) return { ok: false, error: "Indique o nome do pipeline." };
+  if (!kept.length) return { ok: false, error: "O pipeline precisa de pelo menos uma etapa." };
+  if (kept.some((s) => !s.name)) return { ok: false, error: "Todas as etapas precisam de nome." };
+  if (kept.some((s) => !/^#[0-9a-f]{6}$/i.test(s.color))) return { ok: false, error: "Cor inválida." };
+
+  const pipelines = await getPipelines();
+  if (id && !pipelines.some((p) => p.id === id)) return { ok: false, error: "Pipeline não encontrado." };
+  const pipelineId = id ?? `p${Date.now().toString(36)}`;
+
+  const current = await db.select({ id: pipelineStages.id }).from(pipelineStages).where(eq(pipelineStages.pipeline, pipelineId));
+  const owned = new Set(current.map((s) => s.id));
+  if (stages.some((s) => s.id !== null && !owned.has(s.id))) return { ok: false, error: "Etapa não encontrada. Atualize a página." };
+  const targets = new Set(kept.flatMap((s) => (s.id === null ? [] : [s.id])));
+
+  // Validar antes da transação: nenhuma etapa com negócios pode sair sem destino
+  for (const s of removed) {
+    const [{ n }] = await db.select({ n: count() }).from(deals).where(eq(deals.stageId, s.id!));
+    if (n > 0 && (!s.moveTo || !targets.has(s.moveTo))) return { ok: false, error: `Escolha para onde mover os negócios de "${s.name}".` };
+  }
+
+  await db.transaction(async (tx) => {
+    for (const s of removed) {
+      if (s.moveTo) await tx.update(deals).set({ stageId: s.moveTo }).where(eq(deals.stageId, s.id!));
+    }
+    for (const [i, s] of kept.entries()) {
+      const values = { name: s.name, color: s.color, order: i + 1 };
+      if (s.id === null) await tx.insert(pipelineStages).values({ ...values, pipeline: pipelineId });
+      else await tx.update(pipelineStages).set(values).where(eq(pipelineStages.id, s.id));
+    }
+    if (removed.length) await tx.delete(pipelineStages).where(inArray(pipelineStages.id, removed.map((s) => s.id!)));
+    await writePipelines(tx, id ? pipelines.map((p) => (p.id === id ? { ...p, label } : p)) : [...pipelines, { id: pipelineId, label }]);
+  });
+  refresh();
+  return { ok: true, id: pipelineId };
+}
+
+/** Só apaga um pipeline sem negócios: apagar as etapas levaria os negócios em cascata. */
+export async function deletePipelineAction(id: string): Promise<PipelineResult> {
+  if (!(await canManagePipelines())) return { ok: false, error: "Sem permissão." };
+  const pipelines = await getPipelines();
+  if (pipelines.length <= 1) return { ok: false, error: "Tem de ficar pelo menos um pipeline." };
+  const [{ n }] = await db
+    .select({ n: count() })
+    .from(deals)
+    .innerJoin(pipelineStages, eq(pipelineStages.id, deals.stageId))
+    .where(eq(pipelineStages.pipeline, id));
+  if (n > 0) return { ok: false, error: "Este pipeline ainda tem negócios." };
+  await db.transaction(async (tx) => {
+    await tx.delete(pipelineStages).where(eq(pipelineStages.pipeline, id));
+    await writePipelines(tx, pipelines.filter((p) => p.id !== id));
+  });
+  refresh();
+  return { ok: true };
 }

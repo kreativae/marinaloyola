@@ -15,6 +15,7 @@ import { and, count, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { appointments, contacts, eventTypes, interactions, payments } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
+import { getPipelines } from "@/lib/pipelines";
 import { BarChart, EmptyState, HBarRow, Panel, StatCard } from "@/components/admin-ui";
 import { countryOfTz, dayIn, flag, fmtTime, HOME_TZ } from "@/lib/timezones";
 import { cn, eur, fmtDate, initials, INTERACTION_ICONS, num, SOURCES } from "@/lib/utils";
@@ -137,6 +138,7 @@ export default async function AdminDashboard() {
     0
   );
   const sources = sourceRows.rows as unknown as { source: string; n: number }[];
+  const pipelineNames = new Map((await getPipelines()).map((p) => [p.id, p.label]));
   const stages = stageRows.rows as unknown as {
     id: number;
     name: string;
@@ -321,7 +323,7 @@ export default async function AdminDashboard() {
               <div key={s.id} className="group">
                 {s.pipeline !== stages[i - 1]?.pipeline && (
                   <p className={cn("mb-2.5 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400", i > 0 && "mt-5 border-t border-line pt-4")}>
-                    {s.pipeline === "workshops" ? "Workshops" : "Mentoria"}
+                    {pipelineNames.get(s.pipeline) ?? s.pipeline}
                   </p>
                 )}
                 <div className="flex items-center justify-between gap-3 text-sm">

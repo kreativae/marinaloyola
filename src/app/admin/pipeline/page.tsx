@@ -5,18 +5,19 @@ import { db } from "@/db";
 import { contacts, courses, deals, pipelineStages } from "@/db/schema";
 import { EmptyState, PageHeader, Panel, StatCard } from "@/components/admin-ui";
 import { ClosedDeals, NewDealButton, PipelineBoard, type DealData } from "@/components/pipeline-client";
+import { EditPipelineButton, NewPipelineButton } from "@/components/pipeline-editor";
+import { getSessionUser } from "@/lib/auth";
+import { getPipelines } from "@/lib/pipelines";
 import { cn, eur, num } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const PIPELINES = [
-  { id: "mentoria", label: "Mentoria 1:1" },
-  { id: "workshops", label: "Workshops & Cursos" },
-];
-
 export default async function PipelinePage({ searchParams }: { searchParams: Promise<{ p?: string }> }) {
   const { p } = await searchParams;
-  const pipeline = p === "workshops" ? "workshops" : "mentoria";
+  const [pipelines, me] = await Promise.all([getPipelines(), getSessionUser()]);
+  const current = pipelines.find((pl) => pl.id === p) ?? pipelines[0];
+  const pipeline = current.id;
+  const canManage = me?.role === "admin" || me?.role === "manager";
 
   const [stages, dealRows, allContacts, courseRows] = await Promise.all([
     db.select().from(pipelineStages).where(eq(pipelineStages.pipeline, pipeline)).orderBy(asc(pipelineStages.order)),
@@ -66,6 +67,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
     return { id: String(s.id), name: s.name, color: s.color, total: total > 0 ? eur(total) : undefined };
   });
   const stageList = stages.map(({ id, name, color }) => ({ id, name, color }));
+  const editable = stages.map(({ id, name, color }) => ({ id, name, color, deals: dealRows.filter((r) => r.deal.stageId === id).length }));
 
   return (
     <>
@@ -75,20 +77,32 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
         actions={<NewDealButton contacts={allContacts} stages={stageList} products={products} />}
       />
 
-      <div className="mb-6 inline-flex rounded-2xl border border-line bg-white p-1 shadow-[0_1px_2px_rgb(24_24_27/0.04)]">
-        {PIPELINES.map((pl) => (
-          <Link
-            key={pl.id}
-            href={`/admin/pipeline?p=${pl.id}`}
-            scroll={false}
-            className={cn(
-              "flex items-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold transition-all duration-300",
-              pipeline === pl.id ? "bg-plum text-white shadow-[0_6px_16px_-8px_rgb(128_0_128/0.8)]" : "text-zinc-500 hover:text-zinc-900"
-            )}
-          >
-            <Layers size={15} /> {pl.label}
-          </Link>
-        ))}
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="inline-flex flex-wrap rounded-2xl border border-line bg-white p-1 shadow-[0_1px_2px_rgb(24_24_27/0.04)]">
+          {pipelines.map((pl) => (
+            <Link
+              key={pl.id}
+              href={`/admin/pipeline?p=${pl.id}`}
+              scroll={false}
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold transition-all duration-300",
+                pipeline === pl.id ? "bg-plum text-white shadow-[0_6px_16px_-8px_rgb(128_0_128/0.8)]" : "text-zinc-500 hover:text-zinc-900"
+              )}
+            >
+              <Layers size={15} /> {pl.label}
+            </Link>
+          ))}
+        </div>
+        {canManage && (
+          <>
+            <EditPipelineButton
+              key={pipeline}
+              pipeline={{ ...current, stages: editable }}
+              canDelete={pipelines.length > 1 && editable.every((s) => s.deals === 0)}
+            />
+            <NewPipelineButton />
+          </>
+        )}
       </div>
 
       <div className="stagger mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
