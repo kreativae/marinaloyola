@@ -39,6 +39,7 @@ import {
   Users,
   X,
   type LucideIcon,
+  AlertTriangle,
 } from "lucide-react";
 import {
   bulkAddTag,
@@ -51,6 +52,7 @@ import {
   deleteChannel,
   getContactSummary,
   deleteContactAction,
+  forceDeleteContactAction,
   importContactsAction,
   updateChannel,
   updateContactAction,
@@ -744,6 +746,78 @@ export function DeleteContactButton({ id, name }: { id: number; name: string }) 
     >
       {pending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Apagar
     </button>
+  );
+}
+
+/** Super Admin: apaga tudo, sem olhar a pagamentos ou pendências. Pede que se escreva EXCLUIR. */
+export function ForceDeleteContactButton({
+  id,
+  name,
+  items,
+  hasAccount,
+}: {
+  id: number;
+  name: string;
+  items: { label: string; count: number }[];
+  hasAccount: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [word, setWord] = useState("");
+  const [error, setError] = useState<string>();
+  const [pending, start] = useTransition();
+  const close = () => {
+    setOpen(false);
+    setWord("");
+    setError(undefined);
+  };
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-rose-700"
+      >
+        <AlertTriangle size={14} /> Exclusão forçada
+      </button>
+      <Modal open={open} onClose={close} title="Exclusão forçada" description={name} icon={AlertTriangle}>
+        <p className="text-sm text-zinc-700">
+          Apaga este contacto e tudo o que lhe pertence, mesmo com pagamentos ou pendências. Os valores também saem do Financeiro. Esta acção não pode ser desfeita.
+        </p>
+        <ul className="mt-4 grid gap-1.5 rounded-xl bg-rose-50 p-4 text-sm text-rose-900">
+          {items.map((i) => (
+            <li key={i.label} className="flex justify-between gap-4">
+              <span>{i.label}</span>
+              <strong>{i.count}</strong>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-xs text-zinc-500">
+          Não são apagadas as notas da equipa{hasAccount ? ", a conta de acesso desta pessoa" : ""} nem as reuniões já criadas no Zoom.
+        </p>
+        <label className="mt-4 block text-xs font-semibold text-zinc-700">
+          Escreva EXCLUIR para confirmar
+          <input value={word} onChange={(e) => setWord(e.target.value)} autoComplete="off" className="field mt-1.5" />
+        </label>
+        <ModalFooter error={error}>
+          <button type="button" onClick={close} className="btn-ghost !px-5 !py-2.5 !text-xs">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={word !== "EXCLUIR" || pending}
+            onClick={() =>
+              start(async () => {
+                const r = await forceDeleteContactAction(id);
+                if (r?.error) setError(r.error);
+              })
+            }
+            className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-6 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-rose-700 disabled:opacity-50"
+          >
+            {pending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Excluir tudo
+          </button>
+        </ModalFooter>
+      </Modal>
+    </>
   );
 }
 

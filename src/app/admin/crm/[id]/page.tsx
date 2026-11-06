@@ -19,12 +19,14 @@ import {
 import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  agendaEvents,
   appointments,
   contacts,
   courses,
   contactTags,
   deals,
   eventTypes,
+  formSubmissions,
   interactions,
   noteContacts,
   notes,
@@ -36,7 +38,7 @@ import {
 import { addContactNote, deleteInteraction, setContactStatus, setPaymentStatus } from "@/lib/actions-admin";
 import { EmptyState, PageHeader, Panel, StatCard } from "@/components/admin-ui";
 import { SelectAction } from "@/components/admin-client";
-import { ChannelChip, ContactFormButton, DeleteContactButton } from "@/components/contacts-client";
+import { ChannelChip, ContactFormButton, DeleteContactButton, ForceDeleteContactButton } from "@/components/contacts-client";
 import { AccountChip, ConvertToStudentButton } from "@/components/team-client";
 import { DismissDuplicateButton, MergeButton } from "@/components/duplicates-client";
 import { getSessionUser } from "@/lib/auth";
@@ -114,6 +116,11 @@ export default async function ContactDetailPage({
       .orderBy(desc(notes.pinned), desc(notes.updatedAt)),
     db.select({ waCount: count() }).from(whatsappMessages).where(eq(whatsappMessages.contactId, contactId)),
   ]);
+  const totalOf = (table: typeof payments | typeof appointments | typeof agendaEvents | typeof formSubmissions | typeof interactions) =>
+    db.select({ n: count() }).from(table).where(eq(table.contactId, contactId)).then((r) => r[0].n);
+  const [paymentTotal, apptTotal, eventTotal, formTotal, historyTotal] = await Promise.all(
+    [payments, appointments, agendaEvents, formSubmissions, interactions].map(totalOf)
+  );
   const [channelOptions, me, account, courseRows, duplicateGroups] = await Promise.all([
     listChannels(),
     getSessionUser(),
@@ -181,6 +188,22 @@ export default async function ContactDetailPage({
               }
             />
             <DeleteContactButton id={contact.id} name={contact.name} />
+            {me?.role === "admin" && (
+              <ForceDeleteContactButton
+                id={contact.id}
+                name={contact.name}
+                hasAccount={!!account}
+                items={[
+                  { label: "Pagamentos", count: paymentTotal },
+                  { label: "Agendamentos", count: apptTotal },
+                  { label: "Eventos da agenda", count: eventTotal },
+                  { label: "Negócios", count: dealRows.length },
+                  { label: "Respostas a formulários", count: formTotal },
+                  { label: "Mensagens de WhatsApp", count: waCount },
+                  { label: "Registos do histórico", count: historyTotal },
+                ]}
+              />
+            )}
           </>
         }
       />

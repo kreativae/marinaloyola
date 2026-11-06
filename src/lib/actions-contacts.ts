@@ -1,16 +1,19 @@
 "use server";
 
+import fs from "node:fs/promises";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  agendaEvents,
   appointments,
   channels,
   contacts,
   contactTags,
   deals,
   eventTypes,
+  formSubmissions,
   interactions,
   payments,
   pipelineStages,
@@ -22,6 +25,7 @@ import { requireAdmin } from "@/lib/auth";
 import { ensureChannel } from "@/lib/channels";
 import { dismissDuplicateGroup, matchContacts, mergeContacts } from "@/lib/contacts-merge";
 import { contactWhere } from "@/lib/contacts-query";
+import { filePath } from "@/lib/files";
 import { addInteraction, attachTag, ensureTag, localeFor } from "@/lib/crm";
 import { COUNTRIES, countryName, countryOfTz, defaultTzOf, isValidTz } from "@/lib/timezones";
 import { CONTACT_STATUS, SOURCES } from "@/lib/utils";
@@ -144,6 +148,35 @@ export async function deleteContactAction(id: number): Promise<{ error?: string 
   }
   await db.delete(contacts).where(eq(contacts.id, id));
   refresh();
+  redirect("/admin/contactos?apagados=1");
+}
+
+/**
+ * Exclusão forçada, só para o Super Admin: apaga o contacto e tudo o que lhe pertence, incluindo
+ * pagamentos, agendamentos, eventos da agenda, respostas a formulários e ficheiros guardados.
+ */
+export async function forceDeleteContactAction(id: number): Promise<{ error?: string }> {
+  const user = await requireAdmin();
+  if (user.role !== "admin") return { error: "Só o Super Admin pode fazer a exclusão forçada." };
+  const files = await db.transaction(async (tx) => {
+    const [receipts, media] = await Promise.all([
+      tx.select({ file: payments.receiptFile }).from(payments).where(and(eq(payments.contactId, id), isNotNull(payments.receiptFile))),
+      tx.select({ file: whatsappMessages.mediaFile }).from(whatsappMessages).where(and(eq(whatsappMessages.contactId, id), isNotNull(whatsappMessages.mediaFile))),
+    ]);
+    await tx.delete(appointments).where(eq(appointments.contactId, id));
+    await tx.delete(agendaEvents).where(eq(agendaEvents.contactId, id));
+    await tx.delete(formSubmissions).where(eq(formSubmissions.contactId, id));
+    await tx.delete(payments).where(eq(payments.contactId, id));
+    await tx.delete(contacts).where(eq(contacts.id, id));
+    return [
+      ...receipts.map((r) => filePath(r.file!, "comprovativos")),
+      ...media.map((m) => filePath(m.file!, "whatsapp")),
+    ];
+  });
+  await Promise.all(files.map((f) => fs.rm(f, { force: true })));
+  console.info(`[contactos] exclusão forçada do contacto ${id} pelo utilizador ${user.id}`);
+  for (const path of ["/admin/financeiro", "/admin/agenda", "/admin/pipeline", "/admin/whatsapp", "/admin/formularios"]) revalidatePath(path);
+  refresh(id);
   redirect("/admin/contactos?apagados=1");
 }
 
