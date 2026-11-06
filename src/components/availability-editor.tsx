@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Check, Coffee, Loader2, Plus, X } from "lucide-react";
-import { saveAvailability } from "@/lib/actions-admin";
+import { useRouter } from "next/navigation";
+import { Check, Coffee, Loader2, Pencil, Plus, X } from "lucide-react";
+import { Field, Modal, ModalFooter } from "@/components/form-kit";
+import { saveAvailability, updateEventType } from "@/lib/actions-admin";
 import { cn } from "@/lib/utils";
 
 export type DayHours = {
@@ -14,6 +16,73 @@ export type DayHours = {
   breakEnd: string | null;
   active: boolean;
 };
+
+export type EventTypeInfo = { id: number; name: string; description: string | null; durationMin: number; color: string };
+
+/** Lápis de cada tipo de sessão: abre o formulário com nome, duração, descrição e cor. */
+export function EditEventTypeButton({ type }: { type: EventTypeInfo }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string>();
+  const [pending, start] = useTransition();
+
+  const submit = (fd: FormData) =>
+    start(async () => {
+      const r = await updateEventType(type.id, fd);
+      setError(r.error);
+      if (r.error) return;
+      setOpen(false);
+      router.refresh();
+    });
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setError(undefined);
+          setOpen(true);
+        }}
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-plum"
+        aria-label={`Editar ${type.name}`}
+        title="Editar"
+      >
+        <Pencil size={13} />
+      </button>
+      <Modal open={open} onClose={() => setOpen(false)} title="Editar tipo de sessão" description="A duração nova vale para as próximas marcações" icon={Pencil}>
+        {open && (
+          <form action={submit} className="space-y-4">
+            <Field label="Nome">
+              <input name="name" required defaultValue={type.name} className="field" data-autofocus />
+            </Field>
+            <Field label="Descrição">
+              <textarea name="description" rows={3} defaultValue={type.description ?? ""} className="field" />
+            </Field>
+            <div className="flex gap-4">
+              <Field label="Duração">
+                <div className="relative w-32">
+                  <input name="durationMin" type="number" required min="5" max="480" step="5" defaultValue={type.durationMin} className="field !pr-11" />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400">min</span>
+                </div>
+              </Field>
+              <Field label="Cor">
+                <input name="color" type="color" defaultValue={type.color} className="h-11 w-14 cursor-pointer rounded-xl border border-zinc-200 bg-white p-1" aria-label="Cor" />
+              </Field>
+            </div>
+            <ModalFooter error={error}>
+              <button type="button" onClick={() => setOpen(false)} className="btn-ghost !px-4 !py-2 !text-xs">
+                Cancelar
+              </button>
+              <button type="submit" disabled={pending} className="btn-primary !px-4 !py-2 !text-xs">
+                {pending ? "A guardar…" : "Guardar"}
+              </button>
+            </ModalFooter>
+          </form>
+        )}
+      </Modal>
+    </>
+  );
+}
 
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 const toTime = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;

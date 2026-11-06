@@ -140,6 +140,20 @@ export async function createEventType(formData: FormData) {
   refresh("/admin/agenda");
 }
 
+export async function updateEventType(id: number, formData: FormData): Promise<{ error?: string }> {
+  await requireAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  const durationMin = Number(formData.get("durationMin"));
+  const description = String(formData.get("description") ?? "").trim() || null;
+  const color = String(formData.get("color") ?? "");
+  if (!name) return { error: "Indique o nome." };
+  if (!Number.isInteger(durationMin) || durationMin < 5 || durationMin > 480) return { error: "A duração tem de ser entre 5 e 480 minutos." };
+  if (!/^#[0-9a-f]{6}$/i.test(color)) return { error: "Cor inválida." };
+  await db.update(eventTypes).set({ name, durationMin, description, color }).where(eq(eventTypes.id, id));
+  refresh("/admin/agenda", "/agendar", "/admin");
+  return {};
+}
+
 export async function toggleEventType(id: number) {
   await requireAdmin();
   const [t] = await db.select().from(eventTypes).where(eq(eventTypes.id, id)).limit(1);

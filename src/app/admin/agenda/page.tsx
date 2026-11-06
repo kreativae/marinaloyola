@@ -18,7 +18,7 @@ import { and, asc, desc, eq, gt, gte, lt, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { agendaEvents, appointments, availability, contacts, eventTypes } from "@/db/schema";
 import { createEventType, setAppointmentStatus, toggleEventType } from "@/lib/actions-admin";
-import { CopyToWeekdays, DayHoursRow, type DayHours } from "@/components/availability-editor";
+import { CopyToWeekdays, DayHoursRow, EditEventTypeButton, type DayHours } from "@/components/availability-editor";
 import { EmptyState, PageHeader, Panel } from "@/components/admin-ui";
 import { CopyButton, SelectAction } from "@/components/admin-client";
 import { getSessionUser } from "@/lib/auth";
@@ -371,6 +371,7 @@ async function AvailabilityView({ avail, superAdmin }: { avail: (typeof availabi
                 </p>
                 {t.description && <p className="mt-0.5 truncate text-xs text-zinc-400">{t.description}</p>}
               </div>
+              <EditEventTypeButton type={t} />
               <form action={toggleEventType.bind(null, t.id)}>
                 <button
                   type="submit"
