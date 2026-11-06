@@ -38,7 +38,10 @@ import { EmptyState, PageHeader, Panel, StatCard } from "@/components/admin-ui";
 import { SelectAction } from "@/components/admin-client";
 import { ChannelChip, ContactFormButton, DeleteContactButton } from "@/components/contacts-client";
 import { AccountChip, ConvertToStudentButton } from "@/components/team-client";
+import { DismissDuplicateButton, MergeButton } from "@/components/duplicates-client";
 import { getSessionUser } from "@/lib/auth";
+import { DUPLICATE_REASONS } from "@/lib/contacts-def";
+import { findDuplicateGroups } from "@/lib/contacts-merge";
 import { accountForEmail } from "@/lib/students";
 import { listChannels } from "@/lib/channels";
 import { LocalTime } from "@/components/local-time";
@@ -111,12 +114,15 @@ export default async function ContactDetailPage({
       .orderBy(desc(notes.pinned), desc(notes.updatedAt)),
     db.select({ waCount: count() }).from(whatsappMessages).where(eq(whatsappMessages.contactId, contactId)),
   ]);
-  const [channelOptions, me, account, courseRows] = await Promise.all([
+  const [channelOptions, me, account, courseRows, duplicateGroups] = await Promise.all([
     listChannels(),
     getSessionUser(),
     accountForEmail(contact.email),
     db.select({ id: courses.id, title: courses.title }).from(courses).orderBy(asc(courses.title)),
+    findDuplicateGroups(),
   ]);
+  const duplicate = duplicateGroups.find((g) => g.members.some((m) => m.id === contactId));
+  const twins = duplicate?.members.filter((m) => m.id !== contactId) ?? [];
   const channel = channelOptions.find((c) => c.id === contact.channelId);
 
   const totalSpent = paymentRows
@@ -178,6 +184,32 @@ export default async function ContactDetailPage({
           </>
         }
       />
+
+      {duplicate && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="min-w-0">
+            <strong>Possível duplicado</strong> ({duplicate.reasons.map((r) => DUPLICATE_REASONS[r].toLowerCase()).join(", ")}):{" "}
+            {twins.map((t, i) => (
+              <span key={t.id}>
+                {i > 0 && ", "}
+                <Link href={`/admin/crm/${t.id}`} className="font-semibold underline">
+                  {t.name}
+                </Link>
+              </span>
+            ))}
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <DismissDuplicateButton groupKey={duplicate.key} className="text-xs font-semibold hover:underline" />
+            <MergeButton
+              keepId={contactId}
+              dropIds={twins.map((t) => t.id)}
+              label="Mesclar contacto"
+              question={`Mesclar ${twins.map((t) => `“${t.name}”`).join(", ")} em “${contact.name}”? Fica esta ficha, com o histórico, as conversas, os pagamentos e os agendamentos de todos. Esta acção não pode ser desfeita.`}
+              className="btn-primary !px-5 !py-2.5 !text-xs"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Cabeçalho da ficha */}
       <div className="card mb-6 p-6">

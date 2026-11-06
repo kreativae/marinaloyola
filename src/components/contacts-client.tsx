@@ -61,6 +61,7 @@ import {
 import { setContactStatus } from "@/lib/actions-admin";
 import { SelectAction } from "@/components/admin-client";
 import { LocalTime } from "@/components/local-time";
+import { MergeButton } from "@/components/duplicates-client";
 import { Field, FormSection, IconInput, Modal, ModalFooter, PillGroup } from "@/components/form-kit";
 import { COUNTRIES, countryName, defaultTzOf, flag, HOME_TZ, inferFromPhone, offsetLabel, cityOf, zonesOf } from "@/lib/timezones";
 import { APPT_STATUS, CONTACT_STATUS, cn, initials, eur, INTERACTION_ICONS, num, PAYMENT_STATUS, SOURCES } from "@/lib/utils";
@@ -599,9 +600,20 @@ function ContactForm({
         }
       >
         {state?.id && state.error && (
-          <Link href={`/admin/crm/${state.id}`} className="mr-auto text-xs font-semibold text-plum hover:underline">
-            Ver contacto existente
-          </Link>
+          <span className="mr-auto flex flex-wrap items-center gap-3">
+            <Link href={`/admin/crm/${state.id}`} className="text-xs font-semibold text-plum hover:underline">
+              Ver contacto existente
+            </Link>
+            {contact && state.dupName && (
+              <MergeButton
+                keepId={contact.id}
+                dropIds={[state.id]}
+                question={`Mesclar “${state.dupName}” em “${contact.name}”? Fica a ficha de “${contact.name}”, com o histórico dos dois. Os dados por guardar neste formulário são perdidos. Esta acção não pode ser desfeita.`}
+                onDone={onDone}
+                className="text-xs font-semibold text-plum hover:underline"
+              />
+            )}
+          </span>
         )}
         <button type="button" onClick={onDone} className="btn-ghost !px-5 !py-2.5 !text-xs">
           Cancelar

@@ -2,6 +2,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { countryOfTz, inferFromPhone, isValidTz } from "@/lib/timezones";
 import { contacts, contactTags, interactions, tags, type Contact } from "@/db/schema";
+import { cleanEmail, compatible, nameIsPhone, samePhone } from "@/lib/contacts-def";
+import { matchContacts, mergeContacts } from "@/lib/contacts-merge";
 
 type Source = "whatsapp" | "hotmart" | "site" | "social" | "referral" | "manual";
 
@@ -35,14 +37,27 @@ export async function findOrCreateContact(data: {
 }): Promise<{ contact: Contact; created: boolean }> {
   const email = data.email.trim().toLowerCase();
   const locale = localeFor(data.phone, data.timezone);
-  const [existing] = await db.select().from(contacts).where(eq(contacts.email, email)).limit(1);
-  if (existing) {
+  const matches = await matchContacts(email, data.phone);
+  if (matches.length) {
+    let existing = matches.find((c) => cleanEmail(c.email) === email) ?? matches[0];
+    // Email num contacto e telefone noutro: é a mesma pessoa, desde que os dados não se contradigam
+    for (const other of matches) {
+      if (other.id === existing.id || !compatible(existing, other)) continue;
+      existing = (await mergeContacts(existing.id, other.id, { auto: true })) ?? existing;
+    }
     const patch: Partial<Contact> = {};
+    if (!existing.email) patch.email = email;
     if (data.phone && !existing.phone) patch.phone = data.phone;
+    if (nameIsPhone(existing.name) && data.name.trim()) patch.name = data.name.trim();
     if (!existing.timezone && locale) Object.assign(patch, locale);
     if (Object.keys(patch).length) {
       await db.update(contacts).set(patch).where(eq(contacts.id, existing.id));
       Object.assign(existing, patch);
+    }
+    // Dados diferentes dos da ficha ficam no histórico, para a equipa decidir
+    if (cleanEmail(existing.email) !== email) await addInteraction(existing.id, "system", `Indicou outro email: ${email}.`);
+    if (data.phone && !samePhone(existing.phone, data.phone)) {
+      await addInteraction(existing.id, "system", `Indicou outro telefone: ${data.phone}.`);
     }
     return { contact: existing, created: false };
   }

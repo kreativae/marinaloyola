@@ -1,9 +1,10 @@
 import Form from "next/form";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Download, Moon, Search, SlidersHorizontal, Sparkles, UserCheck, UserPlus, Users, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Merge, Moon, Search, SlidersHorizontal, Sparkles, UserCheck, UserPlus, Users, X } from "lucide-react";
 import { asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { channels, contacts, contactTags, interactions, tags } from "@/db/schema";
+import { findDuplicateGroups } from "@/lib/contacts-merge";
 import { contactOrder, contactWhere, SORTS, type ContactFilters } from "@/lib/contacts-query";
 import { EmptyState, PageHeader } from "@/components/admin-ui";
 import { ContactsTable, ImportButton, NewContactButton, type ContactRow } from "@/components/contacts-client";
@@ -37,7 +38,7 @@ export default async function ContactosPage({
   const where = contactWhere(filters);
   const page = Math.max(1, Number(params.page) || 1);
 
-  const [[{ total }], stats, allTags, channelRows, [{ noChannel }], countryRows] = await Promise.all([
+  const [[{ total }], stats, allTags, channelRows, [{ noChannel }], countryRows, duplicates] = await Promise.all([
     db.select({ total: count() }).from(contacts).where(where),
     db
       .select({
@@ -67,6 +68,7 @@ export default async function ContactosPage({
       .from(contacts)
       .groupBy(contacts.country)
       .orderBy(sql`count(*) desc`),
+    findDuplicateGroups(),
   ]);
   const countries = countryRows.filter((r): r is { country: string; n: number } => Boolean(r.country));
   const noCountry = countryRows.find((r) => !r.country)?.n ?? 0;
@@ -165,6 +167,19 @@ export default async function ContactosPage({
           </>
         }
       />
+
+      {duplicates.length > 0 && (
+        <Link
+          href="/admin/contactos/duplicados"
+          className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 transition-colors hover:bg-amber-100"
+        >
+          <span className="flex items-center gap-2">
+            <Merge size={15} className="shrink-0" />
+            {duplicates.length === 1 ? "1 possível contacto duplicado" : `${duplicates.length} possíveis contactos duplicados`}
+          </span>
+          <span className="text-xs font-semibold">Rever e mesclar</span>
+        </Link>
+      )}
 
       {params.apagados && (
         <p className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">

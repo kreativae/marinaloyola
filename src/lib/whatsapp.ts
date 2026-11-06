@@ -1,8 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { contacts, whatsappMessages, type Contact } from "@/db/schema";
+import { matchContacts } from "@/lib/contacts-merge";
 import { addInteraction, localeFor, tagContact } from "@/lib/crm";
 import {
   getEvolutionConfig,
@@ -19,19 +20,10 @@ import { filePath, storeBuffer } from "@/lib/files";
 import { WA_MAX_DOCUMENT, WA_MAX_MEDIA } from "@/lib/whatsapp-def";
 import { getSetting, isOn } from "@/lib/settings";
 
-const digitsOf = sql`regexp_replace(coalesce(${contacts.phone}, ''), '\\D', '', 'g')`;
-
-/** Procura o contacto pelo número (exacto, ou pelos últimos 9 dígitos para tolerar indicativos). */
+/** Procura o contacto pelo número, com ou sem indicativo e com ou sem o 9 dos telemóveis do Brasil. */
 export async function findContactByPhone(digits: string): Promise<Contact | null> {
-  const [exact] = await db.select().from(contacts).where(sql`${digitsOf} = ${digits}`).limit(1);
-  if (exact) return exact;
-  const tail = digits.slice(-9);
-  const [byTail] = await db
-    .select()
-    .from(contacts)
-    .where(sql`right(${digitsOf}, 9) = ${tail}`)
-    .limit(1);
-  return byTail ?? null;
+  const found = await matchContacts(null, digits);
+  return found.find((c) => c.phone?.replace(/\D/g, "") === digits) ?? found[0] ?? null;
 }
 
 /** Mensagem recebida (ou enviada pelo telemóvel): cria o lead se for um número novo. */

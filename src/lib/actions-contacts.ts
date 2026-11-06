@@ -20,6 +20,7 @@ import {
 } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { ensureChannel } from "@/lib/channels";
+import { dismissDuplicateGroup, matchContacts, mergeContacts } from "@/lib/contacts-merge";
 import { contactWhere } from "@/lib/contacts-query";
 import { addInteraction, attachTag, ensureTag, localeFor } from "@/lib/crm";
 import { COUNTRIES, countryName, countryOfTz, defaultTzOf, isValidTz } from "@/lib/timezones";
@@ -31,7 +32,6 @@ type Source = (typeof contacts.$inferSelect)["source"];
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const orNull = (s: string) => s || null;
-const digits = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "");
 const cleanIds = (ids: number[]) => ids.filter((n) => Number.isInteger(n) && n > 0).slice(0, 1000);
 
 function refresh(id?: number) {
@@ -42,23 +42,9 @@ function refresh(id?: number) {
 
 /** Outro contacto já usa este email ou telefone? */
 async function findDuplicate(email: string | null, phone: string | null, exceptId?: number) {
-  const conds = [];
-  if (email) conds.push(sql`lower(${contacts.email}) = ${email.toLowerCase()}`);
-  const d = digits(phone);
-  if (d.length >= 9) {
-    conds.push(sql`right(regexp_replace(coalesce(${contacts.phone}, ''), '\\D', '', 'g'), 9) = ${d.slice(-9)}`);
-  }
-  if (!conds.length) return null;
-  const [dup] = await db
-    .select({ id: contacts.id, name: contacts.name })
-    .from(contacts)
-    .where(
-      exceptId
-        ? and(sql`(${sql.join(conds, sql` or `)})`, sql`${contacts.id} <> ${exceptId}`)
-        : sql.join(conds, sql` or `)
-    )
-    .limit(1);
-  return dup ?? null;
+  const found = await matchContacts(email, phone);
+  const dup = found.find((c) => c.id !== exceptId);
+  return dup ? { id: dup.id, name: dup.name } : null;
 }
 
 /** "" = sem canal, "new" = criar com o nome em newChannel, ou o id de um canal existente. */
@@ -97,7 +83,7 @@ function readContactForm(fd: FormData) {
   };
 }
 
-export type FormResult = { ok: boolean; error?: string; id?: number };
+export type FormResult = { ok: boolean; error?: string; id?: number; dupName?: string };
 
 export async function createContactAction(_prev: FormResult | null, fd: FormData): Promise<FormResult> {
   await requireAdmin();
@@ -127,7 +113,7 @@ export async function updateContactAction(
   if (!data.name) return { ok: false, error: "Indique o nome." };
   if (!data.email && !data.phone) return { ok: false, error: "Indique pelo menos um email ou telefone." };
   const dup = await findDuplicate(data.email, data.phone, id);
-  if (dup) return { ok: false, error: `Email ou telefone já usado por: ${dup.name}.`, id: dup.id };
+  if (dup) return { ok: false, error: `Email ou telefone já usado por: ${dup.name}.`, id: dup.id, dupName: dup.name };
   if (str(fd, "channelId") === "new" && !str(fd, "newChannel")) return { ok: false, error: "Escreva o nome do novo canal." };
   await db
     .update(contacts)
@@ -159,6 +145,30 @@ export async function deleteContactAction(id: number): Promise<{ error?: string 
   await db.delete(contacts).where(eq(contacts.id, id));
   refresh();
   redirect("/admin/contactos?apagados=1");
+}
+
+/* ------------------------------- MESCLAR -------------------------------- */
+
+/** Junta os contactos em `dropIds` no contacto `keepId`. Não pode ser desfeito. */
+export async function mergeContactsAction(keepId: number, dropIds: number[]): Promise<{ error?: string }> {
+  await requireAdmin();
+  const list = cleanIds(dropIds).filter((id) => id !== keepId);
+  if (!Number.isInteger(keepId) || !list.length) return { error: "Escolha os contactos a mesclar." };
+  for (const id of list) {
+    if (!(await mergeContacts(keepId, id))) return { error: "Um dos contactos já não existe. Atualize a página." };
+    revalidatePath(`/admin/crm/${id}`);
+  }
+  refresh(keepId);
+  revalidatePath("/admin/contactos/duplicados");
+  return {};
+}
+
+export async function dismissDuplicateAction(key: string) {
+  await requireAdmin();
+  if (!/^\d+(-\d+)+$/.test(key)) return;
+  await dismissDuplicateGroup(key);
+  refresh();
+  revalidatePath("/admin/contactos/duplicados");
 }
 
 /* ------------------------------ EM MASSA -------------------------------- */
