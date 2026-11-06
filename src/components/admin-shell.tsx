@@ -8,6 +8,7 @@ import {
   CalendarDays,
   CalendarPlus,
   ChevronsLeft,
+  ClipboardList,
   CornerDownLeft,
   ExternalLink,
   Globe,
@@ -38,7 +39,7 @@ import { cn, initials } from "@/lib/utils";
 
 /* ------------------------------ NAVEGAÇÃO ------------------------------- */
 
-type NavItem = { href: string; label: string; icon: LucideIcon; badge?: "whatsapp" | "today" };
+type NavItem = { href: string; label: string; icon: LucideIcon; badge?: "whatsapp" | "today" | "forms" };
 
 const NAV: { group: string; items: NavItem[] }[] = [
   { group: "Visão geral", items: [{ href: "/admin", label: "Dashboard", icon: LayoutDashboard }] },
@@ -59,6 +60,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { href: "/admin/marketing", label: "Marketing", icon: Megaphone },
       { href: "/admin/links", label: "Link na bio", icon: Link2 },
       { href: "/admin/site", label: "Site", icon: Globe },
+      { href: "/admin/formularios", label: "Formulários", icon: ClipboardList, badge: "forms" },
       { href: "/admin/financeiro", label: "Financeiro", icon: Wallet },
     ],
   },
@@ -75,7 +77,7 @@ function isActive(href: string, pathname: string) {
 }
 
 export type ShellUser = { name: string; role: string };
-export type ShellCounts = { whatsapp: number; today: number };
+export type ShellCounts = { whatsapp: number; today: number; forms: number };
 
 /* -------------------------------- SHELL --------------------------------- */
 
@@ -264,7 +266,7 @@ function SidebarContent({
                           "rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
                           item.badge === "whatsapp" ? "bg-emerald-500 text-white" : "bg-plum/10 text-plum"
                         )}
-                        title={item.badge === "whatsapp" ? "Mensagens por ler" : "Sessões hoje"}
+                        title={item.badge === "whatsapp" ? "Mensagens por ler" : item.badge === "forms" ? "Respostas por ler" : "Sessões hoje"}
                       >
                         {badge}
                       </span>

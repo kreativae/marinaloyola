@@ -316,17 +316,11 @@ export const SITE_PAGES: SitePageDef[] = [
     id: "contato",
     label: "Contacto",
     path: "/contato",
-    description: "Formulário e canais de contacto.",
+    description: "Destaque e canais de contacto. O formulário edita-se em Formulários.",
     fixed: true,
     seo: true,
     sections: [
       { id: "hero", label: "Destaque", fields: [kicker, title(), area("text", "Texto")] },
-      {
-        id: "form",
-        label: "Formulário",
-        description: "Cada mensagem entra nos Contactos com a etiqueta “Contacto Site”.",
-        fields: [strings("subjects", "Assuntos", "assunto"), t("button", "Texto do botão"), t("successTitle", "Mensagem de sucesso — título"), area("successText", "Mensagem de sucesso — texto")],
-      },
       {
         id: "channels",
         label: "Canais",

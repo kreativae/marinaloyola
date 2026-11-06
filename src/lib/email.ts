@@ -330,6 +330,15 @@ ${link}`;
   return { to, subject: `${title}: ${l.name}`, html, text, replyTo: l.email };
 }
 
+/** Resposta automática a quem preencheu um formulário (texto escrito no backoffice). */
+export function formAutoReplyEmail(r: { to: string; subject: string; text: string }, replyTo: string): Email {
+  const paragraphs = r.text
+    .split(/\n{2,}/)
+    .map((p) => `<p style="margin:0 0 16px;white-space:pre-line">${escapeHtml(p)}</p>`)
+    .join("");
+  return { to: r.to, subject: r.subject, html: layout(r.subject, paragraphs), text: r.text, replyTo: replyTo || undefined };
+}
+
 export type SaleEmailData = {
   kind: "sale" | "refund";
   name: string;

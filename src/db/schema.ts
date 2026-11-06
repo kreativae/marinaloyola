@@ -10,7 +10,9 @@ import {
   primaryKey,
   unique,
   jsonb,
+  index,
 } from "drizzle-orm/pg-core";
+import type { FormAnswer, FormField } from "@/lib/forms-def";
 
 /* ------------------------------- ENUMS ---------------------------------- */
 
@@ -511,6 +513,57 @@ export const bioEvents = pgTable("bio_events", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+/* ----------------------------- FORMULÁRIOS ------------------------------- */
+
+/** Formulários de captação de leads. O de `key = "contato"` é o da página Contacto e não se apaga. */
+export const forms = pgTable("forms", {
+  id: serial("id").primaryKey(),
+  key: text("key").unique(),
+  slug: text("slug").notNull().unique(), // endereço público: /formulario/<slug>
+  name: text("name").notNull(), // nome interno, só no backoffice
+  kicker: text("kicker").notNull().default("Formulário"),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  fields: jsonb("fields").$type<FormField[]>().notNull(),
+  button: text("button").notNull().default("Enviar"),
+  successTitle: text("success_title").notNull().default("Recebido."),
+  successText: text("success_text").notNull().default(""),
+  successCtaLabel: text("success_cta_label").notNull().default(""),
+  successCtaHref: text("success_cta_href").notNull().default(""),
+  // O que acontece a cada resposta
+  tag: text("tag"),
+  channelId: integer("channel_id").references(() => channels.id, { onDelete: "set null" }),
+  createDeal: boolean("create_deal").notNull().default(false),
+  notify: boolean("notify").notNull().default(true),
+  autoReply: boolean("auto_reply").notNull().default(false),
+  autoReplySubject: text("auto_reply_subject").notNull().default(""),
+  autoReplyText: text("auto_reply_text").notNull().default(""),
+  active: boolean("active").notNull().default(true),
+  views: integer("views").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/** Cada resposta guarda a pergunta como estava: editar o formulário não muda as respostas antigas. */
+export const formSubmissions = pgTable(
+  "form_submissions",
+  {
+    id: serial("id").primaryKey(),
+    formId: integer("form_id")
+      .notNull()
+      .references(() => forms.id, { onDelete: "cascade" }),
+    contactId: integer("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    phone: text("phone"),
+    answers: jsonb("answers").$type<FormAnswer[]>().notNull(),
+    status: text("status").notNull().default("new"), // new | read | archived
+    origin: text("origin"), // utm_source ou o site de onde veio
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("form_submissions_form_idx").on(t.formId, t.createdAt)]
+);
+
 /* ------------------------------ SETTINGS -------------------------------- */
 
 export const settings = pgTable("settings", {
@@ -520,6 +573,8 @@ export const settings = pgTable("settings", {
 
 /* ------------------------------- TYPES ---------------------------------- */
 
+export type Form = typeof forms.$inferSelect;
+export type FormSubmission = typeof formSubmissions.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Passkey = typeof passkeys.$inferSelect;
 export type Contact = typeof contacts.$inferSelect;
