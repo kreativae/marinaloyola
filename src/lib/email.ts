@@ -63,6 +63,8 @@ export async function notifyTeam(
 
 /** Devolve "preview" quando não há chave e o email foi guardado em .emails/. */
 export async function sendEmail(email: Email): Promise<"sent" | "preview"> {
+  // Endereços .invalid são os dos dados de demonstração: nunca saem da plataforma
+  if (email.to.toLowerCase().endsWith(".invalid")) return "preview";
   const { apiKey: key, from } = await getEmailConfig();
   if (!key) {
     const dir = path.join(process.cwd(), ".emails");

@@ -4,6 +4,7 @@ import {
   CalendarSync,
   ChevronRight,
   CreditCard,
+  Database,
   ExternalLink,
   Mail,
   MessageCircle,
@@ -21,10 +22,12 @@ import { PageHeader, Panel } from "@/components/admin-ui";
 import { CopyButton } from "@/components/admin-client";
 import { RegenerateFeedButton, ServiceForm } from "@/components/config-client";
 import { ChannelManager } from "@/components/contacts-client";
+import { DemoPanel } from "@/components/demo-client";
 import { TagManager, UserManager } from "@/components/team-client";
 import { PasskeyAdmin, RevokeSessionsButton, SecurityForm } from "@/components/account-client";
 import { headers } from "next/headers";
 import { getSessionUser } from "@/lib/auth";
+import { demoStatus, type DemoStatus } from "@/lib/demo-data";
 import { SESSION_DAYS } from "@/lib/login-guard";
 import { getEvolutionConfig, webhookUrl } from "@/lib/evolution";
 import { SERVICES, getService, type ServiceId } from "@/lib/services-def";
@@ -59,8 +62,9 @@ const ROLES: Record<string, { label: string; className: string }> = {
 
 export default async function ConfigPage({ searchParams }: { searchParams: Promise<{ s?: string }> }) {
   const { s } = await searchParams;
-  const tab = s === "equipa" || s === "seguranca" ? s : (getService(s ?? "")?.id ?? "geral");
-  const statuses = await serviceStatuses();
+  const [statuses, me, demo] = await Promise.all([serviceStatuses(), getSessionUser(), demoStatus()]);
+  const canDemo = me?.role === "admin" || me?.role === "manager";
+  const tab = s === "equipa" || s === "seguranca" || (s === "demonstracao" && canDemo) ? s : (getService(s ?? "")?.id ?? "geral");
 
   return (
     <>
@@ -106,6 +110,35 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
               </Link>
             );
           })}
+          {canDemo && (
+            <Link
+              href="/admin/config?s=demonstracao"
+              scroll={false}
+              className={cn(
+                "group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors",
+                tab === "demonstracao" ? "bg-plum/[0.08]" : "hover:bg-zinc-50"
+              )}
+            >
+              <span
+                className={cn(
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+                  tab === "demonstracao" ? "bg-plum text-white" : "bg-zinc-100 text-zinc-500 group-hover:text-plum"
+                )}
+              >
+                <Database size={16} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className={cn("block truncate text-sm font-semibold", tab === "demonstracao" ? "text-plum" : "text-zinc-900")}>
+                  Demonstração
+                </span>
+                <span className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+                  <span className={cn("h-1.5 w-1.5 rounded-full", demo ? "bg-amber-500" : "bg-zinc-300")} />
+                  {demo ? "Dados ativos" : "Sem dados"}
+                </span>
+              </span>
+              <ChevronRight size={14} className={cn("shrink-0 transition-transform", tab === "demonstracao" ? "text-plum" : "text-zinc-300 group-hover:translate-x-0.5")} />
+            </Link>
+          )}
           <div className="mx-3 my-2 border-t border-zinc-200" />
           <Link
             href="/admin/config?s=equipa"
@@ -151,10 +184,29 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
 
         {/* key: cada separador entra com a animação de página */}
         <div key={tab} className="min-w-0 animate-page-in">
-          {tab === "equipa" ? <TeamTab /> : tab === "seguranca" ? <SecurityTab /> : <ServiceTab id={tab} status={statuses[tab]} />}
+          {tab === "equipa" ? <TeamTab /> : tab === "seguranca" ? <SecurityTab /> : tab === "demonstracao" ? <DemoTab demo={demo} /> : <ServiceTab id={tab} status={statuses[tab]} />}
         </div>
       </div>
     </>
+  );
+}
+
+function DemoTab({ demo }: { demo: DemoStatus }) {
+  return (
+    <div className="space-y-6">
+      <Panel title="Dados de demonstração" description="Dados fictícios para testar e apresentar a plataforma.">
+        <DemoPanel when={demo ? fmtDateTime(new Date(demo.createdAt)) : null} counts={demo?.counts ?? []} />
+      </Panel>
+      <Panel title="Antes de usar">
+        <Steps
+          items={[
+            "Os valores de demonstração entram nos totais do Financeiro e do Dashboard enquanto existirem.",
+            "Os contactos têm a etiqueta Demonstração, com emails e telefones que não pertencem a ninguém.",
+            "Ao excluir, saem apenas estes registos e o que for criado dentro destes contactos.",
+          ]}
+        />
+      </Panel>
+    </div>
   );
 }
 
