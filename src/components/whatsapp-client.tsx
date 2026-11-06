@@ -148,7 +148,7 @@ export function WhatsappConnection({
         )}
       </div>
       {!configured && (
-        <p className="mt-3 text-xs text-zinc-500">Preencha as definições da Evolution API abaixo.</p>
+        <p className="mt-3 text-xs text-zinc-500">A Evolution API ainda não está configurada.</p>
       )}
     </div>
   );

@@ -30,7 +30,7 @@ import { getSessionUser } from "@/lib/auth";
 import { demoStatus, type DemoStatus } from "@/lib/demo-data";
 import { SESSION_DAYS } from "@/lib/login-guard";
 import { getEvolutionConfig, webhookUrl } from "@/lib/evolution";
-import { SERVICES, getService, type ServiceId } from "@/lib/services-def";
+import { SERVICES, canConfigure, getService, type ServiceId } from "@/lib/services-def";
 import { serviceFormState, serviceStatuses, type ServiceStatus } from "@/lib/services";
 import { appUrl, getToken, readRaw } from "@/lib/settings";
 import { cn, fmtDate, fmtDateTime } from "@/lib/utils";
@@ -64,7 +64,8 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
   const { s } = await searchParams;
   const [statuses, me, demo] = await Promise.all([serviceStatuses(), getSessionUser(), demoStatus()]);
   const canDemo = me?.role === "admin" || me?.role === "manager";
-  const tab = s === "equipa" || s === "seguranca" || (s === "demonstracao" && canDemo) ? s : (getService(s ?? "")?.id ?? "geral");
+  const service = getService(s ?? "")?.id;
+  const tab = s === "equipa" || s === "seguranca" || (s === "demonstracao" && canDemo) ? s : service && canConfigure(me?.role, service) ? service : "geral";
 
   return (
     <>
@@ -75,7 +76,7 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
 
       <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
         <nav className="card h-fit p-2 lg:sticky lg:top-6" aria-label="Serviços">
-          {SERVICES.map((svc) => {
+          {SERVICES.filter((svc) => canConfigure(me?.role, svc.id)).map((svc) => {
             const Icon = ICONS[svc.id];
             const st = statuses[svc.id];
             const active = tab === svc.id;

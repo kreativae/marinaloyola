@@ -23,6 +23,7 @@ import {
   ScrollToBottom,
   WhatsappConnection,
 } from "@/components/whatsapp-client";
+import { getSessionUser } from "@/lib/auth";
 import { waPreview } from "@/lib/whatsapp-def";
 import { cn, initials } from "@/lib/utils";
 
@@ -58,7 +59,7 @@ export default async function WhatsappPage({
 }) {
   const { c } = await searchParams;
   const selectedId = Number(c) || null;
-  const config = await getEvolutionConfig();
+  const [config, me] = await Promise.all([getEvolutionConfig(), getSessionUser()]);
   const configured = isConfigured(config);
   let state: ConnectionState = "unknown";
   if (configured) state = await connectionState(config).catch(() => "unknown" as const);
@@ -274,19 +275,21 @@ export default async function WhatsappPage({
       </div>
 
       {/* --------------------------- definições -------------------------- */}
-      <Link
-        href="/admin/config?s=whatsapp"
-        className="mt-6 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-sm transition-colors hover:border-plum/40"
-      >
-        <Settings2 size={16} className="text-plum" />
-        <span className="flex-1">
-          <span className="font-semibold text-zinc-900">Definições da Evolution API</span>
-          <span className="ml-2 text-zinc-500">
-            {configured ? "URL, API key, instância e mensagens automáticas" : "Ainda não configurado — comece aqui"}
+      {me?.role === "admin" && (
+        <Link
+          href="/admin/config?s=whatsapp"
+          className="mt-6 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-sm transition-colors hover:border-plum/40"
+        >
+          <Settings2 size={16} className="text-plum" />
+          <span className="flex-1">
+            <span className="font-semibold text-zinc-900">Definições da Evolution API</span>
+            <span className="ml-2 text-zinc-500">
+              {configured ? "URL, API key, instância e mensagens automáticas" : "Ainda não configurado — comece aqui"}
+            </span>
           </span>
-        </span>
-        <ArrowUpRight size={15} className="text-zinc-400" />
-      </Link>
+          <ArrowUpRight size={15} className="text-zinc-400" />
+        </Link>
+      )}
     </>
   );
 }

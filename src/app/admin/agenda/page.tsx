@@ -21,6 +21,7 @@ import { createEventType, setAppointmentStatus, toggleEventType } from "@/lib/ac
 import { CopyToWeekdays, DayHoursRow, type DayHours } from "@/components/availability-editor";
 import { EmptyState, PageHeader, Panel } from "@/components/admin-ui";
 import { CopyButton, SelectAction } from "@/components/admin-client";
+import { getSessionUser } from "@/lib/auth";
 import { CalendarSync, MonthCalendar, NewAgendaEventButton, WeekCalendar, type CalEvent } from "@/components/agenda-calendar";
 import { remindLabel, repeatLabel, type RepeatRule } from "@/lib/agenda-def";
 import { calendarStatus, getBusy } from "@/lib/calendar";
@@ -44,6 +45,7 @@ export default async function AgendaPage({
 }) {
   const sp = await searchParams;
   const tab: Tab = sp.view === "lista" || sp.view === "disponibilidade" ? sp.view : "calendario";
+  const superAdmin = (await getSessionUser())?.role === "admin";
   const now = new Date();
   const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const weekEnd = new Date(startToday.getTime() + 7 * 86_400_000);
@@ -73,7 +75,7 @@ export default async function AgendaPage({
         subtitle="Sessões, disponibilidade e tipos de sessão num só lugar."
         actions={
           <>
-            <CalendarSync {...gcal} serverNow={now.getTime()} />
+            <CalendarSync {...gcal} serverNow={now.getTime()} canConfigure={superAdmin} />
             <NewAgendaEventButton today={todayKey} initialOpen={sp.evento === "novo"} />
             <CopyButton text={`${base}/agendar`} label="Copiar link de marcação" />
             <Link href="/agendar" target="_blank" className="btn-ghost !px-4 !py-2 !text-xs">
@@ -120,7 +122,7 @@ export default async function AgendaPage({
       <div key={tab} className="animate-[rise_0.45s_var(--ease-out-soft)_backwards]">
         {tab === "calendario" && <CalendarSection sp={sp} avail={avail} />}
         {tab === "lista" && <ListView rows={upcoming} now={now} />}
-        {tab === "disponibilidade" && <AvailabilityView avail={avail} />}
+        {tab === "disponibilidade" && <AvailabilityView avail={avail} superAdmin={superAdmin} />}
       </div>
     </>
   );
@@ -310,7 +312,7 @@ function SessionRow({ r, now, past = false }: { r: Row; now: Date; past?: boolea
 
 /* ---------------------------- DISPONIBILIDADE ---------------------------- */
 
-async function AvailabilityView({ avail }: { avail: (typeof availability.$inferSelect)[] }) {
+async function AvailabilityView({ avail, superAdmin }: { avail: (typeof availability.$inferSelect)[]; superAdmin: boolean }) {
   const types = await db.select().from(eventTypes).orderBy(eventTypes.id);
   // Segunda a domingo
   const days: DayHours[] = [...avail]
@@ -331,9 +333,11 @@ async function AvailabilityView({ avail }: { avail: (typeof availability.$inferS
         title="Horário semanal"
         description="Horas em que a página pública aceita marcações, com intervalo opcional (hora de Lisboa)"
         action={
-          <Link href="/admin/config?s=agendamento" className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 hover:text-plum">
-            <Settings2 size={13} /> Regras
-          </Link>
+          superAdmin && (
+            <Link href="/admin/config?s=agendamento" className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 hover:text-plum">
+              <Settings2 size={13} /> Regras
+            </Link>
+          )
         }
       >
         <ul className="space-y-2">

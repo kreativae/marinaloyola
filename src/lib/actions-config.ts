@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { deleteSettings, getToken, saveSettings } from "@/lib/settings";
-import { getService, type ServiceId } from "@/lib/services-def";
+import { canConfigure, getService, type ServiceId } from "@/lib/services-def";
 import { testService } from "@/lib/services";
 import { syncCalendar } from "@/lib/calendar";
 
@@ -12,7 +12,8 @@ export type SaveResult = { ok: boolean; message?: string; errors?: Record<string
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function saveServiceAction(id: ServiceId, _prev: SaveResult | null, fd: FormData): Promise<SaveResult> {
-  await requireAdmin();
+  const user = await requireAdmin();
+  if (!canConfigure(user.role, id)) return { ok: false, message: "Sem permissão." };
   const def = getService(id);
   if (!def) return { ok: false, message: "Serviço desconhecido." };
 
@@ -78,12 +79,14 @@ export async function saveServiceAction(id: ServiceId, _prev: SaveResult | null,
 }
 
 export async function testServiceAction(id: ServiceId) {
-  await requireAdmin();
+  const user = await requireAdmin();
+  if (!canConfigure(user.role, id)) return { ok: false, message: "Sem permissão." };
   return testService(id);
 }
 
 export async function regenerateCalendarFeed() {
-  await requireAdmin();
+  const user = await requireAdmin();
+  if (!canConfigure(user.role, "calendar")) return;
   await getToken("calendar_feed_token", true);
   revalidatePath("/admin/config");
 }

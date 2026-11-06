@@ -722,7 +722,7 @@ function ago(ms: number) {
  * Estado da ligação ao Google Calendar com o botão "Sincronizar agora".
  * Com a página aberta, volta a pedir os dados ao servidor ao ritmo escolhido nas Configurações.
  */
-export function CalendarSync({ configured, minutes, at, error, serverNow }: { configured: boolean; minutes: number; at: number; error: string | null; serverNow: number }) {
+export function CalendarSync({ configured, minutes, at, error, serverNow, canConfigure }: { configured: boolean; minutes: number; at: number; error: string | null; serverNow: number; canConfigure: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [now, setNow] = useState(serverNow);
@@ -740,11 +740,11 @@ export function CalendarSync({ configured, minutes, at, error, serverNow }: { co
   }, [minutes, router]);
 
   if (!configured)
-    return (
+    return canConfigure ? (
       <Link href="/admin/config?s=calendar" className="btn-ghost !px-4 !py-2 !text-xs">
         <RefreshCw size={13} /> Ligar Google Calendar
       </Link>
-    );
+    ) : null;
 
   const sync = () =>
     start(async () => {

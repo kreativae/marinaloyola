@@ -33,6 +33,9 @@ export type ServiceDef = {
   testLabel?: string;
 };
 
+/** Só "Geral & marca" fica aberto à equipa; as integrações são do Super Admin. */
+export const canConfigure = (role: string | undefined, id: ServiceId) => role === "admin" || id === "geral";
+
 export const SERVICES: ServiceDef[] = [
   {
     id: "geral",

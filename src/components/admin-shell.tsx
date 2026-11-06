@@ -152,7 +152,7 @@ export function AdminShell({
         <main className="mx-auto max-w-[112rem] px-4 pb-16 pt-6 sm:px-6 lg:px-10 lg:pt-8 min-[1800px]:px-14">{children}</main>
       </div>
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} superAdmin={user.role === "admin"} />
     </div>
   );
 }
@@ -453,7 +453,7 @@ function WorldClock() {
 
 /* --------------------------- PALETA DE COMANDOS -------------------------- */
 
-type Command = { id: string; label: string; hint?: string; icon: LucideIcon; href: string; group: string };
+type Command = { id: string; label: string; hint?: string; icon: LucideIcon; href: string; group: string; superAdmin?: boolean };
 
 const STATIC_COMMANDS: Command[] = [
   ...ALL_ITEMS.map((i) => ({ id: i.href, label: i.label, icon: i.icon, href: i.href, group: "Ir para" })),
@@ -463,8 +463,8 @@ const STATIC_COMMANDS: Command[] = [
   { id: "pagamento", label: "Registar recebimento", icon: Wallet, href: "/admin/financeiro?novo=1", group: "Ações" },
   { id: "despesa", label: "Registar despesa", icon: Wallet, href: "/admin/financeiro?despesa=1", group: "Ações" },
   { id: "semana", label: "Agenda desta semana", icon: CalendarDays, href: "/admin/agenda?view=calendario&modo=semana", group: "Ações" },
-  { id: "whats-cfg", label: "Configurar WhatsApp", icon: Settings, href: "/admin/config?s=whatsapp", group: "Ações" },
-  { id: "email-cfg", label: "Configurar email", icon: Settings, href: "/admin/config?s=email", group: "Ações" },
+  { id: "whats-cfg", label: "Configurar WhatsApp", icon: Settings, href: "/admin/config?s=whatsapp", group: "Ações", superAdmin: true },
+  { id: "email-cfg", label: "Configurar email", icon: Settings, href: "/admin/config?s=email", group: "Ações", superAdmin: true },
   { id: "canais", label: "Gerir canais de origem", icon: Settings, href: "/admin/config?s=equipa#canais", group: "Ações" },
   { id: "seguranca", label: "Segurança e Face ID (Configurações)", icon: Settings, href: "/admin/config?s=seguranca", group: "Ações" },
   { id: "conta", label: "Minha conta e Face ID", icon: UserRound, href: "/admin/conta", group: "Ações" },
@@ -473,7 +473,7 @@ const STATIC_COMMANDS: Command[] = [
 
 const normalize = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+function CommandPalette({ open, onClose, superAdmin }: { open: boolean; onClose: () => void; superAdmin: boolean }) {
   const router = useRouter();
   const ref = useRef<HTMLDialogElement>(null);
   const [q, setQ] = useState("");
@@ -516,7 +516,8 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
   }, [q, open]);
 
   const term = normalize(q.trim());
-  const statics = term ? STATIC_COMMANDS.filter((c) => normalize(c.label).includes(term)) : STATIC_COMMANDS;
+  const allowed = STATIC_COMMANDS.filter((c) => superAdmin || !c.superAdmin);
+  const statics = term ? allowed.filter((c) => normalize(c.label).includes(term)) : allowed;
   const items = [...people, ...statics];
   const current = Math.min(sel, Math.max(items.length - 1, 0));
 
