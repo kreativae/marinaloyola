@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { bioEvents } from "@/db/schema";
 import { submitLead } from "@/lib/actions";
 import { activeLinks, getBioConfig, nextBookingDays, publishedCourses } from "@/lib/bio";
+import { getVat } from "@/lib/settings";
 import { cn, eur } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ export default async function LinksPage({
 }) {
   const sp = await searchParams;
   const preview = sp.preview === "1";
-  const [cfg, links, courseList, booking] = await Promise.all([getBioConfig(), activeLinks(), publishedCourses(), nextBookingDays()]);
+  const [cfg, links, courseList, booking, vat] = await Promise.all([getBioConfig(), activeLinks(), publishedCourses(), nextBookingDays(), getVat()]);
   // Conta a visita (o pré-visualizador do backoffice não conta)
   if (!preview) await db.insert(bioEvents).values({ kind: "view" }).catch(() => undefined);
 
@@ -210,7 +211,7 @@ export default async function LinksPage({
                       <span className="min-w-0 flex-1">
                         <span className="block text-[10px] font-bold uppercase tracking-[0.2em] text-plum-soft">{c.subtitle ?? c.level}</span>
                         <span className="mt-0.5 line-clamp-2 block font-semibold leading-snug">{c.title}</span>
-                        <span className="mt-0.5 block text-[13px] text-white/55">{Number(c.price) > 0 ? eur(c.price) : "Gratuito"}</span>
+                        <span className="mt-0.5 block text-[13px] text-white/55">{Number(c.price) > 0 ? `${eur(c.price)}${vat.enabled ? " · IVA incluído" : ""}` : "Gratuito"}</span>
                       </span>
                       <ArrowUpRight size={17} className="shrink-0 text-white/40 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
                     </a>

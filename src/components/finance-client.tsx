@@ -38,6 +38,7 @@ import {
 } from "@/lib/actions-finance";
 import { Field, FormSection, IconInput, Modal, ModalFooter, MoneyInput, PillGroup, ToggleRow } from "@/components/form-kit";
 import { EXPENSE_CATEGORIES } from "@/lib/finance-def";
+import { NO_VAT, splitVat, vatLabel, type Vat } from "@/lib/vat";
 import { cn, eur, PAYMENT_METHODS, PAYMENT_STATUS } from "@/lib/utils";
 
 const iconBtn =
@@ -124,6 +125,8 @@ export type PaymentRow = {
   contactId: number;
   product: string;
   amount: number;
+  /** Desconto dado, em €; o valor antes do desconto é amount + discount */
+  discount: number;
   method: string;
   status: string;
   reference: string | null;
@@ -139,23 +142,32 @@ export function PaymentFormButton({
   payment,
   defaultOpen = false,
   trigger,
+  vat = NO_VAT,
 }: {
   contacts: { id: number; name: string }[];
   products: string[];
   payment?: PaymentRow;
   defaultOpen?: boolean;
   trigger?: React.ReactNode;
+  vat?: Vat;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [status, setStatus] = useState(payment?.status ?? "confirmed");
   const [installments, setInstallments] = useState(1);
-  const [amount, setAmount] = useState(payment ? String(payment.amount).replace(".", ",") : "");
+  const [amount, setAmount] = useState(payment ? String(Math.round((payment.amount + payment.discount) * 100) / 100).replace(".", ",") : "");
+  const [offMode, setOffMode] = useState<"eur" | "pct">("eur");
+  const [off, setOff] = useState(payment?.discount ? String(payment.discount).replace(".", ",") : "");
   const { state, pending, onSubmit } = useFinanceForm(
     payment ? updatePaymentAction.bind(null, payment.id) : createPaymentAction,
     () => setOpen(false)
   );
   const paid = status === "confirmed" || status === "completed";
-  const total = Number(amount.replace(/\./g, "").replace(",", ".")) || 0;
+  const parse = (v: string) => Number(v.replace(/\s/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".")) || 0;
+  const gross = parse(amount);
+  const offRaw = parse(off);
+  const discount = Math.min(gross, Math.max(0, Math.round((offMode === "pct" ? (gross * Math.min(offRaw, 100)) / 100 : offRaw) * 100) / 100));
+  const total = Math.round((gross - discount) * 100) / 100;
+  const split = splitVat(total, vat);
 
   return (
     <>
@@ -207,9 +219,71 @@ export function PaymentFormButton({
           </FormSection>
 
           <FormSection icon={Banknote} title="Valor e pagamento">
-            <Field label={payment ? "Valor" : "Valor total"} required>
-              <MoneyInput name="amount" required value={amount} onChange={setAmount} />
-            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={vat.enabled ? "Valor (com IVA)" : "Valor"} required>
+                <MoneyInput name="amount" required value={amount} onChange={setAmount} />
+              </Field>
+              <Field label="Desconto (opcional)">
+                <div className="flex gap-2">
+                  <input
+                    inputMode="decimal"
+                    value={off}
+                    onChange={(e) => setOff(e.target.value)}
+                    placeholder="0"
+                    aria-label="Valor do desconto"
+                    className="field !h-12 min-w-0 flex-1 font-display !text-xl tabular-nums"
+                  />
+                  <div className="flex shrink-0 rounded-xl border border-zinc-200 bg-zinc-50 p-1" role="group" aria-label="Tipo de desconto">
+                    {(["eur", "pct"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setOffMode(m)}
+                        aria-pressed={offMode === m}
+                        className={cn("w-10 rounded-lg text-sm font-semibold transition-colors", offMode === m ? "bg-white text-plum shadow-sm" : "text-zinc-500 hover:text-zinc-800")}
+                      >
+                        {m === "eur" ? "€" : "%"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <input type="hidden" name="discount" value={discount.toFixed(2)} />
+              </Field>
+            </div>
+
+            {/* Resumo: o que a cliente paga, quanto é IVA e quanto fica sem IVA */}
+            {gross > 0 && (
+              <div className="rounded-2xl border border-plum/15 bg-plum/[0.03] p-4 text-sm">
+                {discount > 0 && (
+                  <>
+                    <div className="flex justify-between text-zinc-500">
+                      <span>Valor</span>
+                      <span className="tabular-nums">{eur(gross)}</span>
+                    </div>
+                    <div className="mt-1 flex justify-between text-emerald-700">
+                      <span>Desconto{offMode === "pct" && offRaw > 0 ? ` (${String(Math.min(offRaw, 100)).replace(".", ",")}%)` : ""}</span>
+                      <span className="tabular-nums">− {eur(discount)}</span>
+                    </div>
+                    <div className="my-2.5 h-px bg-plum/10" />
+                  </>
+                )}
+                <div className="flex items-baseline justify-between">
+                  <span className="font-semibold text-zinc-900">Total a pagar</span>
+                  <span className="font-display text-2xl font-semibold tabular-nums text-zinc-950">{eur(total)}</span>
+                </div>
+                {vat.enabled && (
+                  <div className="mt-1.5 flex flex-wrap justify-between gap-x-4 gap-y-0.5 text-xs text-zinc-500">
+                    <span>
+                      Sem IVA <span className="font-semibold tabular-nums text-zinc-700">{eur(split.net)}</span>
+                    </span>
+                    <span>
+                      IVA {vatLabel(vat)} <span className="font-semibold tabular-nums text-zinc-700">{eur(split.vat)}</span>
+                    </span>
+                  </div>
+                )}
+                {discount >= gross && <p className="mt-2 text-xs font-semibold text-rose-600">O desconto não pode ser igual ou maior do que o valor.</p>}
+              </div>
+            )}
             <Field label="Método">
               <PillGroup
                 name="method"
@@ -289,10 +363,12 @@ export function PaymentActions({
   contacts,
   products,
   compact = false,
+  vat,
 }: {
   payment: PaymentRow;
   contacts: { id: number; name: string }[];
   products: string[];
+  vat?: Vat;
   /** Só o botão "Recebido" (listas curtas) */
   compact?: boolean;
 }) {
@@ -333,6 +409,7 @@ export function PaymentActions({
         payment={payment}
         contacts={contacts}
         products={products}
+        vat={vat}
         trigger={
           <span className={iconBtn} title="Editar">
             <Pencil size={15} />

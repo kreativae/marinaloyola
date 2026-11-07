@@ -6,6 +6,8 @@ import { courses } from "@/db/schema";
 import { Reveal } from "@/components/site";
 import { Href, Rich, Sections } from "@/components/site-text";
 import { getSitePage, siteMetadata } from "@/lib/site-content";
+import { getVat } from "@/lib/settings";
+import { splitVat, vatLabel } from "@/lib/vat";
 import { eur } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +15,7 @@ export const dynamic = "force-dynamic";
 export const generateMetadata = () => siteMetadata("cursos");
 
 export default async function CursosPage() {
-  const [list, page] = await Promise.all([db.select().from(courses).where(eq(courses.published, true)), getSitePage("cursos")]);
+  const [list, page, vat] = await Promise.all([db.select().from(courses).where(eq(courses.published, true)), getSitePage("cursos"), getVat()]);
   const { hero, list: listText, guarantee, cta } = page.s;
 
   return (
@@ -59,6 +61,17 @@ export default async function CursosPage() {
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">{listText.priceLabel}</p>
                           <p className="font-display text-3xl font-semibold text-zinc-950">{eur(c.price)}</p>
+                          {vat.enabled && Number(c.price) > 0 && (
+                            <p className="mt-0.5 text-[11px] text-zinc-500">
+                              IVA incluído
+                              {vat.breakdown && (
+                                <>
+                                  {" · "}
+                                  <span className="tabular-nums">{eur(splitVat(c.price, vat).net)}</span> + IVA {vatLabel(vat)}
+                                </>
+                              )}
+                            </p>
+                          )}
                         </div>
                         <Sparkles size={18} className="text-plum" />
                       </div>

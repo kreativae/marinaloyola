@@ -43,7 +43,9 @@ export async function createPaymentAction(_prev: FinanceResult | null, fd: FormD
   await requireAdmin();
   const contactId = Number(fd.get("contactId"));
   const product = str(fd, "product") || str(fd, "productOther");
-  const total = money(str(fd, "amount"));
+  const gross = money(str(fd, "amount"));
+  const discount = Math.max(0, money(str(fd, "discount")) || 0);
+  const total = gross - discount;
   const methodRaw = str(fd, "method");
   const method = (methodRaw in PAYMENT_METHODS ? methodRaw : "transfer") as Method;
   const statusRaw = str(fd, "status");
@@ -52,7 +54,8 @@ export async function createPaymentAction(_prev: FinanceResult | null, fd: FormD
   const firstDate = dateOf(str(fd, "date")) ?? new Date();
   if (!contactId) return { ok: false, error: "Escolha o contacto." };
   if (!product) return { ok: false, error: "Indique o produto ou serviço." };
-  if (!Number.isFinite(total) || total <= 0) return { ok: false, error: "Valor inválido." };
+  if (!Number.isFinite(gross) || gross <= 0) return { ok: false, error: "Valor inválido." };
+  if (!Number.isFinite(total) || total <= 0) return { ok: false, error: "O desconto não pode ser igual ou maior do que o valor." };
   const [contact] = await db.select({ id: contacts.id }).from(contacts).where(eq(contacts.id, contactId)).limit(1);
   if (!contact) return { ok: false, error: "Contacto não encontrado." };
 
@@ -66,6 +69,8 @@ export async function createPaymentAction(_prev: FinanceResult | null, fd: FormD
   // Divide em cêntimos; a última parcela absorve o arredondamento
   const cents = Math.round(total * 100);
   const each = Math.floor(cents / n);
+  const offCents = Math.round(discount * 100);
+  const offEach = Math.floor(offCents / n);
   const planRef = n > 1 ? crypto.randomUUID() : null;
   for (let i = 0; i < n; i++) {
     const due = new Date(firstDate.getFullYear(), firstDate.getMonth() + i, firstDate.getDate(), 12);
@@ -75,6 +80,7 @@ export async function createPaymentAction(_prev: FinanceResult | null, fd: FormD
       contactId,
       product,
       amount: ((i === n - 1 ? cents - each * (n - 1) : each) / 100).toFixed(2),
+      discount: ((i === n - 1 ? offCents - offEach * (n - 1) : offEach) / 100).toFixed(2),
       method,
       status: st,
       reference: str(fd, "reference") || null,
@@ -87,12 +93,13 @@ export async function createPaymentAction(_prev: FinanceResult | null, fd: FormD
       ...(i === 0 ? receipt : {}),
     });
   }
+  const off = discount > 0 ? ` (desconto de ${eur(discount)})` : "";
   await addInteraction(
     contactId,
     "purchase",
     n > 1
-      ? `Plano de pagamento: ${product} — ${eur(total)} em ${n} parcelas via ${PAYMENT_METHODS[method]}.`
-      : `Pagamento registado: ${product} — ${eur(total)} via ${PAYMENT_METHODS[method]} (${PAYMENT_STATUS[status].label}).`
+      ? `Plano de pagamento: ${product} — ${eur(total)}${off} em ${n} parcelas via ${PAYMENT_METHODS[method]}.`
+      : `Pagamento registado: ${product} — ${eur(total)}${off} via ${PAYMENT_METHODS[method]} (${PAYMENT_STATUS[status].label}).`
   );
   if (isPaid(status)) await tagContact(contactId, `Comprador ${product}`, "#a855f7");
   refresh(contactId);
@@ -103,8 +110,11 @@ export async function updatePaymentAction(id: number, _prev: FinanceResult | nul
   await requireAdmin();
   const [p] = await db.select().from(payments).where(eq(payments.id, id)).limit(1);
   if (!p) return { ok: false, error: "Pagamento não encontrado." };
-  const amount = money(str(fd, "amount"));
-  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "Valor inválido." };
+  const gross = money(str(fd, "amount"));
+  const discount = Math.max(0, money(str(fd, "discount")) || 0);
+  const amount = gross - discount;
+  if (!Number.isFinite(gross) || gross <= 0) return { ok: false, error: "Valor inválido." };
+  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "O desconto não pode ser igual ou maior do que o valor." };
   const product = str(fd, "product");
   if (!product) return { ok: false, error: "Indique o produto ou serviço." };
   const statusRaw = str(fd, "status");
@@ -125,6 +135,7 @@ export async function updatePaymentAction(id: number, _prev: FinanceResult | nul
     .set({
       product,
       amount: amount.toFixed(2),
+      discount: discount.toFixed(2),
       method: (methodRaw in PAYMENT_METHODS ? methodRaw : p.method) as Method,
       status,
       reference: str(fd, "reference") || null,

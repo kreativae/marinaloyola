@@ -62,3 +62,14 @@ export async function getToken(key: string, regenerate = false) {
 export const isOn = (v: string | undefined) => v === "1";
 
 export const appUrl = async () => (await getSetting("app_url")).replace(/\/+$/, "");
+
+/** Definição do IVA (Configurações → IVA & preços). */
+export async function getVat(): Promise<import("@/lib/vat").Vat> {
+  const m = await getSettings(["vat_enabled", "vat_rate", "vat_site_breakdown"]);
+  const rate = Number(m.vat_rate);
+  return {
+    enabled: isOn(m.vat_enabled) && Number.isFinite(rate) && rate > 0,
+    rate: Number.isFinite(rate) ? rate : 0,
+    breakdown: isOn(m.vat_site_breakdown),
+  };
+}

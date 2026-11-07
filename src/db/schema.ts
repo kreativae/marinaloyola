@@ -253,7 +253,8 @@ export const payments = pgTable("payments", {
     .notNull()
     .references(() => contacts.id, { onDelete: "cascade" }),
   product: text("product").notNull(),
-  amount: numeric("amount", { precision: 10, scale: 2 }).notNull().default("0"),
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull().default("0"), // valor final pago, com IVA
+  discount: numeric("discount", { precision: 10, scale: 2 }).notNull().default("0"), // desconto dado à cliente, em €
   method: paymentMethodEnum("method").notNull().default("transfer"),
   status: paymentStatusEnum("status").notNull().default("pending"),
   reference: text("reference"), // id de transação / referência

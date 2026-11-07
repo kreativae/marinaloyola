@@ -13,10 +13,11 @@ export async function serviceStatuses(): Promise<Record<ServiceId, ServiceStatus
     getEmailConfig(),
     getEvolutionConfig(),
     getZoomConfig(),
-    getSettings(["gcal_ical_url", "hotmart_hottok"]),
+    getSettings(["gcal_ical_url", "hotmart_hottok", "vat_enabled", "vat_rate"]),
   ]);
   return {
     geral: { tone: "ok", label: "Configurado" },
+    iva: m.vat_enabled === "0" ? { tone: "off", label: "Sem IVA" } : { tone: "ok", label: `IVA ${m.vat_rate || "23"}%` },
     email: mail.apiKey ? { tone: "ok", label: "Ativo" } : { tone: "partial", label: "Pré-visualização" },
     whatsapp: isConfigured(evo) ? { tone: "ok", label: "Configurado" } : { tone: "off", label: "Por configurar" },
     zoom:

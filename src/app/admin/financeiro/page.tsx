@@ -38,7 +38,9 @@ import {
   type PaymentFilters,
   type PeriodKey,
 } from "@/lib/finance";
+import { getVat } from "@/lib/settings";
 import { cn, eur, fmtDate, num, PAYMENT_METHODS, PAYMENT_STATUS } from "@/lib/utils";
+import { splitVat, vatLabel, type Vat } from "@/lib/vat";
 
 export const dynamic = "force-dynamic";
 
@@ -54,10 +56,11 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
   const period = asPeriod(sp.periodo);
   const range = periodRange(period);
 
-  const [contactList, productRows, courseRows] = await Promise.all([
+  const [contactList, productRows, courseRows, vat] = await Promise.all([
     db.select({ id: contacts.id, name: contacts.name }).from(contacts).orderBy(asc(contacts.name)),
     db.selectDistinct({ product: payments.product }).from(payments),
     db.select({ title: courses.title }).from(courses),
+    getVat(),
   ]);
   const products = [...new Set([...courseRows.map((c) => c.title), ...productRows.map((p) => p.product), "Sessão Avulsa"])].sort((a, b) =>
     a.localeCompare(b, "pt")
@@ -80,7 +83,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
         actions={
           <>
             <ExpenseFormButton defaultOpen={sp.despesa === "1"} />
-            <PaymentFormButton contacts={contactList} products={products} defaultOpen={sp.novo === "1"} />
+            <PaymentFormButton contacts={contactList} products={products} vat={vat} defaultOpen={sp.novo === "1"} />
           </>
         }
       />
@@ -126,8 +129,8 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
       </div>
 
       <div key={`${tab}-${period}`} className="animate-[rise_0.45s_var(--ease-out-soft)_backwards]">
-        {tab === "visao" && <Overview period={period} range={range} link={link} contacts={contactList} products={products} />}
-        {tab === "recebimentos" && <Payments sp={sp} range={range} period={period} link={link} contacts={contactList} products={products} />}
+        {tab === "visao" && <Overview period={period} range={range} link={link} contacts={contactList} products={products} vat={vat} />}
+        {tab === "recebimentos" && <Payments sp={sp} range={range} period={period} link={link} contacts={contactList} products={products} vat={vat} />}
         {tab === "despesas" && <Expenses sp={sp} range={range} period={period} link={link} />}
       </div>
     </>
@@ -144,6 +147,7 @@ const toRow = (p: typeof payments.$inferSelect): PaymentRow => ({
   contactId: p.contactId,
   product: p.product,
   amount: Number(p.amount),
+  discount: Number(p.discount),
   method: p.method,
   status: p.status,
   reference: p.reference,
@@ -161,16 +165,22 @@ async function Overview({
   link,
   contacts: contactList,
   products,
+  vat,
 }: {
   period: PeriodKey;
   range: Range;
   link: LinkFn;
   contacts: { id: number; name: string }[];
   products: string[];
+  vat: Vat;
 }) {
   const sumPaid = (r: { from: Date; to: Date }) =>
     db
-      .select({ total: sql<number>`coalesce(sum(${payments.amount}::numeric), 0)`.mapWith(Number), n: count() })
+      .select({
+        total: sql<number>`coalesce(sum(${payments.amount}::numeric), 0)`.mapWith(Number),
+        discount: sql<number>`coalesce(sum(${payments.discount}::numeric), 0)`.mapWith(Number),
+        n: count(),
+      })
       .from(payments)
       .where(and(paidCond, inRange(paidDate, r)))
       .then((x) => x[0]);
@@ -288,6 +298,30 @@ async function Overview({
         />
       </div>
 
+      {/* A receita inclui IVA: mostra quanto é do Estado e quanto fica de facto */}
+      {(vat.enabled || income.discount > 0) && income.total > 0 && (
+        <div className="card flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3.5 text-sm">
+          {vat.enabled && (
+            <>
+              <span className="text-zinc-500">
+                Receita sem IVA <strong className="ml-1 font-semibold tabular-nums text-zinc-950">{eur(splitVat(income.total, vat).net)}</strong>
+              </span>
+              <span className="text-zinc-500">
+                IVA {vatLabel(vat)} a entregar <strong className="ml-1 font-semibold tabular-nums text-zinc-950">{eur(splitVat(income.total, vat).vat)}</strong>
+              </span>
+              <span className="text-zinc-500">
+                Lucro sem IVA <strong className="ml-1 font-semibold tabular-nums text-zinc-950">{eur(splitVat(income.total, vat).net - spent)}</strong>
+              </span>
+            </>
+          )}
+          {income.discount > 0 && (
+            <span className="text-zinc-500">
+              Descontos dados <strong className="ml-1 font-semibold tabular-nums text-emerald-700">{eur(income.discount)}</strong>
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="stagger grid gap-6 xl:grid-cols-3">
         <Panel
           title="Fluxo de caixa"
@@ -340,7 +374,7 @@ async function Overview({
                       </span>
                     </span>
                     <span className="shrink-0 text-sm font-semibold tabular-nums text-zinc-900">{eur(p.amount)}</span>
-                    <PaymentActions payment={toRow(p)} contacts={contactList} products={products} compact />
+                    <PaymentActions payment={toRow(p)} contacts={contactList} products={products} vat={vat} compact />
                   </li>
                 );
               })}
@@ -403,6 +437,7 @@ async function Payments({
   link,
   contacts: contactList,
   products,
+  vat,
 }: {
   sp: Params;
   range: Range;
@@ -410,6 +445,7 @@ async function Payments({
   link: LinkFn;
   contacts: { id: number; name: string }[];
   products: string[];
+  vat: Vat;
 }) {
   // Pendentes aparecem sempre; os restantes pela data em que foram recebidos/criados
   const where = and(
@@ -543,6 +579,7 @@ async function Payments({
                     <td className="admin-td hidden text-xs text-zinc-500 lg:table-cell">{PAYMENT_METHODS[p.method]}</td>
                     <td className={cn("admin-td whitespace-nowrap text-right font-semibold tabular-nums", p.status === "refunded" || p.status === "cancelled" ? "text-zinc-400 line-through" : "text-zinc-950")}>
                       {eur(p.amount)}
+                      {Number(p.discount) > 0 && <span className="block text-[10.5px] font-semibold text-emerald-700 no-underline">− {eur(p.discount)} desconto</span>}
                       <span className={cn("mt-1 block text-[10.5px] font-semibold sm:hidden", late ? "text-rose-600" : "text-zinc-500")}>{late ? "Em atraso" : st?.label}</span>
                     </td>
                     <td className="admin-td hidden sm:table-cell">
@@ -551,7 +588,7 @@ async function Payments({
                       </span>
                     </td>
                     <td className="admin-td">
-                      <PaymentActions payment={toRow(p)} contacts={contactList} products={products} />
+                      <PaymentActions payment={toRow(p)} contacts={contactList} products={products} vat={vat} />
                     </td>
                   </tr>
                 );

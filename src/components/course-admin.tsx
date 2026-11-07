@@ -118,7 +118,7 @@ export function CourseEditButton({ course }: { course: CourseData }) {
               <input name="level" defaultValue={course.level} className="field" />
             </div>
             <div>
-              <label className={labelCls}>Preço (€)</label>
+              <label className={labelCls}>Preço final (€, com IVA incluído)</label>
               <input name="price" inputMode="decimal" defaultValue={course.price} className="field" />
             </div>
           </div>
@@ -169,7 +169,7 @@ export function NewCourseButton() {
               </select>
             </div>
             <div>
-              <label className={labelCls}>Preço (€)</label>
+              <label className={labelCls}>Preço final (€, com IVA incluído)</label>
               <input name="price" inputMode="decimal" placeholder="0,00" className="field" />
             </div>
           </div>

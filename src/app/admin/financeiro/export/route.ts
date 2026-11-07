@@ -5,6 +5,8 @@ import { getSessionUser } from "@/lib/auth";
 import { asPeriod, expenseWhere, paidDate, paymentWhere, periodRange } from "@/lib/finance";
 import { fmtDate, num, PAYMENT_METHODS, PAYMENT_STATUS } from "@/lib/utils";
 import { csvCell } from "@/lib/security";
+import { getVat } from "@/lib/settings";
+import { splitVat } from "@/lib/vat";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,7 @@ export async function GET(req: Request) {
     });
   }
 
+  const vat = await getVat();
   const rows = await db
     .select({ p: payments, name: contacts.name, email: contacts.email })
     .from(payments)
@@ -44,13 +47,16 @@ export async function GET(req: Request) {
     .where(and(paymentWhere(sp), period === "tudo" ? undefined : or(eq(payments.status, "pending"), between(paidDate))))
     .orderBy(desc(paidDate));
   const body = csv(
-    ["Contacto", "Email", "Produto", "Parcela", "Valor (€)", "Método", "Estado", "Recebido em", "Vencimento", "Referência", "Notas"],
+    ["Contacto", "Email", "Produto", "Parcela", "Valor (€)", "Desconto (€)", "Sem IVA (€)", `IVA ${vat.enabled ? `${vat.rate}%` : ""} (€)`, "Método", "Estado", "Recebido em", "Vencimento", "Referência", "Notas"],
     rows.map(({ p, name, email }) => [
       name,
       email,
       p.product,
       p.installments ? `${p.installment}/${p.installments}` : "",
       num(p.amount, 2),
+      num(p.discount, 2),
+      num(splitVat(p.amount, vat).net, 2),
+      num(splitVat(p.amount, vat).vat, 2),
       PAYMENT_METHODS[p.method],
       PAYMENT_STATUS[p.status]?.label,
       p.status === "confirmed" || p.status === "completed" ? fmtDate(p.paidAt ?? p.createdAt) : "",

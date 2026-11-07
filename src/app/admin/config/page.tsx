@@ -7,6 +7,7 @@ import {
   Database,
   ExternalLink,
   Mail,
+  Percent,
   MessageCircle,
   Settings2,
   ShieldCheck,
@@ -40,6 +41,7 @@ export const dynamic = "force-dynamic";
 
 const ICONS: Record<ServiceId, LucideIcon> = {
   geral: Settings2,
+  iva: Percent,
   email: Mail,
   whatsapp: MessageCircle,
   zoom: Video,

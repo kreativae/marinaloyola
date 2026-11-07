@@ -21,7 +21,7 @@ export type FieldDef = {
   max?: number;
 };
 
-export type ServiceId = "geral" | "email" | "whatsapp" | "zoom" | "calendar" | "hotmart" | "agendamento";
+export type ServiceId = "geral" | "iva" | "email" | "whatsapp" | "zoom" | "calendar" | "hotmart" | "agendamento";
 
 export type ServiceDef = {
   id: ServiceId;
@@ -33,8 +33,9 @@ export type ServiceDef = {
   testLabel?: string;
 };
 
-/** Só "Geral & marca" fica aberto à equipa; as integrações são do Super Admin. */
-export const canConfigure = (role: string | undefined, id: ServiceId) => role === "admin" || id === "geral";
+/** "Geral & marca" fica aberto à equipa e o IVA também ao Admin; as integrações são do Super Admin. */
+export const canConfigure = (role: string | undefined, id: ServiceId) =>
+  role === "admin" || id === "geral" || (id === "iva" && role === "manager");
 
 export const SERVICES: ServiceDef[] = [
   {
@@ -63,6 +64,38 @@ export const SERVICES: ServiceDef[] = [
         env: "APP_URL",
         default: "http://localhost:3000",
         help: "Usado para gerar os endereços de webhooks e do feed de calendário.",
+      },
+    ],
+  },
+  {
+    id: "iva",
+    name: "IVA & preços",
+    summary: "Os preços do site já incluem IVA; aqui define a taxa e como aparece.",
+    fields: [
+      {
+        key: "vat_enabled",
+        label: "Aplicar IVA",
+        type: "toggle",
+        default: "1",
+        help: "Desligue se a atividade ficar isenta. O site deixa de mostrar o IVA e o Financeiro deixa de o separar.",
+      },
+      {
+        key: "vat_rate",
+        label: "Taxa de IVA (%)",
+        type: "number",
+        default: "23",
+        min: 0,
+        max: 50,
+        help: "23% no continente. Se a taxa mudar, altere aqui: todos os valores passam a usar a nova taxa.",
+        showIf: { key: "vat_enabled", values: ["1"] },
+      },
+      {
+        key: "vat_site_breakdown",
+        label: "Mostrar o valor sem IVA no site",
+        type: "toggle",
+        default: "1",
+        help: "Por baixo de cada preço: \"241,46 € + IVA 23%\". Desligado, aparece só \"IVA incluído\".",
+        showIf: { key: "vat_enabled", values: ["1"] },
       },
     ],
   },

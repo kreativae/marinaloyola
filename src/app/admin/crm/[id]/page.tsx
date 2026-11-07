@@ -433,8 +433,9 @@ export default async function ContactDetailPage({
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-bold tabular-nums text-zinc-950">
+                        <span className="text-right text-sm font-bold tabular-nums text-zinc-950">
                           {eur(p.amount)}
+                          {Number(p.discount) > 0 && <span className="block text-[10.5px] font-semibold text-emerald-700">− {eur(p.discount)} desconto</span>}
                         </span>
                         {p.status !== "pending" && <span className={`chip ${st?.className ?? ""}`}>{st?.label}</span>}
                         {p.status === "pending" && (
