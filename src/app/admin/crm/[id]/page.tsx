@@ -38,7 +38,8 @@ import {
 import { addContactNote, deleteInteraction, setContactStatus, setPaymentStatus } from "@/lib/actions-admin";
 import { EmptyState, PageHeader, Panel, StatCard } from "@/components/admin-ui";
 import { SelectAction } from "@/components/admin-client";
-import { ChannelChip, ContactFormButton, DeleteContactButton, ForceDeleteContactButton } from "@/components/contacts-client";
+import { ChannelChip, ContactFormButton } from "@/components/contacts-client";
+import { ContactDangerMenu, StatusPicker } from "@/components/contact-actions";
 import { AccountChip, ConvertToStudentButton } from "@/components/team-client";
 import { DismissDuplicateButton, MergeButton } from "@/components/duplicates-client";
 import { getSessionUser } from "@/lib/auth";
@@ -48,17 +49,12 @@ import { accountForEmail } from "@/lib/students";
 import { listChannels } from "@/lib/channels";
 import { LocalTime } from "@/components/local-time";
 import { NewContactNoteButton } from "@/components/notes-client";
-import { DeleteConversationButton } from "@/components/whatsapp-client";
 import { notePreview, noteTasks, noteTitle } from "@/lib/notes-def";
 import { countryName, flag } from "@/lib/timezones";
 import { APPT_STATUS, CONTACT_STATUS, eur, fmtDate, fmtDateTime, initials, INTERACTION_ICONS, num, PAYMENT_METHODS, PAYMENT_STATUS, SOURCES } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_OPTIONS = Object.entries(CONTACT_STATUS).map(([value, s]) => ({
-  value,
-  label: s.label,
-}));
 const PAYMENT_OPTIONS = Object.entries(PAYMENT_STATUS).map(([value, s]) => ({
   value,
   label: s.label,
@@ -155,6 +151,7 @@ export default async function ContactDetailPage({
         subtitle={`${SOURCES[contact.source] ?? contact.source} · cliente desde ${fmtDate(contact.createdAt)}`}
         actions={
           <>
+            <StatusPicker contactId={contact.id} value={contact.status} onSelect={setContactStatus} />
             {waPhone && (
               <Link
                 href={`/admin/whatsapp?c=${contact.id}`}
@@ -163,7 +160,6 @@ export default async function ContactDetailPage({
                 <MessageCircle size={14} /> Conversa WhatsApp
               </Link>
             )}
-            {waCount > 0 && <DeleteConversationButton contactId={contact.id} name={contact.name} count={waCount} />}
             {me?.role === "admin" || me?.role === "manager" ? (
               <ConvertToStudentButton
                 contact={{ contactId: contact.id, name: contact.name, email: contact.email, phone: contact.phone }}
@@ -174,11 +170,6 @@ export default async function ContactDetailPage({
             ) : (
               account && <AccountChip role={account.role} />
             )}
-            <SelectAction
-              value={contact.status}
-              options={STATUS_OPTIONS}
-              onSelect={setContactStatus.bind(null, contact.id)}
-            />
             <ContactFormButton
               contact={contact}
               channels={channelOptions}
@@ -188,23 +179,27 @@ export default async function ContactDetailPage({
                 </span>
               }
             />
-            <DeleteContactButton id={contact.id} name={contact.name} />
-            {me?.role === "admin" && (
-              <ForceDeleteContactButton
-                id={contact.id}
-                name={contact.name}
-                hasAccount={!!account}
-                items={[
-                  { label: "Pagamentos", count: paymentTotal },
-                  { label: "Agendamentos", count: apptTotal },
-                  { label: "Eventos da agenda", count: eventTotal },
-                  { label: "Negócios", count: dealRows.length },
-                  { label: "Respostas a formulários", count: formTotal },
-                  { label: "Mensagens de WhatsApp", count: waCount },
-                  { label: "Registos do histórico", count: historyTotal },
-                ]}
-              />
-            )}
+            <ContactDangerMenu
+              id={contact.id}
+              name={contact.name}
+              waCount={waCount}
+              force={
+                me?.role === "admin"
+                  ? {
+                      hasAccount: !!account,
+                      items: [
+                        { label: "Pagamentos", count: paymentTotal },
+                        { label: "Agendamentos", count: apptTotal },
+                        { label: "Eventos da agenda", count: eventTotal },
+                        { label: "Negócios", count: dealRows.length },
+                        { label: "Respostas a formulários", count: formTotal },
+                        { label: "Mensagens de WhatsApp", count: waCount },
+                        { label: "Registos do histórico", count: historyTotal },
+                      ],
+                    }
+                  : undefined
+              }
+            />
           </>
         }
       />

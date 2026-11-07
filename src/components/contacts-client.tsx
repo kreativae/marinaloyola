@@ -833,13 +833,21 @@ export function ForceDeleteContactButton({
   name,
   items,
   hasAccount,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   id: number;
   name: string;
   items: { label: string; count: number }[];
   hasAccount: boolean;
+  /** Aberta por outro botão (ex.: menu da ficha): sem botão próprio */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = controlledOpen !== undefined;
+  const open = controlled ? controlledOpen : ownOpen;
+  const setOpen = (v: boolean) => (controlled ? onOpenChange?.(v) : setOwnOpen(v));
   const [word, setWord] = useState("");
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
@@ -850,6 +858,7 @@ export function ForceDeleteContactButton({
   };
   return (
     <>
+      {!controlled && (
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -857,6 +866,7 @@ export function ForceDeleteContactButton({
       >
         <AlertTriangle size={14} /> Exclusão forçada
       </button>
+      )}
       <Modal open={open} onClose={close} title="Exclusão forçada" description={name} icon={AlertTriangle}>
         <p className="text-sm text-zinc-700">
           Apaga este contacto e tudo o que lhe pertence, mesmo com pagamentos ou pendências. Os valores também saem do Financeiro. Esta acção não pode ser desfeita.
