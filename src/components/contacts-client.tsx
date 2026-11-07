@@ -585,16 +585,23 @@ function ContactForm({
           {name.trim() ? initials(name) : <UserRound size={22} />}
         </span>
         <div className="min-w-0 flex-1">
-          <input
-            name="name"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Nome completo *"
-            aria-label="Nome"
-            className="w-full bg-transparent font-display text-2xl tracking-[-0.01em] text-zinc-950 outline-none placeholder:text-zinc-300"
-          />
-          <p className="text-xs text-zinc-500">
+          {/* O nome edita-se aqui mesmo: o lápis e o traço mostram que é um campo */}
+          <label className="group/name block">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-plum/70">Nome do contacto</span>
+            <span className="mt-0.5 flex items-center gap-2 border-b border-dashed border-zinc-300 pb-0.5 transition-colors group-hover/name:border-plum/50 focus-within:border-solid focus-within:border-plum">
+              <input
+                name="name"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Nome completo *"
+                aria-label="Nome do contacto"
+                className="min-w-0 flex-1 bg-transparent font-display text-2xl tracking-[-0.01em] text-zinc-950 outline-none placeholder:text-zinc-300"
+              />
+              <Pencil size={15} className="shrink-0 text-zinc-400 transition-colors group-hover/name:text-plum" />
+            </span>
+          </label>
+          <p className="mt-1.5 text-xs text-zinc-500">
             {contact ? `${SOURCES[contact.source] ?? contact.source} · ${CONTACT_STATUS[contact.status]?.label ?? contact.status}` : "Novo contacto"}
           </p>
         </div>
