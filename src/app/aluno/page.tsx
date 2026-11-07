@@ -34,11 +34,11 @@ export default async function AlunoDashboard() {
 
   return (
     <>
-      <div className="mb-10">
+      <div className="mb-6 sm:mb-10">
         <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-plum">
           Área de estudante
         </p>
-        <h1 className="mt-3 font-display text-4xl font-medium tracking-tight text-zinc-950 lg:text-5xl">
+        <h1 className="mt-2 font-display text-[2rem] font-medium leading-tight tracking-tight text-zinc-950 sm:mt-3 sm:text-4xl lg:text-5xl">
           Olá, <span className="italic text-plum">{user.name.split(" ")[0]}.</span>
         </h1>
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-zinc-500">
@@ -50,7 +50,7 @@ export default async function AlunoDashboard() {
       {rows.length === 0 ? (
         <EmptyState text="Ainda não tem cursos atribuídos. Explore a oferta formativa em marinaloyola.com/cursos." />
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
           {rows.map(({ enrollment, course }) => {
             const total = totalMap.get(course.id) ?? 0;
             const done = doneMap.get(course.id) ?? 0;
@@ -60,7 +60,7 @@ export default async function AlunoDashboard() {
               <Link
                 key={enrollment.id}
                 href={`/aluno/curso/${course.id}`}
-                className="group overflow-hidden rounded-3xl border border-zinc-200 bg-white transition-all hover:-translate-y-1 hover:border-plum/50"
+                className="tap group overflow-hidden rounded-3xl border border-zinc-200 bg-white transition-all hover:-translate-y-1 hover:border-plum/50"
               >
                 <div className="relative h-44">
                   {course.cover ? (
@@ -114,7 +114,7 @@ export default async function AlunoDashboard() {
         </div>
       )}
 
-      <div className="mt-12 flex items-start gap-4 rounded-3xl border border-plum/30 bg-plum/[0.04] p-7">
+      <div className="mt-8 flex items-start gap-4 rounded-3xl border border-plum/30 bg-plum/[0.04] p-5 sm:mt-12 sm:p-7">
         <Sparkles size={22} className="mt-0.5 shrink-0 text-plum" />
         <div>
           <p className="font-display text-xl italic text-zinc-950">Dica da Marina</p>

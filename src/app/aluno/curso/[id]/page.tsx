@@ -28,6 +28,7 @@ import {
 } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { CompleteButton, PrintButton, QuizPlayer, VideoPlayer, type QuizAttemptView } from "@/components/lms";
+import { LessonBar } from "@/components/lesson-bar";
 import { fmtBytes } from "@/lib/files";
 import { activeQuestions, attemptView, latestAttempt } from "@/lib/quiz";
 import { ProgressBar } from "@/components/admin-ui";
@@ -124,7 +125,7 @@ export default async function CoursePlayerPage({
           <PrintButton />
         </div>
         <div className="rounded-sm bg-white p-2 shadow-2xl">
-          <div className="relative border-[3px] border-double border-plum/60 bg-white px-8 py-16 text-center text-zinc-950 lg:px-20 lg:py-20">
+          <div className="relative border-[3px] border-double border-plum/60 bg-white px-6 py-12 text-center text-zinc-950 sm:px-8 sm:py-16 lg:px-20 lg:py-20">
             <div className="absolute inset-3 border border-plum/20" />
             <div className="relative">
               <p className="font-display text-2xl font-semibold italic text-plum">
@@ -138,21 +139,21 @@ export default async function CoursePlayerPage({
                 Certificado de conclusão
               </p>
               <p className="mt-6 text-sm text-zinc-500">Certifica-se que</p>
-              <p className="mt-3 font-display text-5xl font-medium tracking-tight">
+              <p className="mt-3 font-display text-[2rem] font-medium leading-tight tracking-tight sm:text-5xl">
                 {user.name}
               </p>
               <p className="mx-auto mt-6 max-w-lg text-sm leading-relaxed text-zinc-500">
                 concluiu com aproveitamento a totalidade do programa
               </p>
-              <p className="mt-4 font-display text-3xl italic text-plum">{course.title}</p>
+              <p className="mt-4 font-display text-2xl italic text-plum sm:text-3xl">{course.title}</p>
               <p className="mt-2 text-xs uppercase tracking-[0.24em] text-zinc-500">
                 {total} aulas · carga horária estimada de{" "}
                 {Math.round(flat.reduce((a, f) => a + f.lesson.durationMin, 0) / 60)} horas
               </p>
-              <div className="mx-auto mt-14 flex max-w-md items-end justify-between">
+              <div className="mx-auto mt-10 flex max-w-md flex-wrap items-end justify-between gap-6 sm:mt-14">
                 <div className="text-left">
                   <p className="font-display text-2xl italic text-zinc-800">Marina Loyola</p>
-                  <div className="mt-1 h-px w-44 bg-zinc-300" />
+                  <div className="mt-1 h-px w-36 bg-zinc-300 sm:w-44" />
                   <p className="mt-1.5 text-[10px] uppercase tracking-[0.2em] text-zinc-500">
                     Mentora & Diretora Criativa
                   </p>
@@ -209,10 +210,74 @@ export default async function CoursePlayerPage({
     };
   }
 
+  const curriculum = (
+    <nav className="space-y-3">
+      {moduleRows.map((m, mi) => (
+        <div key={m.id} className="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
+          <p className="border-b border-zinc-200 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+            Módulo {mi + 1} · {m.title}
+          </p>
+          <ul>
+            {(lessonsByModule.get(m.id) ?? []).map((l) => {
+              const Icon = TYPE_ICONS[l.type];
+              const isDone = doneSet.has(l.id);
+              const isCurrent = current?.lesson.id === l.id;
+              return (
+                <li key={l.id}>
+                  <Link
+                    href={`/aluno/curso/${course.id}?aula=${l.id}`}
+                    aria-current={isCurrent ? "page" : undefined}
+                    className={cn(
+                      "flex items-center gap-2.5 border-b border-zinc-200 px-4 py-3 text-sm transition-colors last:border-0 lg:py-2.5",
+                      isCurrent
+                        ? "bg-plum/20 text-zinc-950"
+                        : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
+                    )}
+                  >
+                    {isDone ? (
+                      <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
+                    ) : (
+                      <Icon size={14} className="shrink-0 text-zinc-500" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate">{l.title}</span>
+                    <span className="shrink-0 text-[10px] tabular-nums text-zinc-500">
+                      {l.durationMin}&#8242;
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  );
+  const lessonHref = (id: number) => `/aluno/curso/${course.id}?aula=${id}`;
+  const certHref = pct === 100 && total > 0 ? `/aluno/curso/${course.id}?cert=1` : null;
+
   return (
-    <div className="grid gap-8 lg:grid-cols-[300px_1fr]">
+    <div className="grid gap-8 max-lg:pb-20 lg:grid-cols-[300px_1fr]">
+      {/* Telemóvel: resumo de uma linha e a aula logo a seguir; a lista abre na barra de baixo */}
+      <div className="min-w-0 lg:hidden">
+        <Link href="/aluno" className="tap inline-flex items-center gap-1.5 text-[13px] font-medium text-zinc-500">
+          <ArrowLeft size={14} /> Os meus cursos
+        </Link>
+        <p className="mt-2 truncate font-display text-lg font-medium text-zinc-950">{course.title}</p>
+        <div className="mt-1.5 flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <ProgressBar pct={pct} />
+          </div>
+          <span className="text-xs font-bold tabular-nums text-plum">{pct}%</span>
+        </div>
+        {certHref && (
+          <Link href={certHref} className="tap mt-3 flex items-center justify-center gap-2 rounded-xl bg-plum px-4 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white">
+            <Award size={15} /> Emitir certificado
+          </Link>
+        )}
+      </div>
+
       {/* Sidebar currículo */}
-      <aside className="h-fit space-y-5 lg:sticky lg:top-24">
+      <aside className="h-fit space-y-5 max-lg:hidden lg:sticky lg:top-24">
         <Link
           href="/aluno"
           className="flex items-center gap-2 text-sm text-zinc-500 transition-colors hover:text-plum"
@@ -256,49 +321,11 @@ export default async function CoursePlayerPage({
           </a>
         )}
 
-        <nav className="space-y-3">
-          {moduleRows.map((m, mi) => (
-            <div key={m.id} className="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
-              <p className="border-b border-zinc-200 px-4 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
-                Módulo {mi + 1} · {m.title}
-              </p>
-              <ul>
-                {(lessonsByModule.get(m.id) ?? []).map((l) => {
-                  const Icon = TYPE_ICONS[l.type];
-                  const isDone = doneSet.has(l.id);
-                  const isCurrent = current?.lesson.id === l.id;
-                  return (
-                    <li key={l.id}>
-                      <Link
-                        href={`/aluno/curso/${course.id}?aula=${l.id}`}
-                        className={cn(
-                          "flex items-center gap-2.5 border-b border-zinc-200 px-4 py-2.5 text-sm transition-colors last:border-0",
-                          isCurrent
-                            ? "bg-plum/20 text-zinc-950"
-                            : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800"
-                        )}
-                      >
-                        {isDone ? (
-                          <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
-                        ) : (
-                          <Icon size={14} className="shrink-0 text-zinc-500" />
-                        )}
-                        <span className="min-w-0 flex-1 truncate">{l.title}</span>
-                        <span className="shrink-0 text-[10px] tabular-nums text-zinc-500">
-                          {l.durationMin}&#8242;
-                        </span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </nav>
+        {curriculum}
       </aside>
 
       {/* Área da aula */}
-      <div>
+      <div className="min-w-0 max-lg:-mt-3">
         {!current ? (
           <div className="rounded-3xl border border-dashed border-zinc-200 p-16 text-center text-zinc-500">
             <Lock size={28} className="mx-auto mb-4 text-plum" />
@@ -318,7 +345,7 @@ export default async function CoursePlayerPage({
                   <Clock size={12} /> {current.lesson.durationMin} min
                 </span>
               </div>
-              <h2 className="mt-3 font-display text-3xl font-medium tracking-tight text-zinc-950 lg:text-4xl">
+              <h2 className="mt-2 font-display text-2xl font-medium leading-tight tracking-tight text-zinc-950 sm:mt-3 sm:text-3xl lg:text-4xl">
                 {current.lesson.title}
               </h2>
             </div>
@@ -347,7 +374,7 @@ export default async function CoursePlayerPage({
             ) : null}
 
             {current.lesson.type === "material" && (
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-8">
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 sm:p-8">
                 <div className="prose-invert max-w-none space-y-4 text-sm leading-relaxed text-zinc-600">
                   {current.lesson.content?.split("\n\n").map((p, i) => <p key={i}>{p}</p>) ??
                     <p>Conteúdo em preparação.</p>}
@@ -377,16 +404,16 @@ export default async function CoursePlayerPage({
               </div>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-zinc-200 pt-6">
+            <div className={cn("flex flex-wrap items-center justify-between gap-4 border-t border-zinc-200 pt-6 max-lg:justify-center", current.lesson.type === "quiz" && "max-lg:hidden")}>
               {prev ? (
                 <Link
                   href={`/aluno/curso/${course.id}?aula=${prev.lesson.id}`}
-                  className="btn-ghost !px-5 !py-2.5 !text-xs"
+                  className="btn-ghost !px-5 !py-2.5 !text-xs max-lg:hidden"
                 >
                   <ArrowLeft size={14} /> Aula anterior
                 </Link>
               ) : (
-                <span />
+                <span className="max-lg:hidden" />
               )}
               {current.lesson.type !== "quiz" && (
                 <CompleteButton lessonId={current.lesson.id} done={doneSet.has(current.lesson.id)} />
@@ -394,7 +421,7 @@ export default async function CoursePlayerPage({
               {next ? (
                 <Link
                   href={`/aluno/curso/${course.id}?aula=${next.lesson.id}`}
-                  className="btn-dark !px-5 !py-2.5 !text-xs"
+                  className="btn-dark !px-5 !py-2.5 !text-xs max-lg:hidden"
                 >
                   Próxima aula <ArrowRight size={14} />
                 </Link>
@@ -402,7 +429,7 @@ export default async function CoursePlayerPage({
                 pct === 100 && (
                   <Link
                     href={`/aluno/curso/${course.id}?cert=1`}
-                    className="btn-primary !px-5 !py-2.5 !text-xs"
+                    className="btn-primary !px-5 !py-2.5 !text-xs max-lg:hidden"
                   >
                     <Award size={14} /> Emitir certificado
                   </Link>
@@ -418,6 +445,15 @@ export default async function CoursePlayerPage({
           </div>
         )}
       </div>
+
+      <LessonBar
+        prevHref={prev ? lessonHref(prev.lesson.id) : null}
+        nextHref={next ? lessonHref(next.lesson.id) : null}
+        certHref={certHref}
+        label={current ? `Aula ${currentIndex + 1} de ${total}` : "Aulas"}
+      >
+        {curriculum}
+      </LessonBar>
     </div>
   );
 }
@@ -443,8 +479,8 @@ function FileList({ title, files }: { title: string; files: CourseFile[] }) {
                 Ver
               </a>
             )}
-            <a href={`/api/ficheiros/${f.id}`} className="btn-ghost !px-3.5 !py-1.5 !text-xs">
-              <Download size={13} /> Descarregar
+            <a href={`/api/ficheiros/${f.id}`} aria-label={`Descarregar ${f.name}`} className="btn-ghost !px-3 !py-2 !text-xs sm:!px-3.5 sm:!py-1.5">
+              <Download size={13} /> <span className="max-sm:hidden">Descarregar</span>
             </a>
           </li>
         ))}

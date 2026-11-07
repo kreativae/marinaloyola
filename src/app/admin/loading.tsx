@@ -2,11 +2,11 @@
 export default function AdminLoading() {
   return (
     <div className="animate-page-in" aria-busy="true" aria-label="A carregar">
-      <div className="mb-8 space-y-3">
+      <div className="mb-5 space-y-3 sm:mb-8">
         <div className="skeleton h-9 w-56" />
         <div className="skeleton h-4 w-full max-w-md" />
       </div>
-      <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger stat-row grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
           <div key={i} className="card space-y-3 p-5">
             <div className="skeleton h-3 w-24" />
@@ -14,7 +14,7 @@ export default function AdminLoading() {
           </div>
         ))}
       </div>
-      <div className="card mt-6 space-y-4 p-6">
+      <div className="card mt-4 space-y-4 p-4 sm:mt-6 sm:p-6">
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} className="flex items-center gap-4">
             <div className="skeleton h-9 w-9 shrink-0 rounded-full" />

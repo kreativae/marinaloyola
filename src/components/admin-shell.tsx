@@ -32,6 +32,7 @@ import {
   type LucideIcon,
   UserRound,
 } from "lucide-react";
+import { AppBehaviors } from "@/components/app-behaviors";
 import { BottomSheet } from "@/components/sheet";
 import { logout } from "@/lib/actions";
 import { quickSearchContacts } from "@/lib/actions-contacts";
@@ -165,6 +166,7 @@ export function AdminShell({
         </main>
       </div>
 
+      <AppBehaviors />
       <MobileTabBar counts={counts} onMore={() => setMoreOpen(true)} moreOpen={moreOpen} />
       <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} user={user} counts={counts} />
       <BottomSheet open={createOpen} onClose={() => setCreateOpen(false)} title="Criar">
@@ -276,7 +278,13 @@ function MobileTabBar({ counts, onMore, moreOpen }: { counts: ShellCounts; onMor
               key={t.href}
               href={t.href}
               aria-current={on ? "page" : undefined}
-              onClick={() => setClicked({ href: t.href, from: realPath })}
+              onClick={(e) => {
+                // Tocar no separador em que já se está volta ao topo, como numa app
+                if (t.href === realPath) {
+                  e.preventDefault();
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                } else setClicked({ href: t.href, from: realPath });
+              }}
               className={cn(cell, on ? "text-plum" : "text-zinc-500")}
             >
               <span className="relative">

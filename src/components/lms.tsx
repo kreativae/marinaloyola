@@ -13,7 +13,7 @@ export function CompleteButton({ lessonId, done }: { lessonId: number; done: boo
   const [pending, start] = useTransition();
   if (done) {
     return (
-      <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-6 py-3 text-sm font-semibold text-emerald-700">
+      <span className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-6 py-3 text-sm font-semibold text-emerald-700 max-lg:w-full">
         <CheckCircle2 size={16} /> Aula concluída
       </span>
     );
@@ -27,7 +27,7 @@ export function CompleteButton({ lessonId, done }: { lessonId: number; done: boo
         })
       }
       disabled={pending}
-      className="btn-primary disabled:opacity-60"
+      className="btn-primary disabled:opacity-60 max-lg:w-full"
     >
       {pending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
       Marcar como concluída
@@ -200,7 +200,7 @@ export function QuizPlayer({
   }
 
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6 lg:p-8">
+    <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-plum">
           Quiz · nota mínima {minScore}%
@@ -255,7 +255,7 @@ export function QuizPlayer({
                       disabled={!!r || pending}
                       onClick={() => setAnswers((a) => ({ ...a, [q.qid]: oi }))}
                       className={cn(
-                        "rounded-xl border px-4 py-3 text-left text-sm transition-all",
+                        "tap rounded-xl border px-4 py-3 text-left text-sm transition-all",
                         isCorrect
                           ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-700"
                           : isWrong

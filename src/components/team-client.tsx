@@ -72,6 +72,39 @@ export function UserManager({ users, meId, canManage, courses = [] }: { users: T
     });
   };
 
+  const actions = (u: TeamUser) => (
+    <div className="flex justify-end gap-0.5">
+      <button type="button" onClick={() => setEditing(u)} className="rounded-lg p-1.5 text-zinc-400 max-sm:p-2.5 hover:bg-white hover:text-plum" aria-label={`Editar ${u.name}`} title="Editar">
+        <Pencil size={14} />
+      </button>
+      <button type="button" onClick={() => setPwFor(u)} className="rounded-lg p-1.5 text-zinc-400 max-sm:p-2.5 hover:bg-white hover:text-plum" aria-label={`Trocar a palavra-passe de ${u.name}`} title="Trocar palavra-passe">
+        <KeyRound size={14} />
+      </button>
+      {u.twoFactor && u.id !== meId && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => resetTwoFactor(u)}
+          className="rounded-lg p-1.5 text-zinc-400 max-sm:p-2.5 hover:bg-white hover:text-amber-600"
+          aria-label={`Desligar a verificação em dois passos de ${u.name}`}
+          title="Desligar verificação em dois passos (perdeu o telemóvel)"
+        >
+          <ShieldOff size={14} />
+        </button>
+      )}
+      <button
+        type="button"
+        disabled={pending || u.id === meId}
+        onClick={() => remove(u)}
+        className="rounded-lg p-1.5 text-zinc-400 max-sm:p-2.5 hover:bg-rose-50 hover:text-rose-600 disabled:pointer-events-none disabled:opacity-30"
+        aria-label={`Apagar ${u.name}`}
+        title={u.id === meId ? "Não pode apagar a sua própria conta" : "Apagar"}
+      >
+        <Trash2 size={14} />
+      </button>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -103,7 +136,42 @@ export function UserManager({ users, meId, canManage, courses = [] }: { users: T
 
       {error && <p className="rounded-xl bg-rose-50 px-3.5 py-2.5 text-xs font-semibold text-rose-700">{error}</p>}
 
-      <div className="table-shell">
+      {/* No telemóvel cada pessoa é um cartão: nome, perfil e ações sem deslizar para o lado */}
+      <ul className="space-y-2 sm:hidden">
+        {list.map((u) => {
+          const r = ROLES[u.role];
+          const Icon = r?.icon ?? Users;
+          return (
+            <li key={u.id} className="rounded-2xl border border-line bg-white p-3.5">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-plum/10 text-xs font-bold text-plum">{initials(u.name)}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-zinc-950">
+                    {u.name} {u.id === meId && <span className="text-xs font-normal text-zinc-400">(você)</span>}
+                  </p>
+                  <p className="truncate text-xs text-zinc-500">{u.email}</p>
+                </div>
+              </div>
+              <div className="mt-2.5 flex items-center justify-between gap-2">
+                <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <span className={`chip ${r?.className ?? ""}`}>
+                    <Icon size={11} /> {r?.label ?? u.role}
+                  </span>
+                  {u.twoFactor && (
+                    <span className="chip border-emerald-500/30 bg-emerald-500/10 text-emerald-700">
+                      <Smartphone size={11} /> 2 passos
+                    </span>
+                  )}
+                </span>
+                {canManage && actions(u)}
+              </div>
+            </li>
+          );
+        })}
+        {list.length === 0 && <li className="py-8 text-center text-sm text-zinc-500">Nenhum utilizador encontrado.</li>}
+      </ul>
+
+      <div className="table-shell max-sm:hidden">
         <table className="w-full">
           <thead className="border-b border-zinc-200 bg-zinc-50">
             <tr>
@@ -147,36 +215,7 @@ export function UserManager({ users, meId, canManage, courses = [] }: { users: T
                   <td className="admin-td hidden text-xs text-zinc-500 md:table-cell">{new Date(u.createdAt).toLocaleDateString("pt-PT")}</td>
                   {canManage && (
                     <td className="admin-td">
-                      <div className="flex justify-end gap-0.5">
-                        <button type="button" onClick={() => setEditing(u)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-plum" aria-label={`Editar ${u.name}`} title="Editar">
-                          <Pencil size={14} />
-                        </button>
-                        <button type="button" onClick={() => setPwFor(u)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-plum" aria-label={`Trocar a palavra-passe de ${u.name}`} title="Trocar palavra-passe">
-                          <KeyRound size={14} />
-                        </button>
-                        {u.twoFactor && u.id !== meId && (
-                          <button
-                            type="button"
-                            disabled={pending}
-                            onClick={() => resetTwoFactor(u)}
-                            className="rounded-lg p-1.5 text-zinc-400 hover:bg-white hover:text-amber-600"
-                            aria-label={`Desligar a verificação em dois passos de ${u.name}`}
-                            title="Desligar verificação em dois passos (perdeu o telemóvel)"
-                          >
-                            <ShieldOff size={14} />
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          disabled={pending || u.id === meId}
-                          onClick={() => remove(u)}
-                          className="rounded-lg p-1.5 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 disabled:pointer-events-none disabled:opacity-30"
-                          aria-label={`Apagar ${u.name}`}
-                          title={u.id === meId ? "Não pode apagar a sua própria conta" : "Apagar"}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      {actions(u)}
                     </td>
                   )}
                 </tr>

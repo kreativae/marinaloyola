@@ -360,13 +360,17 @@ dialog[open]::backdrop {
 
 /* ------------------------- TELEMÓVEL (BACKOFFICE) ------------------------ */
 
-.admin-root {
+.admin-root,
+.aluno-root {
   -webkit-tap-highlight-color: transparent;
 }
 .admin-root a,
 .admin-root button,
 .admin-root summary,
-.admin-root label {
+.admin-root label,
+.aluno-root a,
+.aluno-root button,
+.aluno-root label {
   touch-action: manipulation;
 }
 
@@ -397,7 +401,10 @@ dialog[open]::backdrop {
   /* Abaixo de 16px o iPhone faz zoom ao tocar num campo e a página salta */
   .admin-root input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
   .admin-root select,
-  .admin-root textarea {
+  .admin-root textarea,
+  .aluno-root input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .aluno-root select,
+  .aluno-root textarea {
     font-size: 16px !important;
   }
   /* Uma grelha nunca pode ficar mais larga do que o ecrã */
