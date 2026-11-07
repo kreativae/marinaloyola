@@ -49,7 +49,7 @@ export default async function FormulariosPage() {
         subtitle="Crie páginas de captação e gira o formulário da página Contacto. Cada resposta entra nos Contactos."
         actions={<NewFormButton />}
       />
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 stat-row grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Formulários ativos" value={num(rows.filter((f) => f.active).length)} icon={<ClipboardList size={16} />} />
         <StatCard label="Respostas em 30 dias" value={num(recentCount)} hint={`${num(total)} no total`} icon={<Inbox size={16} />} />
         <StatCard label="Por ler" value={num(unread)} icon={<MailOpen size={16} />} accent={unread > 0} />

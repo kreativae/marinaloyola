@@ -15,18 +15,18 @@ export function PageHeader({
   eyebrow?: string;
 }) {
   return (
-    <div className="mb-8 flex flex-wrap items-end justify-between gap-5 animate-[rise_0.6s_var(--ease-out-soft)_backwards]">
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-3 animate-[rise_0.6s_var(--ease-out-soft)_backwards] sm:mb-8 sm:gap-5">
       <div className="min-w-0">
-        <p className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-[0.3em] text-plum">
+        <p className="hidden items-center gap-2 text-[10.5px] font-bold uppercase tracking-[0.3em] text-plum sm:flex">
           <span className="h-px w-6 bg-plum/40" />
           {eyebrow}
         </p>
-        <h1 className="mt-3 font-display text-[2rem] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-950 lg:text-[2.6rem]">
+        <h1 className="font-display text-[1.85rem] font-medium sm:mt-3 sm:text-[2rem] leading-[1.05] tracking-[-0.02em] text-zinc-950 lg:text-[2.6rem]">
           {title}
         </h1>
-        {subtitle && <p className="mt-2.5 max-w-2xl text-[15px] leading-relaxed text-zinc-500">{subtitle}</p>}
+        {subtitle && <p className="mt-2.5 hidden max-w-2xl text-[15px] leading-relaxed text-zinc-500 sm:block">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2.5">{actions}</div>}
+      {actions && <div className="page-actions flex flex-wrap items-center gap-2.5">{actions}</div>}
     </div>
   );
 }
@@ -47,7 +47,7 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "card card-hover group relative overflow-hidden p-5",
+        "card card-hover group relative overflow-hidden p-4 sm:p-5",
         accent && "!border-plum-deep bg-[#2a0a2e] text-white"
       )}
     >
@@ -81,13 +81,13 @@ export function StatCard({
       </div>
       <p
         className={cn(
-          "relative mt-2 font-display text-[2rem] font-medium leading-none tracking-[-0.02em]",
+          "relative mt-2 font-display text-[1.6rem] font-medium leading-none tracking-[-0.02em] sm:text-[2rem]",
           accent ? "text-white" : "text-zinc-950"
         )}
       >
         <CountUp value={value} />
       </p>
-      {hint && <p className={cn("relative mt-2.5 text-xs", accent ? "text-white/60" : "text-zinc-500")}>{hint}</p>}
+      {hint && <p className={cn("relative mt-2 truncate text-xs sm:mt-2.5 sm:whitespace-normal", accent ? "text-white/60" : "text-zinc-500")}>{hint}</p>}
     </div>
   );
 }
@@ -106,7 +106,7 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <section className={cn("card p-6", className)}>
+    <section className={cn("card p-4 sm:p-6", className)}>
       {(title || action) && (
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -161,7 +161,7 @@ export function BarChart({
             <div key={d.label} className="group flex h-full min-w-0 flex-1 flex-col justify-end">
               <p
                 className={cn(
-                  "mb-2 whitespace-nowrap text-center text-[11px] font-semibold tabular-nums transition-all duration-300",
+                  "mb-2 flex justify-center whitespace-nowrap text-[11px] font-semibold tabular-nums transition-all duration-300 max-sm:justify-end",
                   last ? "text-plum" : "translate-y-1 text-zinc-500 opacity-0 group-hover:translate-y-0 group-hover:opacity-100"
                 )}
               >
@@ -245,6 +245,8 @@ export function CashflowChart({
   format: (n: number) => string;
 }) {
   const max = Math.max(...data.flatMap((d) => [d.income, d.expense]), 1);
+  // Doze meses não cabem no telemóvel: mostra os seis últimos
+  const older = (i: number) => (i < data.length - 6 ? "max-sm:hidden" : "");
   return (
     <div>
       <div className="relative">
@@ -257,7 +259,7 @@ export function CashflowChart({
           {data.map((d, i) => {
             const last = i === data.length - 1;
             return (
-              <div key={d.label} className="group relative flex h-full flex-1 items-end justify-center gap-[3px]">
+              <div key={d.label} className={cn("group relative flex h-full min-w-0 flex-1 items-end justify-center gap-[3px]", older(i))}>
                 {/* Detalhe ao passar o rato */}
                 <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 w-max -translate-x-1/2 translate-y-1 rounded-xl bg-zinc-900 px-3 py-2 text-[11px] leading-relaxed text-white opacity-0 shadow-lg transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
                   <p className="font-semibold capitalize">{d.label}</p>
@@ -290,7 +292,7 @@ export function CashflowChart({
         {data.map((d, i) => {
           const r = d.income - d.expense;
           return (
-            <div key={d.label} className="flex-1 text-center">
+            <div key={d.label} className={cn("min-w-0 flex-1 text-center", older(i))}>
               <p className={cn("text-[10px] font-bold uppercase tracking-[0.12em]", i === data.length - 1 ? "text-zinc-900" : "text-zinc-400")}>
                 {d.label}
               </p>

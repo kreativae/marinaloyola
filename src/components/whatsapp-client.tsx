@@ -207,7 +207,7 @@ export function ReplyBox({ contactId, disabled }: { contactId: number; disabled?
 
   return (
     <div
-      className="border-t border-zinc-200 bg-white p-3"
+      className="border-t border-zinc-200 bg-white p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] xl:p-3"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
@@ -291,15 +291,17 @@ export function ReplyBox({ contactId, disabled }: { contactId: number; disabled?
               }
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              // No telemóvel o Enter muda de linha; envia-se com o botão
+              if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(hover: hover)").matches) {
                 e.preventDefault();
                 send();
               }
             }}
             rows={1}
             disabled={disabled}
-            placeholder={disabled ? "Ligue o WhatsApp para responder" : file ? "Legenda (opcional)…" : "Escreva uma mensagem…  (Enter envia, Shift+Enter nova linha)"}
-            className="field max-h-40 min-h-[44px] flex-1 resize-y"
+            placeholder={disabled ? "WhatsApp desligado" : file ? "Legenda (opcional)…" : "Escreva uma mensagem…"}
+            title="Enter envia, Shift+Enter nova linha"
+            className="field max-h-40 min-h-[44px] flex-1 resize-none xl:resize-y"
           />
           {text.trim() || file ? (
             <button

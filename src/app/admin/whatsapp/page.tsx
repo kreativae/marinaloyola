@@ -1,6 +1,6 @@
 import Form from "next/form";
 import Link from "next/link";
-import { ArrowUpRight, MessageCircle, Settings2 } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, MessageCircle, Settings2, UserRound } from "lucide-react";
 import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { contacts, whatsappMessages } from "@/db/schema";
@@ -109,14 +109,16 @@ export default async function WhatsappPage({
   return (
     <>
       <AutoRefresh />
-      <PageHeader
-        title="WhatsApp"
-        subtitle="Conversas da Evolution API ligadas ao CRM: cada número novo que escreve entra como lead."
-      />
+      <div className={cn(selected && "max-xl:hidden")}>
+        <PageHeader
+          title="WhatsApp"
+          subtitle="Conversas da Evolution API ligadas ao CRM: cada número novo que escreve entra como lead."
+        />
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
         {/* ----------------------- coluna esquerda ----------------------- */}
-        <div className="min-w-0 space-y-4">
+        <div className={cn("min-w-0 space-y-4", selected && "max-xl:hidden")}>
           <WhatsappConnection initialState={state} configured={configured} />
 
           <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
@@ -140,13 +142,13 @@ export default async function WhatsappPage({
                 Abrir
               </button>
             </Form>
-            <ul className="max-h-[560px] divide-y divide-zinc-100 overflow-y-auto">
+            <ul className="divide-y divide-zinc-100 xl:max-h-[560px] xl:overflow-y-auto">
               {conversations.map((conv) => (
                 <li key={conv.id} className="group/conv relative">
                   <Link
                     href={`/admin/whatsapp?c=${conv.id}`}
                     className={cn(
-                      "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-zinc-50",
+                      "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-zinc-50 active:bg-zinc-100",
                       conv.id === selectedId && "bg-plum/[0.06]"
                     )}
                   >
@@ -173,7 +175,7 @@ export default async function WhatsappPage({
                       </span>
                     </span>
                   </Link>
-                  <div className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-lg bg-white shadow-sm ring-1 ring-zinc-200 group-hover/conv:block">
+                  <div className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-lg bg-white shadow-sm ring-1 ring-zinc-200 xl:group-hover/conv:block">
                     <DeleteConversationButton
                       contactId={conv.id}
                       name={conv.name}
@@ -195,9 +197,12 @@ export default async function WhatsappPage({
         {/* -------------------------- conversa --------------------------- */}
         <div className="min-w-0">
           {selected ? (
-            <div className="flex h-[720px] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-              <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-5 py-3.5">
-                <div className="flex min-w-0 items-center gap-3">
+            <div className="wa-thread flex h-[720px] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+              <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] xl:gap-3 xl:px-5 xl:py-3.5">
+                <div className="flex min-w-0 items-center gap-2 xl:gap-3">
+                  <Link href="/admin/whatsapp" aria-label="Voltar às conversas" className="tap flex h-10 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-700 xl:hidden">
+                    <ChevronLeft size={24} />
+                  </Link>
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-plum text-xs font-bold text-white">
                     {initials(selected.name)}
                   </span>
@@ -214,9 +219,13 @@ export default async function WhatsappPage({
                 <div className="flex shrink-0 items-center gap-2">
                   <Link
                     href={`/admin/crm/${selected.id}`}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-plum hover:underline"
+                    aria-label="Ficha no CRM"
+                    className="tap inline-flex items-center gap-1 text-xs font-semibold text-plum hover:underline max-xl:h-10 max-xl:w-10 max-xl:justify-center max-xl:rounded-full max-xl:bg-plum/[0.07]"
                   >
-                    Ficha no CRM <ArrowUpRight size={13} />
+                    <UserRound size={17} className="xl:hidden" />
+                    <span className="hidden items-center gap-1 xl:inline-flex">
+                      Ficha no CRM <ArrowUpRight size={13} />
+                    </span>
                   </Link>
                   {messages.length > 0 && (
                     <DeleteConversationButton
@@ -230,7 +239,7 @@ export default async function WhatsappPage({
                 </div>
               </div>
 
-              <div className="flex-1 space-y-2 overflow-y-auto bg-zinc-50 px-5 py-5">
+              <div className="flex-1 space-y-2 overflow-y-auto overscroll-contain bg-zinc-50 px-3 py-4 xl:px-5 xl:py-5">
                 {messages.length === 0 && (
                   <p className="py-16 text-center text-sm text-zinc-500">
                     Sem mensagens. Escreva abaixo para iniciar a conversa.
@@ -261,7 +270,7 @@ export default async function WhatsappPage({
               <ReplyBox contactId={selected.id} disabled={state !== "open" || !selectedPhone} />
             </div>
           ) : (
-            <div className="flex h-[720px] flex-col items-center justify-center rounded-2xl border border-zinc-200 bg-white p-8 text-center">
+            <div className="hidden h-[720px] flex-col items-center justify-center rounded-2xl border border-zinc-200 bg-white p-8 text-center xl:flex">
               <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-plum/10 text-plum">
                 <MessageCircle size={24} />
               </span>
@@ -278,7 +287,7 @@ export default async function WhatsappPage({
       {me?.role === "admin" && (
         <Link
           href="/admin/config?s=whatsapp"
-          className="mt-6 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-sm transition-colors hover:border-plum/40"
+          className={cn("mt-6 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-sm transition-colors hover:border-plum/40", selected && "max-xl:hidden")}
         >
           <Settings2 size={16} className="text-plum" />
           <span className="flex-1">

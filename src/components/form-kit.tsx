@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { Check, ImagePlus, Loader2, X, type LucideIcon } from "lucide-react";
 import { uploadSiteImage } from "@/lib/actions-site";
+import { SheetHandle, useSwipeToClose } from "@/components/sheet";
 import { cn } from "@/lib/utils";
 
 /**
@@ -29,7 +30,7 @@ export function Modal({
   size?: "md" | "lg";
   children: ReactNode;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
+  const { panel: ref, handlers } = useSwipeToClose<HTMLDialogElement>(onClose);
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -39,22 +40,28 @@ export function Modal({
       d.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     }
     if (!open && d.open) d.close();
-  }, [open]);
+  }, [open, ref]);
   return (
     <dialog
       ref={ref}
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       className={cn(
-        "m-auto max-h-[calc(100dvh-1.5rem)] w-[calc(100%-1.5rem)] overflow-hidden rounded-[26px] border border-line bg-white p-0 text-left text-zinc-900 shadow-[0_40px_100px_-30px_rgb(24_24_27/0.5)] backdrop:bg-zinc-950/35 backdrop:backdrop-blur-sm",
+        "sheet m-auto max-h-[calc(var(--vvh,100dvh)-1.5rem)] w-[calc(100%-1.5rem)] overflow-hidden rounded-[26px] border border-line bg-white p-0 text-left text-zinc-900 shadow-[0_40px_100px_-30px_rgb(24_24_27/0.5)] backdrop:bg-zinc-950/35 backdrop:backdrop-blur-sm max-sm:mb-[var(--kb,0px)] max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:border-0",
         size === "lg" ? "max-w-2xl xl:max-w-3xl" : "max-w-xl xl:max-w-2xl"
       )}
     >
       {open && (
-        <div className="flex max-h-[calc(100dvh-1.5rem)] flex-col">
-          <header className="relative flex shrink-0 items-start gap-4 border-b border-line bg-zinc-50/70 px-6 py-5 short:items-center short:gap-3 short:py-3.5">
+        <div className="flex max-h-[calc(var(--vvh,100dvh)-1.5rem)] flex-col">
+          <div {...handlers} className="shrink-0 touch-none bg-zinc-50/70 pt-2.5 sm:hidden">
+            <SheetHandle />
+          </div>
+          <header
+            {...handlers}
+            className="relative flex shrink-0 items-start gap-4 border-b border-line bg-zinc-50/70 px-6 py-5 short:items-center short:gap-3 short:py-3.5 max-sm:touch-none max-sm:items-center max-sm:gap-3 max-sm:px-5 max-sm:pb-3 max-sm:pt-2"
+          >
             {Icon && (
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-plum short:h-9 short:w-9 short:rounded-xl text-white shadow-[0_10px_24px_-10px_rgb(128_0_128/0.8)]">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-plum short:h-9 short:w-9 short:rounded-xl text-white shadow-[0_10px_24px_-10px_rgb(128_0_128/0.8)] max-sm:h-9 max-sm:w-9 max-sm:rounded-xl">
                 <Icon size={18} />
               </span>
             )}
@@ -71,7 +78,7 @@ export function Modal({
               <X size={18} />
             </button>
           </header>
-          <div className="admin-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-5 short:pt-4">{children}</div>
+          <div className="admin-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-5 short:pt-4 max-sm:px-5">{children}</div>
         </div>
       )}
     </dialog>
@@ -81,7 +88,7 @@ export function Modal({
 /** Rodapé do formulário, sempre visível no fundo da janela. */
 export function ModalFooter({ children, error }: { children: ReactNode; error?: string }) {
   return (
-    <div className="sticky bottom-0 z-20 -mx-6 mt-6 border-t border-line bg-white px-6 py-4 shadow-[0_-12px_24px_-16px_rgb(24_24_27/0.18)] short:mt-5 short:py-3">
+    <div className="sticky bottom-0 z-20 -mx-6 mt-6 border-t border-line bg-white px-6 py-4 shadow-[0_-12px_24px_-16px_rgb(24_24_27/0.18)] short:mt-5 short:py-3 max-sm:-mx-5 max-sm:px-5 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       {error && <p className="mb-3 rounded-xl bg-rose-50 px-3.5 py-2.5 text-xs font-semibold text-rose-700">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-2">{children}</div>
     </div>

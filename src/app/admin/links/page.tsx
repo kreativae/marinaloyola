@@ -101,7 +101,7 @@ export default async function BioLinksPage() {
         }
       />
 
-      <div className="stagger mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger mb-6 stat-row grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Visitas · 30 dias" value={num(views)} icon={<Eye size={17} />} accent />
         <StatCard label="Cliques · 30 dias" value={num(clicks)} icon={<MousePointerClick size={17} />} />
         <StatCard label="Taxa de clique" value={`${ctr}%`} hint="cliques por visita" icon={<Percent size={17} />} />

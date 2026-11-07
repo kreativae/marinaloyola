@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowRight,
   CalendarDays,
+  ChevronLeft,
   CalendarPlus,
   ChevronsLeft,
   ClipboardList,
@@ -19,19 +20,19 @@ import {
   Loader2,
   LogOut,
   Megaphone,
-  Menu,
   MessageCircle,
   NotebookPen,
+  MoreHorizontal,
   Plus,
   Search,
   Settings,
   UserPlus,
   Users,
   Wallet,
-  X,
   type LucideIcon,
   UserRound,
 } from "lucide-react";
+import { BottomSheet } from "@/components/sheet";
 import { logout } from "@/lib/actions";
 import { quickSearchContacts } from "@/lib/actions-contacts";
 import { flag, fmtTime } from "@/lib/timezones";
@@ -76,6 +77,27 @@ function isActive(href: string, pathname: string) {
   return pathname.startsWith(href);
 }
 
+// Separadores da barra inferior do telemóvel; o resto fica em "Mais"
+const TABS: NavItem[] = [
+  { href: "/admin", label: "Início", icon: LayoutDashboard },
+  { href: "/admin/contactos", label: "Contactos", icon: Users },
+  { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageCircle, badge: "whatsapp" },
+  { href: "/admin/agenda", label: "Agenda", icon: CalendarDays, badge: "today" },
+];
+const MORE_ITEMS = ALL_ITEMS.filter((i) => !TABS.some((t) => t.href === i.href));
+
+const CREATE_ACTIONS: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: "/admin/contactos?novo=1", label: "Novo contacto", icon: UserPlus },
+  { href: "/admin/agenda?view=calendario&modo=semana&evento=novo", label: "Novo evento", icon: CalendarPlus },
+  { href: "/admin/notas?nova=1", label: "Nova nota", icon: NotebookPen },
+  { href: "/admin/financeiro?novo=1", label: "Registar recebimento", icon: Wallet },
+  { href: "/admin/financeiro?despesa=1", label: "Registar despesa", icon: Wallet },
+  { href: "/admin/marketing?novo=1", label: "Novo conteúdo", icon: Megaphone },
+  { href: "/admin/agenda?view=calendario&modo=semana", label: "Agenda da semana", icon: CalendarDays },
+];
+
+const roleLabel = (role: string) => (role === "admin" ? "Super Admin" : role === "manager" ? "Admin" : "Equipa");
+
 export type ShellUser = { name: string; role: string };
 export type ShellCounts = { whatsapp: number; today: number; forms: number };
 
@@ -93,14 +115,17 @@ export function AdminShell({
   children: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const pathname = usePathname();
   const [lastPath, setLastPath] = useState(pathname);
   if (lastPath !== pathname) {
     setLastPath(pathname);
-    setMobileOpen(false);
+    setMoreOpen(false);
+    setCreateOpen(false);
   }
+  useKeyboardViewport();
 
   const toggle = () => {
     const next = !collapsed;
@@ -133,27 +158,195 @@ export function AdminShell({
         <SidebarContent user={user} counts={counts} collapsed={collapsed} onToggle={toggle} />
       </aside>
 
-      {/* Gaveta (mobile) */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            aria-label="Fechar menu"
-            onClick={() => setMobileOpen(false)}
-            className="absolute inset-0 animate-[backdrop-in_0.25s_ease] bg-zinc-950/25 backdrop-blur-sm"
-          />
-          <aside className="absolute left-0 top-0 flex h-dvh w-72 animate-[drawer-left_0.35s_var(--ease-out-soft)] flex-col bg-white shadow-2xl">
-            <SidebarContent user={user} counts={counts} collapsed={false} onClose={() => setMobileOpen(false)} />
-          </aside>
-        </div>
-      )}
-
       <div className={cn("transition-[padding] duration-500 ease-[var(--ease-out-soft)]", collapsed ? "lg:pl-[76px]" : "lg:pl-64")}>
-        <Topbar onMenu={() => setMobileOpen(true)} onSearch={() => setPaletteOpen(true)} />
-        <main className="mx-auto max-w-[112rem] px-4 pb-16 pt-6 sm:px-6 lg:px-10 lg:pt-8 min-[1800px]:px-14">{children}</main>
+        <Topbar onCreate={() => setCreateOpen(true)} onSearch={() => setPaletteOpen(true)} />
+        <main className="mx-auto max-w-[112rem] px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-2 sm:px-6 lg:px-10 lg:pb-16 lg:pt-8 min-[1800px]:px-14">
+          {children}
+        </main>
       </div>
+
+      <MobileTabBar counts={counts} onMore={() => setMoreOpen(true)} moreOpen={moreOpen} />
+      <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} user={user} counts={counts} />
+      <BottomSheet open={createOpen} onClose={() => setCreateOpen(false)} title="Criar">
+        <div className="grid grid-cols-2 gap-2 pt-2">
+          {CREATE_ACTIONS.map((a) => (
+            <Link
+              key={a.href}
+              href={a.href}
+              onClick={() => setCreateOpen(false)}
+              className="tap flex items-center gap-2.5 rounded-2xl bg-zinc-50 px-3 py-3.5 text-[13px] font-semibold leading-tight text-zinc-800"
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-plum/[0.08] text-plum">
+                <a.icon size={15} />
+              </span>
+              {a.label}
+            </Link>
+          ))}
+        </div>
+      </BottomSheet>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} superAdmin={user.role === "admin"} />
     </div>
+  );
+}
+
+/**
+ * O teclado do iPhone tapa a página sem a encolher. Estas variáveis dizem à interface
+ * quanto ecrã sobra, para que janelas e conversas fiquem sempre acima do teclado.
+ */
+function useKeyboardViewport() {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const root = document.documentElement;
+    const sync = () => {
+      root.style.setProperty("--vvh", `${vv.height}px`);
+      root.style.setProperty("--vvt", `${vv.offsetTop}px`);
+      root.style.setProperty("--kb", `${Math.max(0, window.innerHeight - vv.height - vv.offsetTop)}px`);
+    };
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+      ["--vvh", "--vvt", "--kb"].forEach((k) => root.style.removeProperty(k));
+    };
+  }, []);
+}
+
+/* -------------------------- NAVEGAÇÃO NO TELEMÓVEL ----------------------- */
+
+function CountDot({ n, green }: { n: number; green?: boolean }) {
+  if (n <= 0) return null;
+  return (
+    <span
+      className={cn(
+        "absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold tabular-nums text-white ring-2 ring-white",
+        green ? "bg-emerald-500" : "bg-plum"
+      )}
+    >
+      {n > 99 ? "99+" : n}
+    </span>
+  );
+}
+
+function MobileTabBar({ counts, onMore, moreOpen }: { counts: ShellCounts; onMore: () => void; moreOpen: boolean }) {
+  const realPath = usePathname();
+  // O separador tocado acende logo, antes de a página chegar
+  const [clicked, setClicked] = useState<{ href: string; from: string } | null>(null);
+  const pathname = clicked && clicked.from === realPath ? clicked.href : realPath;
+  const activeTab = TABS.findIndex((t) => isActive(t.href, pathname));
+  const index = moreOpen || activeTab < 0 ? TABS.length : activeTab;
+
+  // Com o teclado aberto a barra sai do caminho
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    const isField = (t: EventTarget | null) =>
+      t instanceof HTMLElement && t.matches("textarea, select, [contenteditable], input:not([type=checkbox]):not([type=radio]):not([type=file])");
+    const onIn = (e: FocusEvent) => isField(e.target) && setTyping(true);
+    const onOut = (e: FocusEvent) => isField(e.target) && setTyping(false);
+    document.addEventListener("focusin", onIn);
+    document.addEventListener("focusout", onOut);
+    return () => {
+      document.removeEventListener("focusin", onIn);
+      document.removeEventListener("focusout", onOut);
+    };
+  }, []);
+
+  const cell = "tap relative z-10 flex h-14 flex-1 flex-col items-center justify-center gap-1 text-[10px] font-semibold transition-colors";
+  return (
+    <nav
+      aria-label="Navegação principal"
+      className={cn(
+        "fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl transition-transform duration-300 ease-[var(--ease-out-soft)] lg:hidden",
+        typing && "translate-y-full"
+      )}
+    >
+      <div className="relative mx-auto flex max-w-lg px-1.5">
+        <span
+          aria-hidden
+          className="absolute top-1.5 h-[30px] rounded-full bg-plum/[0.09] transition-transform duration-[400ms] ease-[var(--ease-out-soft)]"
+          style={{ width: "calc((100% - 0.75rem) / 5 - 1rem)", left: "calc(0.375rem + 0.5rem)", transform: `translateX(calc(${index} * (100% + 1rem)))` }}
+        />
+        {TABS.map((t, i) => {
+          const on = i === index;
+          return (
+            <Link
+              key={t.href}
+              href={t.href}
+              aria-current={on ? "page" : undefined}
+              onClick={() => setClicked({ href: t.href, from: realPath })}
+              className={cn(cell, on ? "text-plum" : "text-zinc-500")}
+            >
+              <span className="relative">
+                <t.icon size={20} strokeWidth={on ? 2.2 : 1.8} />
+                {t.badge && <CountDot n={counts[t.badge]} green={t.badge === "whatsapp"} />}
+              </span>
+              {t.label}
+            </Link>
+          );
+        })}
+        <button type="button" onClick={onMore} aria-expanded={moreOpen} className={cn(cell, index === TABS.length ? "text-plum" : "text-zinc-500")}>
+          <span className="relative">
+            <MoreHorizontal size={20} strokeWidth={index === TABS.length ? 2.2 : 1.8} />
+            <CountDot n={counts.forms} />
+          </span>
+          Mais
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+function MoreSheet({ open, onClose, user, counts }: { open: boolean; onClose: () => void; user: ShellUser; counts: ShellCounts }) {
+  const pathname = usePathname();
+  return (
+    <BottomSheet open={open} onClose={onClose}>
+      <Link href="/admin/conta" onClick={onClose} className="tap mb-3 mt-2 flex items-center gap-3 rounded-2xl bg-zinc-50 p-3">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-plum text-sm font-bold text-white">{initials(user.name)}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-semibold text-zinc-950">{user.name}</span>
+          <span className="block truncate text-xs text-zinc-500">{roleLabel(user.role)} · Minha conta</span>
+        </span>
+        <ArrowRight size={16} className="shrink-0 text-zinc-400" />
+      </Link>
+
+      <div className="grid grid-cols-3 gap-2">
+        {MORE_ITEMS.map((item) => {
+          const on = isActive(item.href, pathname);
+          const badge = item.badge ? counts[item.badge] : 0;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onClose}
+              className={cn(
+                "tap flex flex-col items-center gap-2 rounded-2xl px-1 py-3.5 text-center text-xs font-semibold",
+                on ? "bg-plum/[0.08] text-plum" : "bg-zinc-50 text-zinc-700"
+              )}
+            >
+              <span className="relative">
+                <item.icon size={21} strokeWidth={1.9} className={on ? "text-plum" : "text-zinc-500"} />
+                <CountDot n={badge} />
+              </span>
+              {item.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 flex gap-2">
+        <Link href="/" target="_blank" onClick={onClose} className="tap flex flex-1 items-center justify-center gap-2 rounded-2xl border border-line py-3 text-[13px] font-semibold text-zinc-600">
+          <ExternalLink size={15} /> Ver site
+        </Link>
+        <form action={logout} className="flex-1">
+          <button type="submit" className="tap flex w-full items-center justify-center gap-2 rounded-2xl border border-line py-3 text-[13px] font-semibold text-rose-600">
+            <LogOut size={15} /> Sair
+          </button>
+        </form>
+      </div>
+    </BottomSheet>
   );
 }
 
@@ -164,13 +357,11 @@ function SidebarContent({
   counts,
   collapsed,
   onToggle,
-  onClose,
 }: {
   user: ShellUser;
   counts: ShellCounts;
   collapsed: boolean;
   onToggle?: () => void;
-  onClose?: () => void;
 }) {
   const realPath = usePathname();
   // Destaque optimista: o item clicado fica activo de imediato, antes de a página chegar
@@ -211,11 +402,6 @@ function SidebarContent({
             </span>
           )}
         </Link>
-        {onClose && (
-          <button onClick={onClose} className="ml-auto rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100" aria-label="Fechar menu">
-            <X size={18} />
-          </button>
-        )}
       </div>
 
       <nav ref={navRef} className="admin-scroll relative flex-1 overflow-y-auto overflow-x-hidden px-3 py-5">
@@ -296,7 +482,7 @@ function SidebarContent({
           {!collapsed && (
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-zinc-950">{user.name}</p>
-              <p className="truncate text-[11px] text-zinc-500">{user.role === "admin" ? "Super Admin" : user.role === "manager" ? "Admin" : "Equipa"} · Minha conta</p>
+              <p className="truncate text-[11px] text-zinc-500">{roleLabel(user.role)} · Minha conta</p>
             </div>
           )}
           </Link>
@@ -342,14 +528,27 @@ function sectionOf(pathname: string) {
   return crumbs;
 }
 
-function Topbar({ onMenu, onSearch }: { onMenu: () => void; onSearch: () => void }) {
+// Página interna (ficha, curso, quiz): o telemóvel mostra "voltar" em vez do logótipo
+function parentOf(pathname: string) {
+  if (pathname.startsWith("/admin/crm/")) return "/admin/contactos";
+  const parts = pathname.split("/").filter(Boolean);
+  return parts.length > 2 ? `/${parts.slice(0, parts.length >= 5 ? 3 : 2).join("/")}` : null;
+}
+
+function Topbar({ onCreate, onSearch }: { onCreate: () => void; onSearch: () => void }) {
+  const router = useRouter();
   const pathname = usePathname();
   const crumbs = sectionOf(pathname);
+  const parent = parentOf(pathname);
   const [scrolled, setScrolled] = useState(false);
+  const [titled, setTitled] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 4);
+    const onScroll = () => {
+      setScrolled(window.scrollY > 4);
+      setTitled(window.scrollY > 52);
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -358,13 +557,24 @@ function Topbar({ onMenu, onSearch }: { onMenu: () => void; onSearch: () => void
   return (
     <header
       className={cn(
-        "sticky top-0 z-30 flex h-16 items-center gap-3 px-4 transition-all duration-300 sm:px-6 lg:px-10",
-        scrolled ? "border-b border-line bg-canvas/80 backdrop-blur-xl" : "border-b border-transparent"
+        "sticky top-0 z-30 flex h-[calc(3.25rem+env(safe-area-inset-top))] items-center gap-2 px-4 pt-[env(safe-area-inset-top)] transition-all duration-300 sm:px-6 lg:h-16 lg:gap-3 lg:px-10",
+        scrolled ? "border-b border-line bg-canvas/85 backdrop-blur-xl" : "border-b border-transparent"
       )}
     >
-      <button onClick={onMenu} className="rounded-xl p-2 text-zinc-600 hover:bg-white lg:hidden" aria-label="Abrir menu">
-        <Menu size={20} />
-      </button>
+      {parent ? (
+        <button
+          type="button"
+          onClick={() => (window.history.length > 1 ? router.back() : router.push(parent))}
+          className="tap -ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-zinc-700 lg:hidden"
+          aria-label="Voltar"
+        >
+          <ChevronLeft size={24} />
+        </button>
+      ) : (
+        <Link href="/admin" aria-label="Início" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#2a0a2e] font-display text-[13px] italic text-white lg:hidden">
+          ML
+        </Link>
+      )}
 
       <nav aria-label="Localização" className="hidden min-w-0 items-center gap-2 text-sm md:flex">
         <span className="text-zinc-400">Backoffice</span>
@@ -375,19 +585,36 @@ function Topbar({ onMenu, onSearch }: { onMenu: () => void; onSearch: () => void
           </span>
         ))}
       </nav>
-      <span className="font-display text-lg font-semibold italic text-zinc-950 md:hidden">Marina Loyola</span>
+      {/* Ao descer na página, o nome da marca dá lugar ao título da secção */}
+      <span className="relative h-7 min-w-0 flex-1 overflow-hidden md:hidden">
+        <span className={cn("absolute inset-0 truncate font-display text-[17px] font-semibold italic leading-7 text-zinc-950 transition-all duration-300", titled && "-translate-y-3 opacity-0")}>
+          Marina Loyola
+        </span>
+        <span className={cn("absolute inset-0 truncate text-[15px] font-semibold leading-7 text-zinc-950 transition-all duration-300", !titled && "translate-y-3 opacity-0")}>
+          {crumbs[crumbs.length - 1]}
+        </span>
+      </span>
 
       <div className="ml-auto flex items-center gap-2">
         <button
           onClick={onSearch}
-          className="group flex items-center gap-2.5 rounded-xl border border-line bg-white px-3 py-2 text-sm text-zinc-400 shadow-[0_1px_2px_rgb(24_24_27/0.04)] transition-all hover:border-plum/30 hover:text-zinc-600 sm:w-64"
+          aria-label="Pesquisar"
+          className="tap group flex h-9 w-9 items-center justify-center gap-2.5 rounded-xl border border-line bg-white text-sm text-zinc-500 shadow-[0_1px_2px_rgb(24_24_27/0.04)] transition-all hover:border-plum/30 hover:text-zinc-600 sm:h-auto sm:w-64 sm:justify-start sm:px-3 sm:py-2 sm:text-zinc-400"
         >
           <Search size={15} className="transition-colors group-hover:text-plum" />
           <span className="hidden flex-1 text-left sm:inline">Pesquisar ou ir para…</span>
           <span className="kbd hidden sm:inline-flex">⌘K</span>
         </button>
         <WorldClock />
-        <div className="relative">
+        <button
+          type="button"
+          onClick={onCreate}
+          className="tap flex h-9 w-9 items-center justify-center rounded-xl bg-plum text-white shadow-[0_8px_20px_-8px_rgb(128_0_128/0.7)] lg:hidden"
+          aria-label="Criar"
+        >
+          <Plus size={18} />
+        </button>
+        <div className="relative hidden lg:block">
           <button
             onClick={() => setNewOpen((o) => !o)}
             onBlur={() => setTimeout(() => setNewOpen(false), 150)}
@@ -399,15 +626,7 @@ function Topbar({ onMenu, onSearch }: { onMenu: () => void; onSearch: () => void
           </button>
           {newOpen && (
             <div className="pop absolute right-0 top-12 z-40 w-56 overflow-hidden rounded-2xl border border-line bg-white p-1.5 shadow-[0_20px_50px_-20px_rgb(24_24_27/0.35)]">
-              {[
-                { href: "/admin/contactos?novo=1", label: "Novo contacto", icon: UserPlus },
-                { href: "/admin/agenda?view=calendario&modo=semana&evento=novo", label: "Novo evento", icon: CalendarPlus },
-                { href: "/admin/notas?nova=1", label: "Nova nota", icon: NotebookPen },
-                { href: "/admin/financeiro?novo=1", label: "Registar recebimento", icon: Wallet },
-                { href: "/admin/financeiro?despesa=1", label: "Registar despesa", icon: Wallet },
-                { href: "/admin/marketing?novo=1", label: "Novo conteúdo", icon: Megaphone },
-                { href: "/admin/agenda?view=calendario&modo=semana", label: "Agenda da semana", icon: CalendarDays },
-              ].map((a) => (
+              {CREATE_ACTIONS.map((a) => (
                 <Link
                   key={a.href}
                   href={a.href}
@@ -548,7 +767,7 @@ function CommandPalette({ open, onClose, superAdmin }: { open: boolean; onClose:
         setSel(0);
       }}
       onClick={(e) => e.target === ref.current && onClose()}
-      className="m-auto mt-[12vh] w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-[22px] border border-line bg-white p-0 text-left shadow-[0_30px_80px_-20px_rgb(24_24_27/0.45)] backdrop:bg-zinc-950/30 backdrop:backdrop-blur-sm"
+      className="m-auto mt-[max(0.75rem,env(safe-area-inset-top))] w-[calc(100%-1.5rem)] max-w-xl overflow-hidden sm:mt-[12vh] sm:w-[calc(100%-2rem)] rounded-[22px] border border-line bg-white p-0 text-left shadow-[0_30px_80px_-20px_rgb(24_24_27/0.45)] backdrop:bg-zinc-950/30 backdrop:backdrop-blur-sm"
     >
       {open && (
         <div
@@ -577,7 +796,10 @@ function CommandPalette({ open, onClose, superAdmin }: { open: boolean; onClose:
               placeholder="Pesquisar contactos, páginas e ações…"
               className="h-14 flex-1 bg-transparent text-[15px] text-zinc-900 outline-none placeholder:text-zinc-400"
             />
-            <span className="kbd">Esc</span>
+            <span className="kbd hidden sm:inline-flex">Esc</span>
+            <button type="button" onClick={onClose} className="text-[13px] font-semibold text-plum sm:hidden">
+              Fechar
+            </button>
           </div>
           <ul ref={listRef} className="admin-scroll max-h-[50vh] overflow-y-auto scroll-py-2 p-2">
             {items.length === 0 && <li className="px-4 py-10 text-center text-sm text-zinc-500">Nada encontrado para “{q}”.</li>}
@@ -614,7 +836,7 @@ function CommandPalette({ open, onClose, superAdmin }: { open: boolean; onClose:
               );
             })}
           </ul>
-          <div className="flex items-center gap-4 border-t border-line bg-zinc-50/60 px-5 py-2.5 text-[11px] text-zinc-500">
+          <div className="hidden items-center gap-4 border-t border-line bg-zinc-50/60 px-5 py-2.5 text-[11px] text-zinc-500 sm:flex">
             <span className="flex items-center gap-1.5">
               <span className="kbd">↑</span>
               <span className="kbd">↓</span> navegar

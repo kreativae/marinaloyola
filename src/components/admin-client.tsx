@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Copy, GripVertical } from "lucide-react";
+import { ArrowRightLeft, Check, Copy, GripVertical } from "lucide-react";
+import { BottomSheet } from "@/components/sheet";
 import { cn } from "@/lib/utils";
 
 /* --------------------------- SELECT COM AÇÃO ---------------------------- */
@@ -114,13 +115,34 @@ export function KanbanBoard({
     setMoves({});
   }
 
+  // Arrastar não existe no toque: no telemóvel as fases deslizam e cada cartão tem "Mover"
+  const [moving, setMoving] = useState<number | null>(null);
+  const [activeCol, setActiveCol] = useState(0);
+  const board = useRef<HTMLDivElement>(null);
+
   const colOf = (card: KanbanCardData) => moves[card.id] ?? card.columnId;
+  const movingCard = cards.find((c) => c.id === moving);
+
+  const goToColumn = (i: number) => {
+    const el = board.current?.children[i] as HTMLElement | undefined;
+    if (el && board.current) board.current.scrollTo({ left: el.offsetLeft - board.current.offsetLeft - 16, behavior: "smooth" });
+  };
+
+  function onBoardScroll() {
+    const box = board.current;
+    const first = box?.children[0] as HTMLElement | undefined;
+    if (!box || !first) return;
+    setActiveCol(Math.min(columns.length - 1, Math.round(box.scrollLeft / (first.offsetWidth + 12))));
+  }
 
   function drop(colId: string) {
     const id = dragId;
     setDragId(null);
     setOver(null);
-    if (id == null) return;
+    if (id != null) move(id, colId);
+  }
+
+  function move(id: number, colId: string) {
     const card = cards.find((c) => c.id === id);
     if (!card || colOf(card) === colId) return;
     setMoves((m) => ({ ...m, [id]: colId }));
@@ -131,7 +153,28 @@ export function KanbanBoard({
   }
 
   return (
-    <div className="admin-scroll -mx-1 flex gap-3 overflow-x-auto px-1 pb-4">
+    <>
+    <div className="no-scrollbar -mx-4 mb-3 flex gap-1.5 overflow-x-auto px-4 sm:hidden">
+      {columns.map((col, i) => (
+        <button
+          key={col.id}
+          type="button"
+          onClick={() => goToColumn(i)}
+          className={cn(
+            "tap flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold",
+            i === activeCol ? "border-plum bg-plum text-white" : "border-line bg-white text-zinc-600"
+          )}
+        >
+          {col.name}
+          <span className={cn("tabular-nums", i === activeCol ? "text-white/75" : "text-zinc-400")}>{cards.filter((c) => colOf(c) === col.id).length}</span>
+        </button>
+      ))}
+    </div>
+    <div
+      ref={board}
+      onScroll={onBoardScroll}
+      className="admin-scroll -mx-1 flex gap-3 overflow-x-auto px-1 pb-4 max-sm:no-scrollbar max-sm:-mx-4 max-sm:snap-x max-sm:snap-mandatory max-sm:scroll-px-4 max-sm:px-4"
+    >
       {columns.map((col) => {
         const colCards = cards.filter((c) => colOf(c) === col.id);
         return (
@@ -144,7 +187,7 @@ export function KanbanBoard({
             onDragLeave={() => setOver((o) => (o === col.id ? null : o))}
             onDrop={() => drop(col.id)}
             className={cn(
-              "flex min-w-[205px] flex-1 basis-0 flex-col rounded-[20px] p-2 transition-all duration-300",
+              "flex min-w-[205px] flex-1 basis-0 flex-col rounded-[20px] p-2 transition-all duration-300 max-sm:min-w-[86%] max-sm:snap-start",
               over === col.id ? "bg-plum/[0.07] ring-2 ring-plum/25" : "bg-zinc-200/40"
             )}
           >
@@ -200,6 +243,16 @@ export function KanbanBoard({
                       {card.footer}
                     </p>
                   )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMoving(card.id);
+                    }}
+                    className="tap mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-zinc-100 py-2 text-xs font-semibold text-zinc-600 sm:hidden"
+                  >
+                    <ArrowRightLeft size={13} /> Mover
+                  </button>
                 </div>
               ))}
               {colCards.length === 0 && (
@@ -209,7 +262,8 @@ export function KanbanBoard({
                     over === col.id ? "border-plum/40 text-plum" : "border-zinc-300/60 text-zinc-400"
                   )}
                 >
-                  Arraste para aqui
+                  <span className="hidden sm:inline">Arraste para aqui</span>
+                  <span className="sm:hidden">Nada nesta coluna</span>
                 </div>
               )}
             </div>
@@ -217,5 +271,34 @@ export function KanbanBoard({
         );
       })}
     </div>
+    <BottomSheet open={!!movingCard} onClose={() => setMoving(null)} title={movingCard ? `Mover ${movingCard.title}` : undefined}>
+      <div className="space-y-1.5 pt-2">
+        {movingCard &&
+          columns.map((col) => {
+            const here = colOf(movingCard) === col.id;
+            return (
+              <button
+                key={col.id}
+                type="button"
+                disabled={here}
+                onClick={() => {
+                  move(movingCard.id, col.id);
+                  setMoving(null);
+                  goToColumn(columns.indexOf(col));
+                }}
+                className={cn(
+                  "tap flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm font-semibold",
+                  here ? "bg-plum/[0.07] text-plum" : "bg-zinc-50 text-zinc-800"
+                )}
+              >
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.color }} />
+                <span className="flex-1">{col.name}</span>
+                {here && <Check size={16} />}
+              </button>
+            );
+          })}
+      </div>
+    </BottomSheet>
+    </>
   );
 }

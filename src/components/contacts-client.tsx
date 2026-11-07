@@ -135,6 +135,7 @@ export function ContactsTable({
   const [pending, start] = useTransition();
   const [newTag, setNewTag] = useState("");
   const [peek, setPeek] = useState<number | null>(null);
+  const [picking, setPicking] = useState(false);
   const rowIds = useMemo(() => rows.map((r) => r.id), [rows]);
 
   // Mudou a página/filtro: limpa a selecção
@@ -162,7 +163,7 @@ export function ContactsTable({
   return (
     <>
       {selected.size > 0 && (
-        <div className="sticky top-3 z-30 mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-plum/30 bg-white p-3 shadow-[0_10px_30px_-12px_rgba(24,24,27,0.25)]">
+        <div className="no-scrollbar sticky top-[calc(3.75rem+env(safe-area-inset-top))] z-30 mb-4 flex items-center gap-2 overflow-x-auto rounded-2xl border border-plum/30 bg-white p-3 shadow-[0_10px_30px_-12px_rgba(24,24,27,0.25)] sm:top-3 sm:flex-wrap sm:overflow-visible [&>*]:shrink-0">
           <span className="flex items-center gap-2 px-2 text-sm font-semibold text-zinc-900">
             {pending && <Loader2 size={14} className="animate-spin text-plum" />}
             {selected.size} seleccionado{selected.size > 1 ? "s" : ""}
@@ -286,7 +287,84 @@ export function ContactsTable({
         </div>
       )}
 
-      <div className="table-shell">
+      {/* Telemóvel: lista de toque, com chamada e WhatsApp à mão */}
+      <div className="md:hidden">
+        <div className="mb-1.5 flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              setPicking((p) => !p);
+              setSelected(new Set());
+            }}
+            className="tap px-1 py-1 text-[13px] font-semibold text-plum"
+          >
+            {picking ? "Concluir" : "Seleccionar"}
+          </button>
+        </div>
+        <ul className="card divide-y divide-line overflow-hidden">
+          {rows.map((c) => {
+            const status = CONTACT_STATUS[c.status];
+            const body = (
+              <>
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-plum/10 text-xs font-bold text-plum">{initials(c.name)}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-semibold text-zinc-950">{c.name}</span>
+                  <span className="mt-0.5 block truncate text-[13px] text-zinc-500">
+                    {c.country && `${flag(c.country)}\u00A0`}
+                    {c.phone ?? c.email ?? "Sem contacto"}
+                  </span>
+                  <span className="mt-1.5 flex items-center gap-2">
+                    <span className={cn("rounded-full border px-2 py-0.5 text-[10.5px] font-semibold", status?.className ?? "border-zinc-200 text-zinc-500")}>
+                      {status?.label ?? c.status}
+                    </span>
+                    <span className="truncate text-[11px] text-zinc-400">{relative(c.lastActivity ?? c.createdAt)}</span>
+                  </span>
+                </span>
+              </>
+            );
+            return (
+              <li key={c.id} className={cn("flex items-center gap-1 pr-2.5 transition-colors", selected.has(c.id) && "bg-plum/[0.05]")}>
+                {picking ? (
+                  <button type="button" onClick={() => toggle(c.id)} aria-pressed={selected.has(c.id)} className="flex min-w-0 flex-1 items-center gap-3 p-3.5 text-left">
+                    <span
+                      className={cn(
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                        selected.has(c.id) ? "border-plum bg-plum text-white" : "border-zinc-300"
+                      )}
+                    >
+                      {selected.has(c.id) && <Check size={13} strokeWidth={3} />}
+                    </span>
+                    {body}
+                  </button>
+                ) : (
+                  <>
+                    <Link href={`/admin/crm/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3 p-3.5 pr-1 transition-colors active:bg-zinc-50">
+                      {body}
+                    </Link>
+                    {c.phone && (
+                      <>
+                        <a href={`tel:${c.phone.replace(/[^\d+]/g, "")}`} aria-label={`Ligar a ${c.name}`} className="tap flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-600">
+                          <Phone size={16} />
+                        </a>
+                        <Link href={`/admin/whatsapp?c=${c.id}`} aria-label={`WhatsApp de ${c.name}`} className="tap flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600">
+                          <MessageCircle size={17} />
+                        </Link>
+                      </>
+                    )}
+                    {!c.phone && c.email && (
+                      <a href={`mailto:${c.email}`} aria-label={`Email para ${c.name}`} className="tap flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-600">
+                        <Mail size={16} />
+                      </a>
+                    )}
+                  </>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div className="table-shell hidden md:block">
         <table className="w-full">
           <thead className="border-b border-zinc-200 bg-zinc-50">
             <tr>

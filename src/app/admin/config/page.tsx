@@ -14,6 +14,7 @@ import {
   Users,
   Video,
   type LucideIcon,
+  ChevronLeft,
 } from "lucide-react";
 import { asc, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -75,7 +76,8 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
       />
 
       <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <nav className="card h-fit p-2 lg:sticky lg:top-6" aria-label="Serviços">
+        {/* Telemóvel: primeiro a lista; escolhido um serviço, só esse serviço */}
+        <nav className={cn("card h-fit p-2 lg:sticky lg:top-6", s && "max-lg:hidden")} aria-label="Serviços">
           {SERVICES.filter((svc) => canConfigure(me?.role, svc.id)).map((svc) => {
             const Icon = ICONS[svc.id];
             const st = statuses[svc.id];
@@ -184,7 +186,10 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
         </nav>
 
         {/* key: cada separador entra com a animação de página */}
-        <div key={tab} className="min-w-0 animate-page-in">
+        <div key={tab} className={cn("min-w-0 animate-page-in", !s && "max-lg:hidden")}>
+          <Link href="/admin/config" className="tap mb-3 inline-flex items-center gap-1 text-[13px] font-semibold text-plum lg:hidden">
+            <ChevronLeft size={16} /> Todas as configurações
+          </Link>
           {tab === "equipa" ? <TeamTab /> : tab === "seguranca" ? <SecurityTab /> : tab === "demonstracao" ? <DemoTab demo={demo} /> : <ServiceTab id={tab} status={statuses[tab]} />}
         </div>
       </div>

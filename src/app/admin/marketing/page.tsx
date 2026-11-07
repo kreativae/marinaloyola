@@ -75,7 +75,7 @@ export default async function MarketingPage({
         actions={<NewPostButton defaultOpen={sp.novo === "1"} />}
       />
 
-      <div className="stagger mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger mb-6 stat-row grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Ideias" value={num(ideas)} hint="à espera de produção" icon={<Lightbulb size={17} />} />
         <StatCard label="Em produção" value={num(inProgress)} hint="a criar ou em revisão" icon={<PenLine size={17} />} />
         <StatCard
@@ -89,7 +89,7 @@ export default async function MarketingPage({
       </div>
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-2xl border border-line bg-white p-1 shadow-[0_1px_2px_rgb(24_24_27/0.04)]">
+        <div className="flex w-full rounded-2xl border border-line bg-white p-1 shadow-[0_1px_2px_rgb(24_24_27/0.04)] sm:inline-flex sm:w-auto">
           {(
             [
               ["quadro", "Quadro", Columns3],
@@ -102,16 +102,16 @@ export default async function MarketingPage({
               href={q({ view: id === "quadro" ? undefined : id, m: id === "calendario" ? month : undefined })}
               scroll={false}
               className={cn(
-                "flex items-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold transition-all duration-300",
+                "tap flex flex-1 items-center justify-center gap-2 rounded-xl px-2 py-2 text-[13px] font-semibold transition-all duration-300 sm:flex-none sm:px-4",
                 tab === id ? "bg-plum text-white shadow-[0_6px_16px_-8px_rgb(128_0_128/0.8)]" : "text-zinc-500 hover:text-zinc-900"
               )}
             >
-              <Icon size={15} />
-              <span className="hidden sm:inline">{label}</span>
+              <Icon size={15} className="hidden sm:block" />
+              {label}
             </Link>
           ))}
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="no-scrollbar -mx-4 flex max-w-[100vw] gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:max-w-none sm:flex-wrap sm:px-0 [&>*]:shrink-0">
           <Link
             href={q({ rede: undefined })}
             scroll={false}

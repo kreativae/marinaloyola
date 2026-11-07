@@ -50,6 +50,9 @@ const isoDay = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const hhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 
+const DAY_NAMES = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
+const MONTH_NAMES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
 function eventsOn(events: CalEvent[], day: Date) {
   const key = isoDay(day);
   return events.filter((e) => e.day === key).sort((a, b) => a.startMin - b.startMin);
@@ -166,7 +169,7 @@ function RescheduleToast({
   }
   if (!toast) return null;
   return (
-    <div className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+    <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 lg:bottom-6">
       <div
         className={cn(
           "flex animate-fade-in flex-wrap items-center gap-3 rounded-2xl border bg-white px-4 py-3 text-sm shadow-[0_18px_40px_-12px_rgba(24,24,27,0.35)]",
@@ -229,7 +232,15 @@ export function MonthCalendar({ month, today, events }: { month: string; today: 
 
   return (
     <>
-      <div className="overflow-x-auto">
+      <MobileAgenda
+        days={days}
+        inMonth={m - 1}
+        today={today}
+        events={shown}
+        onOpen={setOpen}
+        onNew={(date) => setDraft({ date, start: "10:00", end: "11:00" })}
+      />
+      <div className="hidden overflow-x-auto sm:block">
         <div className="grid min-w-[640px] grid-cols-7 gap-px overflow-hidden rounded-xl border border-zinc-200 bg-zinc-200">
           {WEEKDAYS.map((d) => (
             <div key={d} className="bg-zinc-50 px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
@@ -310,7 +321,7 @@ export function MonthCalendar({ month, today, events }: { month: string; today: 
           })}
         </div>
       </div>
-      <EventModal event={open} onClose={() => setOpenRaw(null)} />
+      <EventModal event={open} onClose={() => setOpenRaw(null)} onMove={move} />
       <AgendaEventModal draft={draft} onClose={() => setDraft(null)} />
       <RescheduleToast
         toast={toast}
@@ -322,6 +333,110 @@ export function MonthCalendar({ month, today, events }: { month: string; today: 
         }}
       />
     </>
+  );
+}
+
+/**
+ * Agenda no telemóvel: uma grade de dias com pontos e a lista do dia escolhido.
+ * Serve o mês e a semana, que no ecrã pequeno não cabem em grelha.
+ */
+function MobileAgenda({
+  days,
+  inMonth,
+  today,
+  events,
+  onOpen,
+  onNew,
+}: {
+  days: Date[];
+  /** Mês mostrado (0–11); os dias de fora ficam esbatidos */
+  inMonth?: number;
+  today: string;
+  events: CalEvent[];
+  onOpen: (e: CalEvent) => void;
+  onNew: (date: string) => void;
+}) {
+  const keys = days.map(isoDay);
+  const [picked, setPicked] = useState<string | null>(null);
+  const fallback = isoDay(inMonth === undefined ? days[0] : (days.find((d) => d.getMonth() === inMonth) ?? days[0]));
+  const selected = picked && keys.includes(picked) ? picked : keys.includes(today) ? today : fallback;
+  const day = days[keys.indexOf(selected)];
+  const list = eventsOn(events, day);
+
+  return (
+    <div className="sm:hidden">
+      <div className="grid grid-cols-7 gap-y-1">
+        {WEEKDAYS.map((w) => (
+          <p key={w} className="pb-1 text-center text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+            {w}
+          </p>
+        ))}
+        {days.map((d, i) => {
+          const key = keys[i];
+          const dots = eventsOn(events, d).filter((e) => e.status !== "cancelled").slice(0, 3);
+          const on = key === selected;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setPicked(key)}
+              aria-pressed={on}
+              aria-label={`Dia ${d.getDate()}`}
+              className="tap flex h-12 flex-col items-center gap-1 pt-0.5"
+            >
+              <span
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold tabular-nums transition-colors",
+                  on ? "bg-plum text-white" : key === today ? "text-plum ring-1 ring-plum/40" : inMonth !== undefined && d.getMonth() !== inMonth ? "text-zinc-300" : "text-zinc-800"
+                )}
+              >
+                {d.getDate()}
+              </span>
+              <span className="flex h-1 gap-0.5">
+                {dots.map((e) => (
+                  <span key={keyOf(e)} className="h-1 w-1 rounded-full" style={{ background: e.color }} />
+                ))}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
+        <p className="text-sm font-semibold text-zinc-900 first-letter:uppercase">
+          {selected === today ? "Hoje" : DAY_NAMES[day.getDay()]}, {day.getDate()} de {MONTH_NAMES[day.getMonth()]}
+        </p>
+        <button type="button" onClick={() => onNew(selected)} className="tap flex items-center gap-1 text-[13px] font-semibold text-plum">
+          <CalendarPlus size={15} /> Novo
+        </button>
+      </div>
+
+      {list.length === 0 ? (
+        <p className="py-7 text-center text-sm text-zinc-500">Dia livre.</p>
+      ) : (
+        <ul className="mt-2 space-y-2">
+          {list.map((e) => {
+            const cancelled = e.status === "cancelled";
+            return (
+              <li key={keyOf(e)}>
+                <button type="button" onClick={() => onOpen(e)} className="tap flex w-full items-center gap-3 rounded-2xl bg-zinc-50 p-3 text-left">
+                  <span className="h-10 w-1 shrink-0 rounded-full" style={{ background: e.color, opacity: cancelled ? 0.35 : 1 }} />
+                  <span className="min-w-0 flex-1">
+                    <span className={cn("block truncate text-[15px] font-semibold text-zinc-950", cancelled && "text-zinc-400 line-through")}>{e.title}</span>
+                    <span className="mt-0.5 block truncate text-[13px] text-zinc-500">
+                      {e.timeLabel}
+                      {e.subtitle && ` · ${e.subtitle}`}
+                    </span>
+                    {e.clientShort && <span className="mt-0.5 block text-xs font-semibold text-sky-700">{e.clientShort}</span>}
+                  </span>
+                  {e.meetingUrl && <Video size={16} className="shrink-0 text-plum" />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -444,7 +559,14 @@ export function WeekCalendar({
 
   return (
     <>
-      <div className="overflow-x-auto rounded-xl border border-zinc-200">
+      <MobileAgenda
+        days={days}
+        today={today}
+        events={shown}
+        onOpen={setOpen}
+        onNew={(date) => setDraft({ date, start: "10:00", end: "11:00" })}
+      />
+      <div className="hidden overflow-x-auto rounded-xl border border-zinc-200 sm:block">
         <div className="min-w-[760px]">
           <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-zinc-200 bg-zinc-50">
             <div />
@@ -608,10 +730,10 @@ export function WeekCalendar({
           </div>
         </div>
       </div>
-      <p className="mt-3 flex items-center gap-1.5 text-[11px] text-zinc-500">
+      <p className="mt-3 hidden items-center gap-1.5 text-[11px] text-zinc-500 sm:flex">
         <Move size={12} /> Arraste uma sessão ou evento para outro dia ou hora (encaixa de 15 em 15 minutos) · clique num espaço vazio para criar um evento.
       </p>
-      <EventModal event={open} onClose={() => setOpenRaw(null)} />
+      <EventModal event={open} onClose={() => setOpenRaw(null)} onMove={move} />
       <AgendaEventModal draft={draft} onClose={() => setDraft(null)} />
       <RescheduleToast
         toast={toast}
@@ -628,7 +750,40 @@ export function WeekCalendar({
 
 /* -------------------------------- DETALHE ------------------------------- */
 
-function EventModal({ event: e, onClose }: { event: CalEvent | null; onClose: () => void }) {
+/** Reagendar sem arrastar: no toque não há arrastar e soltar. */
+function RescheduleFields({ e, onMove }: { e: CalEvent; onMove: (day: string, startMin: number) => void }) {
+  const [day, setDay] = useState(e.day);
+  const [time, setTime] = useState(hhmm(e.startMin));
+  const [h, mi] = time.split(":").map(Number);
+  const min = h * 60 + mi;
+  return (
+    <div className="rounded-xl border border-zinc-200 p-3 sm:hidden">
+      <p className="mb-2 text-xs font-semibold text-zinc-500">Reagendar</p>
+      <div className="flex gap-2">
+        <input type="date" value={day} onChange={(ev) => setDay(ev.target.value)} className="field min-w-0 flex-[3]" aria-label="Novo dia" />
+        <input type="time" value={time} onChange={(ev) => setTime(ev.target.value)} className="field min-w-0 flex-[2]" aria-label="Nova hora" />
+      </div>
+      <button
+        type="button"
+        disabled={!day || !time || (day === e.day && min === e.startMin)}
+        onClick={() => onMove(day, min)}
+        className="btn-primary mt-2 w-full !py-2.5 !text-xs disabled:opacity-40"
+      >
+        <Move size={14} /> Mover para esta data
+      </button>
+    </div>
+  );
+}
+
+function EventModal({
+  event: e,
+  onClose,
+  onMove,
+}: {
+  event: CalEvent | null;
+  onClose: () => void;
+  onMove: (e: CalEvent, day: string, startMin: number) => void;
+}) {
   const [status, setStatus] = useState<string | null>(null);
   const current = status ?? e?.status ?? "confirmed";
   return (
@@ -682,7 +837,17 @@ function EventModal({ event: e, onClose }: { event: CalEvent | null; onClose: ()
                 )}
               </div>
               {e.notes && <p className="whitespace-pre-wrap rounded-xl bg-zinc-50 p-4 text-zinc-600">{e.notes}</p>}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pt-4">
+              {canDrag(e) && (
+                <RescheduleFields
+                  key={keyOf(e)}
+                  e={e}
+                  onMove={(day, min) => {
+                    onMove(e, day, min);
+                    onClose();
+                  }}
+                />
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pb-5 pt-4">
                 <label className="flex items-center gap-2 text-xs font-semibold text-zinc-500">
                   Estado
                   <SelectAction

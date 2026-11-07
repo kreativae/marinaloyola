@@ -145,7 +145,7 @@ export default async function ContactDetailPage({
     <>
       <Link
         href="/admin/contactos"
-        className="mb-6 inline-flex items-center gap-2 text-sm text-zinc-500 transition-colors hover:text-plum"
+        className="mb-6 hidden items-center gap-2 text-sm text-zinc-500 transition-colors hover:text-plum lg:inline-flex"
       >
         <ArrowLeft size={15} /> Voltar aos contactos
       </Link>
@@ -235,10 +235,31 @@ export default async function ContactDetailPage({
         </div>
       )}
 
+      {/* Telemóvel: falar com a pessoa a um toque */}
+      {(contact.phone || contact.email) && (
+        <div className="mb-3 grid auto-cols-fr grid-flow-col gap-2 sm:hidden">
+          {contact.phone && (
+            <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`} className="tap card flex flex-col items-center gap-1.5 py-3 text-xs font-semibold text-zinc-700">
+              <Phone size={18} className="text-plum" /> Ligar
+            </a>
+          )}
+          {contact.phone && (
+            <Link href={`/admin/whatsapp?c=${contactId}`} className="tap card flex flex-col items-center gap-1.5 py-3 text-xs font-semibold text-zinc-700">
+              <MessageCircle size={18} className="text-emerald-600" /> WhatsApp
+            </Link>
+          )}
+          {contact.email && (
+            <a href={`mailto:${contact.email}`} className="tap card flex flex-col items-center gap-1.5 py-3 text-xs font-semibold text-zinc-700">
+              <Mail size={18} className="text-plum" /> Email
+            </a>
+          )}
+        </div>
+      )}
+
       {/* Cabeçalho da ficha */}
-      <div className="card mb-6 p-6">
-        <div className="flex flex-wrap items-center gap-6">
-          <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-plum text-xl font-bold text-white">
+      <div className="card mb-4 p-4 sm:mb-6 sm:p-6">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+          <span className="hidden h-16 w-16 items-center justify-center rounded-2xl bg-plum text-xl font-bold text-white sm:flex">
             {initials(contact.name)}
           </span>
           <div className="grid flex-1 gap-x-10 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">

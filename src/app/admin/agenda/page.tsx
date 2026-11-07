@@ -86,10 +86,10 @@ export default async function AgendaPage({
       />
 
       {/* Resumo */}
-      <div className="card stagger mb-6 grid divide-y divide-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      <div className="card stagger mb-4 grid grid-cols-2 divide-line sm:mb-6 sm:grid-cols-3 sm:divide-x">
         <Summary label="Hoje" value={todayList.length ? sessions(todayList.length) : "Livre"} hint={todayList.length ? todayList.map((r) => fmtTime(r.appt.startAt, HOME_TZ)).join(" · ") : "Sem sessões marcadas"} />
         <Summary label="Próximos 7 dias" value={sessions(weekCount)} hint={`${upcoming.length} no total agendadas`} />
-        <div className="flex items-center gap-4 p-5">
+        <div className="col-span-2 flex items-center gap-4 border-t border-line p-3.5 sm:col-span-1 sm:border-t-0 sm:p-5">
           <div className="min-w-0 flex-1">
             <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-zinc-400">Próxima sessão</p>
             {next ? (
@@ -132,9 +132,9 @@ const sessions = (n: number) => `${n} ${n === 1 ? "sessão" : "sessões"}`;
 
 function Summary({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="p-5">
-      <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-zinc-400">{label}</p>
-      <p className="mt-1.5 font-display text-2xl font-medium tracking-[-0.01em] text-zinc-950">{value}</p>
+    <div className="min-w-0 p-3.5 first:border-r first:border-line sm:p-5 sm:first:border-r-0">
+      <p className="truncate text-[10.5px] font-bold uppercase tracking-[0.18em] text-zinc-400">{label}</p>
+      <p className="mt-1.5 font-display text-xl font-medium sm:text-2xl tracking-[-0.01em] text-zinc-950">{value}</p>
       <p className="mt-0.5 truncate text-xs text-zinc-500">{hint}</p>
     </div>
   );
@@ -147,19 +147,19 @@ function Tabs({ tab }: { tab: Tab }) {
     { id: "disponibilidade", label: "Disponibilidade", icon: SlidersHorizontal, href: "/admin/agenda?view=disponibilidade" },
   ];
   return (
-    <div className="mb-5 inline-flex rounded-2xl border border-line bg-white p-1 shadow-[0_1px_2px_rgb(24_24_27/0.04)]">
+    <div className="mb-4 flex rounded-2xl border border-line bg-white p-1 shadow-[0_1px_2px_rgb(24_24_27/0.04)] sm:mb-5 sm:inline-flex">
       {items.map((t) => (
         <Link
           key={t.id}
           href={t.href}
           scroll={false}
           className={cn(
-            "flex items-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold transition-all duration-300",
+            "tap flex flex-1 items-center justify-center gap-2 rounded-xl px-2 py-2 text-[13px] font-semibold transition-all duration-300 sm:flex-none sm:px-4",
             tab === t.id ? "bg-plum text-white shadow-[0_6px_16px_-8px_rgb(128_0_128/0.8)]" : "text-zinc-500 hover:text-zinc-900"
           )}
         >
-          <t.icon size={15} />
-          <span className="hidden sm:inline">{t.label}</span>
+          <t.icon size={15} className="hidden sm:block" />
+          {t.label}
         </Link>
       ))}
     </div>
@@ -584,7 +584,7 @@ async function CalendarSection({
 
   return (
     <Panel>
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3 sm:mb-5">
         <div className="flex items-center gap-1">
           <Link href={prevHref} scroll={false} className={navBtn} aria-label="Anterior">
             <ChevronLeft size={15} />
@@ -596,11 +596,11 @@ async function CalendarSection({
             Hoje
           </Link>
         </div>
-        <h2 className="flex-1 font-display text-[1.6rem] tracking-[-0.01em] text-zinc-950 first-letter:uppercase">{title}</h2>
-        <span className="text-xs text-zinc-500">
+        <h2 className="order-first w-full font-display text-[1.3rem] tracking-[-0.01em] text-zinc-950 first-letter:uppercase sm:order-none sm:w-auto sm:flex-1 sm:text-[1.6rem]">{title}</h2>
+        <span className="hidden text-xs text-zinc-500 sm:inline">
           {sessions(counted.length)}{busy.length ? " · ocupado do Google a cinzento" : ""}
         </span>
-        <div className="flex rounded-xl bg-zinc-100 p-1">
+        <div className="ml-auto flex rounded-xl bg-zinc-100 p-1 sm:ml-0">
           <Link href={`/admin/agenda?view=calendario&m=${(week ? weekStart : iso(now)).slice(0, 7)}`} scroll={false} className={modeBtn(!week)}>
             Mês
           </Link>
@@ -614,7 +614,7 @@ async function CalendarSection({
       ) : (
         <MonthCalendar month={month} today={iso(now)} events={events} />
       )}
-      <div className="mt-4 flex flex-wrap gap-4 text-[11px] text-zinc-500">
+      <div className="mt-4 hidden flex-wrap gap-4 text-[11px] text-zinc-500 sm:flex">
         {[...new Map(rows.map((r) => [r.eventName, r.color])).entries()].map(([name, color]) => (
           <span key={name} className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full" style={{ background: color ?? "#800080" }} /> {name}

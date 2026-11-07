@@ -57,7 +57,7 @@ export default async function AdminCoursesPage() {
         actions={<NewCourseButton />}
       />
 
-      <div className="stagger mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger mb-6 stat-row grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Cursos" value={num(list.length)} hint={`${published} publicado(s) · ${list.length - published} rascunho(s)`} icon={<BookOpen size={17} />} />
         <StatCard label="Estudantes" value={num(totalStudents)} hint="inscrições em todos os cursos" icon={<Users size={17} />} accent />
         <StatCard label="Conclusão média" value={`${avgCompletion}%`} hint={`${num(totalFinished)} estudante(s) concluíram`} icon={<Trophy size={17} />} />

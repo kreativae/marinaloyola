@@ -153,16 +153,18 @@ export default async function ContactosPage({
   const advanced = active.filter(([k]) => !["q", "vista", "sort"].includes(k));
 
   return (
-    <>
+    <div className="flex flex-col">
       <PageHeader
         title="Contactos"
         subtitle="Gestão de todos os contactos da plataforma — site, WhatsApp, Hotmart, agendamentos e registo manual."
         actions={
           <>
-            <ImportButton />
-            <a href={exportHref} download className="btn-ghost !px-5 !py-2.5 !text-xs">
-              <Download size={14} /> Exportar{active.length ? " filtrados" : ""}
-            </a>
+            <span className="hidden sm:contents">
+              <ImportButton />
+              <a href={exportHref} download className="btn-ghost !px-5 !py-2.5 !text-xs">
+                <Download size={14} /> Exportar{active.length ? " filtrados" : ""}
+              </a>
+            </span>
             <NewContactButton channels={channelOptions} defaultOpen={params.novo === "1"} />
           </>
         }
@@ -188,7 +190,7 @@ export default async function ContactosPage({
       )}
 
       {/* Vistas rápidas, com a contagem de cada uma */}
-      <div className="admin-scroll stagger mb-5 flex gap-2 overflow-x-auto pb-1">
+      <div className="admin-scroll no-scrollbar stagger -mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:mb-5 sm:px-0">
         {(
           [
             [undefined, "Todos", stats.all, Users],
@@ -205,27 +207,27 @@ export default async function ContactosPage({
               href={`/admin/contactos${qs({ vista: v, page: undefined })}`}
               scroll={false}
               className={cn(
-                "group flex min-w-[150px] shrink-0 items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-300",
+                "tap group flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 transition-all duration-300 sm:min-w-[150px] sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-3",
                 on
                   ? "border-plum bg-plum text-white shadow-[0_10px_24px_-12px_rgb(128_0_128/0.7)]"
                   : "border-line bg-white text-zinc-700 hover:-translate-y-0.5 hover:border-plum/25"
               )}
             >
-              <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", on ? "bg-white/15" : "bg-plum/[0.07] text-plum")}>
+              <span className={cn("hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:flex", on ? "bg-white/15" : "bg-plum/[0.07] text-plum")}>
                 <Icon size={16} />
               </span>
-              <span className="min-w-0">
-                <span className={cn("block font-display text-xl font-semibold leading-none tabular-nums", on ? "text-white" : "text-zinc-950")}>
+              <span className="flex min-w-0 flex-row-reverse items-baseline gap-1.5 sm:block">
+                <span className={cn("block font-semibold leading-none tabular-nums sm:font-display sm:text-xl", on ? "text-white" : "text-zinc-950")}>
                   {num(n)}
                 </span>
-                <span className={cn("mt-1 block whitespace-nowrap text-[11px]", on ? "text-white/75" : "text-zinc-500")}>{label}</span>
+                <span className={cn("block whitespace-nowrap text-[13px] sm:mt-1 sm:text-[11px]", on ? "text-white/85" : "text-zinc-500")}>{label}</span>
               </span>
             </Link>
           );
         })}
       </div>
 
-      <div className="mb-6 grid gap-4 lg:grid-cols-2">
+      <div className="order-last mt-6 grid gap-4 sm:order-none sm:mb-6 sm:mt-0 lg:grid-cols-2">
       {/* De onde vêm os contactos */}
       {withChannel > 0 && (
         <div className="card p-5">
@@ -293,15 +295,15 @@ export default async function ContactosPage({
       </div>
 
       {/* Pesquisa e filtros */}
-      <Form action="/admin/contactos" className="mb-3 flex flex-wrap items-center gap-2.5">
+      <Form action="/admin/contactos" className="relative mb-3 flex items-center gap-2 sm:flex-wrap sm:gap-2.5">
         {filters.vista && <input type="hidden" name="vista" value={filters.vista} />}
-        <div className="relative min-w-[240px] flex-1">
+        <div className="relative min-w-0 flex-1 sm:min-w-[240px]">
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input name="q" defaultValue={filters.q} placeholder="Pesquisar nome, email, telefone ou cidade…" className="field !pl-10" />
+          <input name="q" type="search" enterKeyHint="search" defaultValue={filters.q} placeholder="Pesquisar contactos…" className="field !pl-10" />
         </div>
-        <details className="group relative">
-          <summary className="btn-ghost flex cursor-pointer list-none !px-4 !py-2.5 !text-xs">
-            <SlidersHorizontal size={14} /> Filtros
+        <details className="group sm:relative">
+          <summary className="btn-ghost flex cursor-pointer list-none !px-3.5 !py-3 !text-xs sm:!px-4 sm:!py-2.5">
+            <SlidersHorizontal size={14} /> <span className="hidden sm:inline">Filtros</span>
             {advanced.length > 0 && (
               <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-plum px-1.5 text-[10px] font-bold text-white">{advanced.length}</span>
             )}
@@ -361,7 +363,7 @@ export default async function ContactosPage({
             </button>
           </div>
         </details>
-        <button type="submit" className="btn-dark !px-5 !py-2.5 !text-xs">
+        <button type="submit" className="btn-dark !hidden !px-5 !py-2.5 !text-xs sm:!inline-flex">
           Pesquisar
         </button>
       </Form>
@@ -394,7 +396,7 @@ export default async function ContactosPage({
       )}
 
       {/* Paginação */}
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500 sm:mt-5">
         <p>
           {total === 0
             ? "0 contactos"
@@ -414,7 +416,7 @@ export default async function ContactosPage({
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
 

@@ -86,7 +86,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
       />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-2xl border border-line bg-white p-1 shadow-[0_1px_2px_rgb(24_24_27/0.04)]">
+        <div className="flex w-full rounded-2xl border border-line bg-white p-1 shadow-[0_1px_2px_rgb(24_24_27/0.04)] sm:inline-flex sm:w-auto">
           {(
             [
               ["visao", "Visão geral", LayoutGrid],
@@ -99,23 +99,23 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
               href={link({ tab: id === "visao" ? undefined : id, page: undefined })}
               scroll={false}
               className={cn(
-                "flex items-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold transition-all duration-300",
+                "tap flex flex-1 items-center justify-center gap-2 rounded-xl px-2 py-2 text-[13px] font-semibold transition-all duration-300 sm:flex-none sm:px-4",
                 tab === id ? "bg-plum text-white shadow-[0_6px_16px_-8px_rgb(128_0_128/0.8)]" : "text-zinc-500 hover:text-zinc-900"
               )}
             >
-              <Icon size={15} />
-              <span className="hidden sm:inline">{label}</span>
+              <Icon size={15} className="hidden sm:block" />
+              {label}
             </Link>
           ))}
         </div>
-        <div className="flex flex-wrap gap-1 rounded-2xl bg-zinc-200/50 p-1">
+        <div className="no-scrollbar flex max-w-full gap-1 overflow-x-auto rounded-2xl bg-zinc-200/50 p-1 sm:flex-wrap">
           {(Object.entries(PERIODS) as [PeriodKey, string][]).map(([k, label]) => (
             <Link
               key={k}
               href={link({ periodo: k === "mes" ? undefined : k, page: undefined })}
               scroll={false}
               className={cn(
-                "rounded-xl px-3 py-1.5 text-xs font-semibold transition-all",
+                "shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all",
                 period === k ? "bg-white text-plum shadow-sm" : "text-zinc-500 hover:text-zinc-800"
               )}
             >
@@ -260,7 +260,7 @@ async function Overview({
 
   return (
     <div className="space-y-6">
-      <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger stat-row grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label={`Receita · ${PERIODS[period].toLowerCase()}`}
           value={eur(income.total)}
@@ -444,11 +444,11 @@ async function Payments({
       <Form action="/admin/financeiro" className="flex flex-wrap items-center gap-2.5">
         <input type="hidden" name="tab" value="recebimentos" />
         {period !== "mes" && <input type="hidden" name="periodo" value={period} />}
-        <div className="relative min-w-[220px] flex-1">
+        <div className="relative min-w-[220px] flex-1 max-sm:basis-full">
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input name="q" defaultValue={sp.q} placeholder="Pesquisar contacto, produto ou referência…" className="field !pl-10" />
+          <input name="q" type="search" enterKeyHint="search" defaultValue={sp.q} placeholder="Contacto, produto ou referência…" className="field !pl-10" />
         </div>
-        <select name="estado" defaultValue={sp.estado ?? ""} className="field !w-auto">
+        <select name="estado" defaultValue={sp.estado ?? ""} className="field !w-auto max-sm:min-w-0 max-sm:flex-1">
           <option value="">Todos os estados</option>
           <option value="recebido">Recebidos</option>
           <option value="pending">Pendentes</option>
@@ -456,7 +456,7 @@ async function Payments({
           <option value="refunded">Reembolsados</option>
           <option value="cancelled">Cancelados</option>
         </select>
-        <select name="metodo" defaultValue={sp.metodo ?? ""} className="field !w-auto">
+        <select name="metodo" defaultValue={sp.metodo ?? ""} className="field !w-auto max-sm:min-w-0 max-sm:flex-1">
           <option value="">Todos os métodos</option>
           {Object.entries(PAYMENT_METHODS).map(([v, l]) => (
             <option key={v} value={v}>
@@ -464,7 +464,7 @@ async function Payments({
             </option>
           ))}
         </select>
-        <select name="produto" defaultValue={sp.produto ?? ""} className="field !w-auto max-w-[220px]">
+        <select name="produto" defaultValue={sp.produto ?? ""} className="field !w-auto max-w-[220px] max-sm:min-w-0 max-sm:max-w-none max-sm:flex-1 max-sm:basis-full">
           <option value="">Todos os produtos</option>
           {products.map((p) => (
             <option key={p} value={p}>
@@ -480,7 +480,7 @@ async function Payments({
             <X size={13} /> Limpar
           </Link>
         )}
-        <a href={exportHref} download className="btn-ghost ml-auto !px-4 !py-2.5 !text-xs">
+        <a href={exportHref} download className="btn-ghost ml-auto !hidden !px-4 !py-2.5 !text-xs sm:!inline-flex">
           <Download size={14} /> CSV
         </a>
       </Form>
@@ -495,7 +495,7 @@ async function Payments({
           <EmptyState text={filtered ? "Nenhum recebimento com estes filtros." : "Sem recebimentos no período."} icon={<Wallet size={18} />} />
         </Panel>
       ) : (
-        <div className="table-shell">
+        <div className="table-shell table-fit">
           <table className="w-full">
             <thead className="border-b border-line">
               <tr>
@@ -503,7 +503,7 @@ async function Payments({
                 <th className="admin-th hidden md:table-cell">Data</th>
                 <th className="admin-th hidden lg:table-cell">Método</th>
                 <th className="admin-th text-right">Valor</th>
-                <th className="admin-th">Estado</th>
+                <th className="admin-th hidden sm:table-cell">Estado</th>
                 <th className="admin-th" />
               </tr>
             </thead>
@@ -543,8 +543,9 @@ async function Payments({
                     <td className="admin-td hidden text-xs text-zinc-500 lg:table-cell">{PAYMENT_METHODS[p.method]}</td>
                     <td className={cn("admin-td whitespace-nowrap text-right font-semibold tabular-nums", p.status === "refunded" || p.status === "cancelled" ? "text-zinc-400 line-through" : "text-zinc-950")}>
                       {eur(p.amount)}
+                      <span className={cn("mt-1 block text-[10.5px] font-semibold sm:hidden", late ? "text-rose-600" : "text-zinc-500")}>{late ? "Em atraso" : st?.label}</span>
                     </td>
-                    <td className="admin-td">
+                    <td className="admin-td hidden sm:table-cell">
                       <span className={cn("chip whitespace-nowrap", late ? "border-rose-200 bg-rose-50 text-rose-700" : st?.className)}>
                         {late ? "Em atraso" : st?.label}
                       </span>
@@ -620,7 +621,7 @@ async function Expenses({ sp, range, period, link }: { sp: Params; range: Range;
             <X size={13} /> Limpar
           </Link>
         )}
-        <a href={exportHref} download className="btn-ghost ml-auto !px-4 !py-2.5 !text-xs">
+        <a href={exportHref} download className="btn-ghost ml-auto !hidden !px-4 !py-2.5 !text-xs sm:!inline-flex">
           <Download size={14} /> CSV
         </a>
       </Form>
@@ -634,7 +635,7 @@ async function Expenses({ sp, range, period, link }: { sp: Params; range: Range;
           <EmptyState text={filtered ? "Nenhuma despesa com estes filtros." : "Sem despesas no período. Registe a primeira no botão “Despesa”."} icon={<Receipt size={18} />} />
         </Panel>
       ) : (
-        <div className="table-shell">
+        <div className="table-shell table-fit">
           <table className="w-full">
             <thead className="border-b border-line">
               <tr>

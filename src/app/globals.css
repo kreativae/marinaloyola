@@ -80,6 +80,13 @@
   }
 }
 
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 ::selection {
   background: #800080;
   color: #fff;
@@ -339,8 +346,153 @@ dialog[open]::backdrop {
 .admin-scroll:hover::-webkit-scrollbar-thumb {
   background: #d4d4d8;
 }
-@keyframes drawer-left {
+@keyframes sheet-up {
   from {
-    transform: translateX(-100%);
+    transform: translateY(100%);
+  }
+}
+@keyframes slide-in {
+  from {
+    transform: translateX(28%);
+    opacity: 0.4;
+  }
+}
+
+/* ------------------------- TELEMÓVEL (BACKOFFICE) ------------------------ */
+
+.admin-root {
+  -webkit-tap-highlight-color: transparent;
+}
+.admin-root a,
+.admin-root button,
+.admin-root summary,
+.admin-root label {
+  touch-action: manipulation;
+}
+
+/* Resposta imediata ao toque */
+.tap {
+  transition:
+    transform 0.16s var(--ease-out-soft),
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+.tap:active {
+  transform: scale(0.96);
+}
+
+
+/* Num ecrã de toque não há hover: sem cartões presos no estado elevado */
+@media (hover: none) {
+  .card-hover:hover {
+    transform: none;
+    border-color: var(--color-line);
+  }
+  .card-hover:active {
+    transform: scale(0.985);
+  }
+}
+
+@media (max-width: 1023px) {
+  /* Abaixo de 16px o iPhone faz zoom ao tocar num campo e a página salta */
+  .admin-root input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .admin-root select,
+  .admin-root textarea {
+    font-size: 16px !important;
+  }
+  /* Uma grelha nunca pode ficar mais larga do que o ecrã */
+  .admin-root main .grid > * {
+    min-width: 0;
+  }
+  /* Entradas curtas: o conteúdo aparece logo */
+  .stagger > * {
+    animation-duration: 0.3s;
+    animation-delay: 0ms !important;
+  }
+  .animate-page-in {
+    animation-duration: 0.22s;
+  }
+}
+
+/* Conversa de WhatsApp em ecrã inteiro, sempre acima do teclado */
+@media (max-width: 1279px) {
+  .animate-page-in:has(.wa-thread) {
+    animation: none;
+  }
+  .wa-thread {
+    position: fixed;
+    inset-inline: 0;
+    top: var(--vvt, 0px);
+    z-index: 45;
+    height: var(--vvh, 100dvh);
+    border: 0;
+    border-radius: 0;
+    animation: slide-in 0.26s var(--ease-out-soft);
+  }
+}
+
+@media (max-width: 639px) {
+  dialog.sheet[open] {
+    animation: sheet-up 0.32s var(--ease-out-soft);
+  }
+
+  /* Tabelas: colunas mais juntas para o valor caber sem deslizar */
+  .admin-th,
+  .admin-td {
+    padding-inline: 0.625rem;
+  }
+  .admin-th:first-child,
+  .admin-td:first-child {
+    padding-left: 0.875rem;
+  }
+
+  /* A primeira coluna encolhe com reticências; o valor fica sempre à vista */
+  .table-fit td:first-child {
+    width: 100%;
+    max-width: 0;
+  }
+  .table-fit td:first-child > * {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Indicadores em carrossel: uma linha em vez de quatro cartões empilhados */
+  .stat-row {
+    display: flex;
+    gap: 0.625rem;
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+    padding-bottom: 2px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 1rem;
+    scrollbar-width: none;
+  }
+  .stat-row::-webkit-scrollbar {
+    display: none;
+  }
+  .stat-row > * {
+    flex: 0 0 64%;
+    scroll-snap-align: start;
+  }
+
+  /* Botões do cabeçalho numa só linha que desliza */
+  .page-actions {
+    flex-wrap: nowrap;
+    width: calc(100% + 2rem);
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .page-actions::-webkit-scrollbar {
+    display: none;
+  }
+  .page-actions > * {
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 }

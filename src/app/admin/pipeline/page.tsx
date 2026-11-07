@@ -77,15 +77,15 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
         actions={<NewDealButton contacts={allContacts} stages={stageList} products={products} />}
       />
 
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <div className="inline-flex flex-wrap rounded-2xl border border-line bg-white p-1 shadow-[0_1px_2px_rgb(24_24_27/0.04)]">
+      <div className="mb-4 flex flex-wrap items-center gap-2 sm:mb-6 sm:gap-3">
+        <div className="no-scrollbar inline-flex max-w-full overflow-x-auto rounded-2xl border border-line bg-white p-1 shadow-[0_1px_2px_rgb(24_24_27/0.04)] sm:flex-wrap">
           {pipelines.map((pl) => (
             <Link
               key={pl.id}
               href={`/admin/pipeline?p=${pl.id}`}
               scroll={false}
               className={cn(
-                "flex items-center gap-2 rounded-xl px-4 py-2 text-[13px] font-semibold transition-all duration-300",
+                "tap flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-[13px] font-semibold transition-all duration-300 sm:px-4",
                 pipeline === pl.id ? "bg-plum text-white shadow-[0_6px_16px_-8px_rgb(128_0_128/0.8)]" : "text-zinc-500 hover:text-zinc-900"
               )}
             >
@@ -105,7 +105,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
         )}
       </div>
 
-      <div className="stagger mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger mb-4 stat-row grid gap-4 sm:mb-6 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Em aberto" value={eur(openValue)} hint={`${num(open.length)} negócio(s) activo(s)`} icon={<Layers size={17} />} accent />
         <StatCard label="Previsão ponderada" value={eur(weighted)} hint="valor × probabilidade da fase" icon={<Target size={17} />} />
         <StatCard

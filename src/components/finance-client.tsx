@@ -321,7 +321,7 @@ export function PaymentActions({
           className="mr-1 inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
           title="Marcar como recebido hoje"
         >
-          {pending ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Recebido
+          {pending ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} <span className="hidden sm:inline">Recebido</span>
         </button>
       )}
       {payment.receiptName && (

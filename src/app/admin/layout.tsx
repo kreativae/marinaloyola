@@ -1,3 +1,4 @@
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import { and, count, eq, gte, isNull, lt, ne } from "drizzle-orm";
@@ -7,6 +8,19 @@ import { requireAdmin } from "@/lib/auth";
 import { AdminShell } from "@/components/admin-shell";
 
 export const dynamic = "force-dynamic";
+
+// Adicionado ao ecrã inicial, o backoffice abre em ecrã inteiro como uma app
+export const metadata: Metadata = {
+  manifest: "/crm.webmanifest",
+  appleWebApp: { capable: true, title: "Marina CRM", statusBarStyle: "default" },
+  icons: { apple: "/img/app-icon-180.png" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#f6f5f2",
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+};
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await requireAdmin();

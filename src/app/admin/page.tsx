@@ -168,20 +168,20 @@ export default async function AdminDashboard() {
   return (
     <>
       {/* Boas-vindas */}
-      <section className="mb-8 flex flex-wrap items-end justify-between gap-6 animate-[rise_0.6s_var(--ease-out-soft)_backwards]">
+      <section className="mb-5 flex flex-wrap items-end justify-between gap-4 animate-[rise_0.6s_var(--ease-out-soft)_backwards] sm:mb-8 sm:gap-6">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-[0.3em] text-plum">
             <span className="h-px w-6 bg-plum/40" />
             {now.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" })}
           </p>
-          <h1 className="mt-3 font-display text-[2.4rem] font-medium leading-[1.02] tracking-[-0.025em] text-zinc-950 lg:text-[3.2rem]">
+          <h1 className="mt-2 font-display text-[2.1rem] sm:mt-3 sm:text-[2.4rem] font-medium leading-[1.02] tracking-[-0.025em] text-zinc-950 lg:text-[3.2rem]">
             {greeting}, <span className="italic text-plum">{user.name.split(" ")[0]}</span>.
           </h1>
           <p className="mt-3 text-[15px] text-zinc-500">
             {summary[0].charAt(0).toUpperCase() + summary[0].slice(1)}, {summary[1]} e {summary[2]}.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2.5">
+        <div className="page-actions flex flex-wrap gap-2.5">
           <Link href="/agendar" target="_blank" className="btn-ghost !px-5 !py-2.5 !text-xs">
             Página de agendamento <ArrowUpRight size={13} />
           </Link>
@@ -192,7 +192,7 @@ export default async function AdminDashboard() {
       </section>
 
       {/* KPIs */}
-      <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger stat-row grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Receita do mês"
           value={eur(revenueMonth)}
