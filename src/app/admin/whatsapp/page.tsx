@@ -1,6 +1,5 @@
-import Form from "next/form";
 import Link from "next/link";
-import { ArrowUpRight, ChevronLeft, MessageCircle, Settings2, UserRound } from "lucide-react";
+import { ChevronLeft, MessageCircle, Settings2, UserRound } from "lucide-react";
 import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { contacts, whatsappMessages } from "@/db/schema";
@@ -24,7 +23,8 @@ import {
   WhatsappConnection,
 } from "@/components/whatsapp-client";
 import { getSessionUser } from "@/lib/auth";
-import { waPreview } from "@/lib/whatsapp-def";
+import { ConversationList, type InboxConversation } from "@/components/whatsapp-inbox";
+import { avatarTone } from "@/lib/whatsapp-def";
 import { cn, initials } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -39,14 +39,6 @@ type Conversation = {
   direction: string;
   at: Date;
   unread: number;
-};
-
-const timeLabel = (d: Date) => {
-  const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  return sameDay
-    ? d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })
-    : d.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" });
 };
 
 /** O WhatsApp só deixa apagar para todos durante cerca de 2 dias. */
@@ -100,11 +92,12 @@ export default async function WhatsappPage({
       .where(isNotNull(contacts.phone))
       .orderBy(asc(contacts.name)),
   ]);
-  const conversations = (convRows.rows as unknown as Conversation[]).map((r) => ({
+  const conversations: InboxConversation[] = (convRows.rows as unknown as Conversation[]).map((r) => ({
     ...r,
-    at: new Date(r.at),
+    at: new Date(r.at).toISOString(),
   }));
   const selectedPhone = normalizePhone(selected?.phone);
+  const thread = groupByDay(messages);
 
   return (
     <>
@@ -113,192 +106,161 @@ export default async function WhatsappPage({
         <PageHeader
           title="WhatsApp"
           subtitle="Conversas da Evolution API ligadas ao CRM: cada número novo que escreve entra como lead."
+          actions={
+            <>
+              <WhatsappConnection initialState={state} configured={configured} />
+              {me?.role === "admin" && (
+                <Link
+                  href="/admin/config?s=whatsapp"
+                  title={configured ? "URL, API key, instância e mensagens automáticas" : "Ainda não configurado: comece aqui"}
+                  className="btn-ghost !px-4 !py-2.5 !text-xs"
+                >
+                  <Settings2 size={14} /> Definições
+                </Link>
+              )}
+            </>
+          }
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
-        {/* ----------------------- coluna esquerda ----------------------- */}
-        <div className={cn("min-w-0 space-y-4", selected && "max-xl:hidden")}>
-          <WhatsappConnection initialState={state} configured={configured} />
-
-          <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-            <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">
-                Conversas ({conversations.length})
-              </p>
-            </div>
-            <Form action="/admin/whatsapp" className="flex gap-2 border-b border-zinc-200 p-3">
-              <select name="c" defaultValue="" className="field !py-2 !text-xs" required>
-                <option value="" disabled>
-                  Nova conversa com um contacto…
-                </option>
-                {withPhone.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              <button type="submit" className="btn-dark !px-3.5 !py-2 !text-xs">
-                Abrir
-              </button>
-            </Form>
-            <ul className="divide-y divide-zinc-100 xl:max-h-[560px] xl:overflow-y-auto">
-              {conversations.map((conv) => (
-                <li key={conv.id} className="group/conv relative">
-                  <Link
-                    href={`/admin/whatsapp?c=${conv.id}`}
-                    className={cn(
-                      "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-zinc-50 active:bg-zinc-100",
-                      conv.id === selectedId && "bg-plum/[0.06]"
-                    )}
-                  >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-bold text-zinc-600">
-                      {initials(conv.name)}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-semibold text-zinc-900">{conv.name}</span>
-                        <span className={cn("shrink-0 text-[11px]", conv.unread ? "font-bold text-emerald-600" : "text-zinc-500")}>
-                          {timeLabel(conv.at)}
-                        </span>
-                      </span>
-                      <span className="mt-0.5 flex items-center justify-between gap-2">
-                        <span className="truncate text-xs text-zinc-500">
-                          {conv.direction === "out" && "Você: "}
-                          {waPreview(conv.kind, conv.body, conv.media_name)}
-                        </span>
-                        {conv.unread > 0 && (
-                          <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white">
-                            {conv.unread}
-                          </span>
-                        )}
-                      </span>
-                    </span>
-                  </Link>
-                  <div className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-lg bg-white shadow-sm ring-1 ring-zinc-200 xl:group-hover/conv:block">
-                    <DeleteConversationButton
-                      contactId={conv.id}
-                      name={conv.name}
-                      redirectTo={conv.id === selectedId ? "/admin/whatsapp" : undefined}
-                      compact
-                    />
-                  </div>
-                </li>
-              ))}
-              {conversations.length === 0 && (
-                <li className="px-4 py-8 text-center text-sm text-zinc-500">
-                  Ainda sem conversas. As mensagens recebidas aparecem aqui.
-                </li>
-              )}
-            </ul>
-          </div>
+      <div className="card grid overflow-hidden max-xl:rounded-[20px] xl:h-[max(560px,calc(100dvh-15.5rem))] xl:grid-cols-[minmax(300px,360px)_1fr]">
+        {/* ----------------------- conversas ----------------------- */}
+        <div className={cn("flex min-h-0 flex-col xl:border-r xl:border-line", selected && "max-xl:hidden")}>
+          <ConversationList conversations={conversations} contacts={withPhone} selectedId={selectedId} />
         </div>
 
-        {/* -------------------------- conversa --------------------------- */}
-        <div className="min-w-0">
-          {selected ? (
-            <div className="wa-thread flex h-[720px] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-              <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] xl:gap-3 xl:px-5 xl:py-3.5">
-                <div className="flex min-w-0 items-center gap-2 xl:gap-3">
-                  <Link href="/admin/whatsapp" aria-label="Voltar às conversas" className="tap flex h-10 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-700 xl:hidden">
-                    <ChevronLeft size={24} />
-                  </Link>
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-plum text-xs font-bold text-white">
-                    {initials(selected.name)}
-                  </span>
-                  <div className="min-w-0">
-                    <ContactNameEditor key={selected.name} contactId={selected.id} name={selected.name} />
-                    <p className="text-xs text-zinc-500">
-                      {selectedPhone ? formatPhone(selectedPhone) : "Sem número válido"}
-                    </p>
+        {/* ------------------------ conversa ------------------------ */}
+        {selected ? (
+          <div className="wa-thread flex min-h-0 flex-col bg-white">
+            <div className="flex items-center justify-between gap-2 border-b border-line px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] xl:gap-3 xl:px-5 xl:py-3">
+              <div className="flex min-w-0 items-center gap-2 xl:gap-3">
+                <Link href="/admin/whatsapp" aria-label="Voltar às conversas" className="tap flex h-10 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-700 xl:hidden">
+                  <ChevronLeft size={24} />
+                </Link>
+                <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[13px] font-bold", avatarTone(selected.name))}>
+                  {initials(selected.name)}
+                </span>
+                <div className="min-w-0">
+                  <ContactNameEditor key={selected.name} contactId={selected.id} name={selected.name} />
+                  <p className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-zinc-500">
+                    <span className="tabular-nums">{selectedPhone ? formatPhone(selectedPhone) : "Sem número válido"}</span>
                     {selected.timezone && (
-                      <LocalTime timezone={selected.timezone} country={selected.country} className="mt-0.5 text-[11px] text-zinc-500" />
+                      <>
+                        <span className="text-zinc-300 max-sm:hidden">·</span>
+                        <LocalTime timezone={selected.timezone} country={selected.country} className="text-[11px] text-zinc-500 max-sm:hidden" />
+                      </>
                     )}
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Link
-                    href={`/admin/crm/${selected.id}`}
-                    aria-label="Ficha no CRM"
-                    className="tap inline-flex items-center gap-1 text-xs font-semibold text-plum hover:underline max-xl:h-10 max-xl:w-10 max-xl:justify-center max-xl:rounded-full max-xl:bg-plum/[0.07]"
-                  >
-                    <UserRound size={17} className="xl:hidden" />
-                    <span className="hidden items-center gap-1 xl:inline-flex">
-                      Ficha no CRM <ArrowUpRight size={13} />
-                    </span>
-                  </Link>
-                  {messages.length > 0 && (
-                    <DeleteConversationButton
-                      contactId={selected.id}
-                      name={selected.name}
-                      count={messages.length < 300 ? messages.length : undefined}
-                      redirectTo="/admin/whatsapp"
-                      compact
-                    />
-                  )}
-                </div>
-              </div>
-
-              <div className="flex-1 space-y-2 overflow-y-auto overscroll-contain bg-zinc-50 px-3 py-4 xl:px-5 xl:py-5">
-                {messages.length === 0 && (
-                  <p className="py-16 text-center text-sm text-zinc-500">
-                    Sem mensagens. Escreva abaixo para iniciar a conversa.
                   </p>
-                )}
-                {messages.map((m) => (
-                  <MessageBubble
-                    key={m.id}
-                    m={{
-                      id: m.id,
-                      direction: m.direction,
-                      body: m.body,
-                      kind: m.kind,
-                      mediaMime: m.mediaMime,
-                      mediaName: m.mediaName,
-                      mediaSize: m.mediaSize,
-                      mediaSeconds: m.mediaSeconds,
-                      downloaded: !!m.mediaFile,
-                      canFetch: !!m.waRaw,
-                      deletable: m.direction === "out" && !!m.waMessageId && isRecent(m.createdAt),
-                      at: m.createdAt.toISOString(),
-                    }}
-                  />
-                ))}
-                <ScrollToBottom dep={messages.length} />
+                </div>
               </div>
-
-              <ReplyBox contactId={selected.id} disabled={state !== "open" || !selectedPhone} />
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Link
+                  href={`/admin/crm/${selected.id}`}
+                  aria-label="Ficha no CRM"
+                  className="tap inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-zinc-200 bg-white text-xs font-semibold text-zinc-700 transition-colors hover:border-plum/40 hover:text-plum max-xl:w-10 xl:px-4"
+                >
+                  <UserRound size={15} />
+                  <span className="hidden xl:inline">Ficha no CRM</span>
+                </Link>
+                {messages.length > 0 && (
+                  <DeleteConversationButton
+                    contactId={selected.id}
+                    name={selected.name}
+                    count={messages.length < 300 ? messages.length : undefined}
+                    redirectTo="/admin/whatsapp"
+                    compact
+                  />
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="hidden h-[720px] flex-col items-center justify-center rounded-2xl border border-zinc-200 bg-white p-8 text-center xl:flex">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-plum/10 text-plum">
-                <MessageCircle size={24} />
-              </span>
-              <p className="mt-4 font-display text-2xl text-zinc-950">Escolha uma conversa</p>
-              <p className="mt-2 max-w-sm text-sm text-zinc-500">
-                Selecione uma conversa à esquerda ou abra uma nova com um contacto do CRM.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* --------------------------- definições -------------------------- */}
-      {me?.role === "admin" && (
-        <Link
-          href="/admin/config?s=whatsapp"
-          className={cn("mt-6 flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-sm transition-colors hover:border-plum/40", selected && "max-xl:hidden")}
-        >
-          <Settings2 size={16} className="text-plum" />
-          <span className="flex-1">
-            <span className="font-semibold text-zinc-900">Definições da Evolution API</span>
-            <span className="ml-2 text-zinc-500">
-              {configured ? "URL, API key, instância e mensagens automáticas" : "Ainda não configurado — comece aqui"}
+            <div className="wa-wall flex-1 overflow-y-auto overscroll-contain px-3 pb-4 xl:px-8">
+              {messages.length === 0 && (
+                <div className="flex h-full flex-col items-center justify-center py-16 text-center">
+                  <span className={cn("flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold", avatarTone(selected.name))}>{initials(selected.name)}</span>
+                  <p className="mt-4 font-display text-xl text-zinc-950">Comece a conversa</p>
+                  <p className="mt-1 text-sm text-zinc-500">Escreva abaixo para enviar a primeira mensagem a {selected.name.split(" ")[0]}.</p>
+                </div>
+              )}
+              {thread.map((day) => (
+                <section key={day.key}>
+                  <div className="sticky top-0 z-10 flex justify-center pb-1 pt-3">
+                    <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-zinc-500 shadow-[0_1px_2px_rgb(24_24_27/0.08)] ring-1 ring-zinc-200/60 backdrop-blur">
+                      {day.label}
+                    </span>
+                  </div>
+                  {day.items.map(({ m, grouped, tail }) => (
+                    <MessageBubble
+                      key={m.id}
+                      grouped={grouped}
+                      tail={tail}
+                      m={{
+                        id: m.id,
+                        direction: m.direction,
+                        body: m.body,
+                        kind: m.kind,
+                        mediaMime: m.mediaMime,
+                        mediaName: m.mediaName,
+                        mediaSize: m.mediaSize,
+                        mediaSeconds: m.mediaSeconds,
+                        downloaded: !!m.mediaFile,
+                        canFetch: !!m.waRaw,
+                        deletable: m.direction === "out" && !!m.waMessageId && isRecent(m.createdAt),
+                        at: m.createdAt.toISOString(),
+                      }}
+                    />
+                  ))}
+                </section>
+              ))}
+              <ScrollToBottom dep={messages.length} />
+            </div>
+
+            <ReplyBox contactId={selected.id} disabled={state !== "open" || !selectedPhone} />
+          </div>
+        ) : (
+          <div className="wa-wall hidden flex-col items-center justify-center p-8 text-center xl:flex">
+            <span className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-white text-plum shadow-[0_12px_30px_-12px_rgb(128_0_128/0.35)] ring-1 ring-plum/10">
+              <MessageCircle size={26} />
             </span>
-          </span>
-          <ArrowUpRight size={15} className="text-zinc-400" />
-        </Link>
-      )}
+            <p className="mt-5 font-display text-2xl text-zinc-950">Escolha uma conversa</p>
+            <p className="mt-2 max-w-sm text-sm leading-relaxed text-zinc-500">
+              Selecione uma conversa à esquerda ou carregue em <strong className="font-semibold text-plum">Nova</strong> para escrever a um contacto do CRM.
+            </p>
+          </div>
+        )}
+      </div>
     </>
   );
+}
+
+type Msg = typeof whatsappMessages.$inferSelect;
+
+const dayKey = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Europe/Lisbon" });
+
+/** Separa a conversa por dias e junta as mensagens seguidas da mesma pessoa. */
+function groupByDay(messages: Msg[]) {
+  const today = dayKey(new Date());
+  const yesterday = dayKey(new Date(Date.now() - 86_400_000));
+  const days: { key: string; label: string; items: { m: Msg; grouped: boolean; tail: boolean }[] }[] = [];
+  messages.forEach((m, i) => {
+    const key = dayKey(m.createdAt);
+    let day = days[days.length - 1];
+    if (!day || day.key !== key) {
+      const sameYear = key.slice(0, 4) === today.slice(0, 4);
+      const label =
+        key === today
+          ? "Hoje"
+          : key === yesterday
+            ? "Ontem"
+            : m.createdAt.toLocaleDateString("pt-PT", { timeZone: "Europe/Lisbon", weekday: "long", day: "numeric", month: "long", ...(sameYear ? {} : { year: "numeric" }) });
+      day = { key, label, items: [] };
+      days.push(day);
+    }
+    const prev = messages[i - 1];
+    const next = messages[i + 1];
+    const near = (a?: Msg, b?: Msg) =>
+      !!a && !!b && a.direction === b.direction && dayKey(a.createdAt) === dayKey(b.createdAt) && Math.abs(b.createdAt.getTime() - a.createdAt.getTime()) < 5 * 60_000;
+    day.items.push({ m, grouped: day.items.length > 0 && near(prev, m), tail: !near(m, next) });
+  });
+  return days;
 }

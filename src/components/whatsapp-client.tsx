@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
+  CheckCheck,
   Download,
   FileText,
   Film,
@@ -35,11 +36,12 @@ import {
 } from "@/lib/actions-whatsapp";
 import { WA_MAX_DOCUMENT, WA_MAX_MEDIA, waPreview } from "@/lib/whatsapp-def";
 import type { ConnectionState } from "@/lib/evolution";
+import { Modal } from "@/components/form-kit";
 import { cn } from "@/lib/utils";
 
 const STATE_LABEL: Record<ConnectionState, { label: string; dot: string }> = {
   open: { label: "Ligado", dot: "bg-emerald-500" },
-  connecting: { label: "A aguardar leitura do QR", dot: "bg-amber-500" },
+  connecting: { label: "A aguardar o QR", dot: "bg-amber-500" },
   close: { label: "Desligado", dot: "bg-zinc-400" },
   unknown: { label: "Sem ligação à API", dot: "bg-rose-500" },
 };
@@ -72,67 +74,47 @@ export function WhatsappConnection({
   }, [qr, router]);
 
   const s = STATE_LABEL[state];
+  const check = () =>
+    start(async () => {
+      const r = await getWhatsappStatus();
+      setState(r.state);
+      setError(r.error ?? null);
+    });
+  const connect = () =>
+    start(async () => {
+      setError(null);
+      const r = await connectWhatsapp();
+      setState(r.state);
+      setQr(r.qr ?? null);
+      if (r.error) setError(r.error);
+      if (r.state === "open") router.refresh();
+    });
 
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className={cn("h-2.5 w-2.5 rounded-full", s.dot)} />
-          <span className="text-sm font-semibold text-zinc-900">{s.label}</span>
-        </div>
+    <>
+      {/* Estado em forma de pastilha no cabeçalho: discreto quando está tudo bem */}
+      <div className="flex h-[38px] items-center gap-1 rounded-full border border-zinc-200 bg-white pl-3.5 pr-1 shadow-[0_1px_2px_rgb(24_24_27/0.04)]">
+        <span className="relative mr-1 flex h-2.5 w-2.5">
+          {state === "open" && <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-60" />}
+          <span className={cn("relative h-2.5 w-2.5 rounded-full", s.dot)} />
+        </span>
+        <span className="whitespace-nowrap text-xs font-semibold text-zinc-800">{s.label}</span>
         <button
           type="button"
           title="Verificar estado"
+          aria-label="Verificar estado"
           disabled={pending || !configured}
-          onClick={() =>
-            start(async () => {
-              const r = await getWhatsappStatus();
-              setState(r.state);
-              setError(r.error ?? null);
-            })
-          }
-          className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-40"
+          onClick={check}
+          className="ml-1 rounded-full p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-40"
         >
-          <RefreshCw size={15} className={pending ? "animate-spin" : ""} />
+          <RefreshCw size={14} className={pending ? "animate-spin" : ""} />
         </button>
-      </div>
-
-      {qr && (
-        <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qr} alt="QR code do WhatsApp" className="mx-auto h-56 w-56 rounded-lg bg-white p-2" />
-          <p className="mt-3 text-xs leading-relaxed text-zinc-500">
-            No telemóvel: WhatsApp → Definições → Dispositivos ligados → Ligar dispositivo.
-          </p>
-        </div>
-      )}
-
-      {error && <p className="mt-3 text-xs leading-relaxed text-rose-600">{error}</p>}
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {state !== "open" ? (
-          <button
-            type="button"
-            disabled={pending || !configured}
-            onClick={() =>
-              start(async () => {
-                setError(null);
-                const r = await connectWhatsapp();
-                setState(r.state);
-                setQr(r.qr ?? null);
-                if (r.error) setError(r.error);
-                if (r.state === "open") router.refresh();
-              })
-            }
-            className="btn-primary !px-4 !py-2 !text-xs disabled:opacity-50"
-          >
-            {pending ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />}
-            {qr ? "Gerar novo QR" : "Ligar WhatsApp"}
-          </button>
-        ) : (
+        {state === "open" ? (
           <button
             type="button"
             disabled={pending}
+            title="Desligar o WhatsApp"
+            aria-label="Desligar o WhatsApp"
             onClick={() => {
               if (!confirm("Desligar o WhatsApp desta plataforma?")) return;
               start(async () => {
@@ -141,16 +123,39 @@ export function WhatsappConnection({
                 else setState("close");
               });
             }}
-            className="btn-ghost !px-4 !py-2 !text-xs"
+            className="rounded-full p-1.5 text-zinc-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
           >
-            <LogOut size={14} /> Desligar
+            <LogOut size={14} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={pending || !configured}
+            onClick={connect}
+            className="ml-1 inline-flex h-[30px] items-center gap-1.5 rounded-full bg-plum px-3 text-xs font-semibold text-white transition-colors hover:bg-plum-ink disabled:opacity-50"
+          >
+            {pending ? <Loader2 size={13} className="animate-spin" /> : <QrCode size={13} />} Ligar
           </button>
         )}
       </div>
-      {!configured && (
-        <p className="mt-3 text-xs text-zinc-500">A Evolution API ainda não está configurada.</p>
-      )}
-    </div>
+      {error && !qr && <p className="w-full text-xs text-rose-600 sm:w-auto">{error}</p>}
+
+      <Modal open={!!qr} onClose={() => setQr(null)} title="Ligar o WhatsApp" description="Leia o código com o telemóvel da Marina" icon={QrCode}>
+        {qr && (
+          <div className="text-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qr} alt="QR code do WhatsApp" className="mx-auto h-60 w-60 rounded-2xl border border-zinc-200 bg-white p-3" />
+            <p className="mx-auto mt-4 max-w-xs text-sm leading-relaxed text-zinc-500">
+              No telemóvel: WhatsApp → Definições → Dispositivos ligados → Ligar dispositivo.
+            </p>
+            {error && <p className="mt-3 text-xs text-rose-600">{error}</p>}
+            <button type="button" onClick={connect} disabled={pending} className="btn-ghost mt-5 !px-5 !py-2.5 !text-xs">
+              {pending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Gerar novo código
+            </button>
+          </div>
+        )}
+      </Modal>
+    </>
   );
 }
 
@@ -207,7 +212,7 @@ export function ReplyBox({ contactId, disabled }: { contactId: number; disabled?
 
   return (
     <div
-      className="border-t border-zinc-200 bg-white p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] xl:p-3"
+      className="border-t border-zinc-200/70 bg-white/90 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur xl:px-4 xl:py-3"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
@@ -301,7 +306,7 @@ export function ReplyBox({ contactId, disabled }: { contactId: number; disabled?
             disabled={disabled}
             placeholder={disabled ? "WhatsApp desligado" : file ? "Legenda (opcional)…" : "Escreva uma mensagem…"}
             title="Enter envia, Shift+Enter nova linha"
-            className="field max-h-40 min-h-[44px] flex-1 resize-none xl:resize-y"
+            className="max-h-40 min-h-[44px] flex-1 resize-none rounded-[22px] border border-transparent bg-zinc-100/80 px-4 py-2.5 text-sm leading-6 text-zinc-900 outline-none transition-colors placeholder:text-zinc-400 focus:border-plum/30 focus:bg-white focus:ring-4 focus:ring-plum/10 disabled:opacity-60"
           />
           {text.trim() || file ? (
             <button
@@ -451,7 +456,7 @@ export type WaMessage = {
  * Uma mensagem da conversa. Fotos, áudios e vídeos recebidos só são pedidos ao servidor
  * quando se clica em "Ver foto" / "Ouvir" (os enviados por nós aparecem logo).
  */
-export function MessageBubble({ m, readOnly }: { m: WaMessage; readOnly?: boolean }) {
+export function MessageBubble({ m, readOnly, grouped, tail = true }: { m: WaMessage; readOnly?: boolean; grouped?: boolean; tail?: boolean }) {
   const router = useRouter();
   const out = m.direction === "out";
   const [show, setShow] = useState(m.downloaded);
@@ -480,7 +485,8 @@ export function MessageBubble({ m, readOnly }: { m: WaMessage; readOnly?: boolea
       }
     });
 
-  const time = new Date(m.at).toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Lisbon" });
+  // O dia aparece no separador da conversa; aqui basta a hora
+  const time = new Date(m.at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Lisbon" });
   const reveal = (label: string, Icon: typeof ImageIcon) => (
     <button
       type="button"
@@ -557,12 +563,13 @@ export function MessageBubble({ m, readOnly }: { m: WaMessage; readOnly?: boolea
   }
 
   return (
-    <div className={cn("group flex items-center gap-1.5", out ? "flex-row-reverse" : "flex-row")}>
+    <div className={cn("group flex items-center gap-1.5", out ? "flex-row-reverse" : "flex-row", grouped ? "mt-1" : "mt-3")}>
       <div
         className={cn(
-          "max-w-[75%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
-          isMedia && "px-2.5 pt-2.5",
-          out ? "rounded-br-md bg-plum text-white" : "rounded-bl-md border border-zinc-200 bg-white text-zinc-800"
+          "max-w-[78%] whitespace-pre-wrap break-words rounded-[20px] px-3.5 py-2 text-[14px] leading-relaxed shadow-[0_1px_2px_rgb(24_24_27/0.06)] xl:max-w-[62%]",
+          isMedia && "px-2 pt-2",
+          out ? "bg-plum text-white" : "bg-white text-zinc-800",
+          tail && (out ? "rounded-br-md" : "rounded-bl-md")
         )}
       >
         {media}
@@ -577,7 +584,10 @@ export function MessageBubble({ m, readOnly }: { m: WaMessage; readOnly?: boolea
         ) : (
           m.body && <p className={cn(isMedia && "mt-2 px-1.5")}>{m.body}</p>
         )}
-        <span className={cn("mt-1 block text-right text-[10px]", isMedia && "px-1.5", out ? "text-white/70" : "text-zinc-500")}>{time}</span>
+        <span className={cn("-mb-0.5 mt-0.5 flex items-center justify-end gap-1 text-[10px] tabular-nums", isMedia && "px-1.5 pb-1", out ? "text-white/70" : "text-zinc-400")}>
+          {time}
+          {out && <CheckCheck size={13} className="text-white/80" />}
+        </span>
       </div>
 
       {!readOnly && (

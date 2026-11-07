@@ -421,6 +421,13 @@ dialog[open]::backdrop {
   }
 }
 
+/* Fundo da conversa: tom quente com uma trama de pontos muito leve */
+.wa-wall {
+  background-color: #f6f3ef;
+  background-image: radial-gradient(rgb(128 0 128 / 0.05) 1px, transparent 1.2px);
+  background-size: 18px 18px;
+}
+
 /* Conversa de WhatsApp em ecrã inteiro, sempre acima do teclado */
 @media (max-width: 1279px) {
   .animate-page-in:has(.wa-thread) {
