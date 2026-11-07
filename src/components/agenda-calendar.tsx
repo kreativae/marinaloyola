@@ -42,7 +42,7 @@ export type CalEvent = {
   draft?: AgendaEventDraft;
 };
 
-const STATUS_OPTIONS = Object.entries(APPT_STATUS).map(([value, s]) => ({ value, label: s.label }));
+const STATUS_OPTIONS = Object.entries(APPT_STATUS).map(([value, s]) => ({ value, label: s.label, tone: s.className }));
 const WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 const HOUR_PX = 64;
 

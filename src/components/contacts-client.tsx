@@ -103,7 +103,7 @@ export type ContactData = {
   timezone: string | null;
 };
 
-const STATUS_OPTIONS = Object.entries(CONTACT_STATUS).map(([value, s]) => ({ value, label: s.label }));
+const STATUS_OPTIONS = Object.entries(CONTACT_STATUS).map(([value, s]) => ({ value, label: s.label, tone: s.className }));
 const SOURCE_OPTIONS = Object.entries(SOURCES).map(([value, label]) => ({ value, label }));
 
 const shortDate = (iso: string) =>
@@ -445,6 +445,7 @@ export function ContactsTable({
                 </td>
                 <td className="admin-td">
                   <SelectAction
+                    title="Fase do contacto"
                     value={c.status}
                     options={STATUS_OPTIONS}
                     onSelect={async (v) => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { ChoicePicker, type Choice } from "@/components/dropdown";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRightLeft, Check, Copy, GripVertical } from "lucide-react";
@@ -13,31 +14,16 @@ export function SelectAction({
   value,
   options,
   onSelect,
+  title = "Estado",
   className,
 }: {
   value: string;
-  options: { value: string; label: string }[];
-  onSelect: (value: string) => Promise<void>;
+  options: Choice[];
+  onSelect: (value: string) => Promise<unknown>;
+  title?: string;
   className?: string;
 }) {
-  const [pending, start] = useTransition();
-  return (
-    <select
-      value={value}
-      disabled={pending}
-      onChange={(e) => start(async () => onSelect(e.target.value))}
-      className={cn(
-        "cursor-pointer rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-800 outline-none transition-colors hover:border-plum/50 disabled:opacity-50",
-        className
-      )}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  );
+  return <ChoicePicker value={value} options={options} onSelect={onSelect} title={title} size="sm" className={className} />;
 }
 
 /* ------------------------------ UTILITÁRIOS ----------------------------- */

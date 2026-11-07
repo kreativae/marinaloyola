@@ -55,10 +55,7 @@ import { APPT_STATUS, CONTACT_STATUS, eur, fmtDate, fmtDateTime, initials, INTER
 
 export const dynamic = "force-dynamic";
 
-const PAYMENT_OPTIONS = Object.entries(PAYMENT_STATUS).map(([value, s]) => ({
-  value,
-  label: s.label,
-}));
+const PAYMENT_OPTIONS = Object.entries(PAYMENT_STATUS).map(([value, s]) => ({ value, label: s.label, tone: s.className }));
 
 export default async function ContactDetailPage({
   params,
@@ -439,9 +436,10 @@ export default async function ContactDetailPage({
                         <span className="text-sm font-bold tabular-nums text-zinc-950">
                           {eur(p.amount)}
                         </span>
-                        <span className={`chip ${st?.className ?? ""}`}>{st?.label}</span>
+                        {p.status !== "pending" && <span className={`chip ${st?.className ?? ""}`}>{st?.label}</span>}
                         {p.status === "pending" && (
                           <SelectAction
+                            title="Estado do pagamento"
                             value={p.status}
                             options={PAYMENT_OPTIONS}
                             onSelect={setPaymentStatus.bind(null, p.id)}

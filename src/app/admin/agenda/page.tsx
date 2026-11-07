@@ -31,10 +31,7 @@ import { APPT_STATUS, cn, fmtDate, weekdayLabel } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const APPT_OPTIONS = Object.entries(APPT_STATUS).map(([value, s]) => ({
-  value,
-  label: s.label,
-}));
+const APPT_OPTIONS = Object.entries(APPT_STATUS).map(([value, s]) => ({ value, label: s.label, tone: s.className }));
 
 type Tab = "calendario" | "lista" | "disponibilidade";
 
@@ -303,7 +300,7 @@ function SessionRow({ r, now, past = false }: { r: Row; now: Date; past?: boolea
               <UserRound size={16} />
             </Link>
           )}
-          <SelectAction value={appt.status} options={APPT_OPTIONS} onSelect={setAppointmentStatus.bind(null, appt.id)} />
+          <SelectAction title="Estado da sessão" value={appt.status} options={APPT_OPTIONS} onSelect={setAppointmentStatus.bind(null, appt.id)} />
         </div>
       )}
     </li>
